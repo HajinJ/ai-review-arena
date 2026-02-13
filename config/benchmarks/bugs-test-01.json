@@ -1,0 +1,45 @@
+{
+  "id": "bugs-01",
+  "category": "bugs",
+  "description": "Logic errors, off-by-one, null handling, and race condition",
+  "language": "javascript",
+  "code": "class OrderService {\n  constructor(db) {\n    this.db = db;\n    this.processingOrders = new Set();\n  }\n\n  async processOrder(orderId) {\n    const order = await this.db.findOrder(orderId);\n    if (order.status == 'pending') {\n      this.processingOrders.add(orderId);\n      \n      let total = 0;\n      for (let i = 0; i <= order.items.length; i++) {\n        const item = order.items[i];\n        total += item.price * item.quantity;\n        if (item.discount) {\n          total -= item.discount;\n        }\n      }\n\n      if (total < 0) total = 0;\n\n      const payment = await this.chargePayment(order.userId, total);\n      order.status = 'completed';\n      order.total = total;\n      await this.db.saveOrder(order);\n\n      this.processingOrders.delete(orderId);\n      return { success: true, total };\n    }\n    return { success: false, reason: 'Order not pending' };\n  }\n\n  async cancelOrder(orderId) {\n    const order = await this.db.findOrder(orderId);\n    if (order.status !== 'completed') {\n      order.status = 'cancelled';\n      await this.db.saveOrder(order);\n      if (order.total > 0) {\n        await this.refundPayment(order.userId, order.total);\n      }\n      return { success: true };\n    }\n    return { success: false };\n  }\n\n  getActiveOrders() {\n    return this.db.query('SELECT * FROM orders WHERE status IN (\"pending\", \"processing\")');\n  }\n}",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "off_by_one",
+      "location": "processOrder loop",
+      "description_contains": ["off-by-one", "<=", "< length", "undefined", "index"]
+    },
+    {
+      "severity": "critical",
+      "type": "race_condition",
+      "location": "processOrder",
+      "description_contains": ["race", "concurrent", "double", "lock", "atomic"]
+    },
+    {
+      "severity": "high",
+      "type": "null_reference",
+      "location": "processOrder null check",
+      "description_contains": ["null", "undefined", "check", "order.items"]
+    },
+    {
+      "severity": "high",
+      "type": "type_coercion",
+      "location": "processOrder status check",
+      "description_contains": ["==", "===", "strict", "type coercion"]
+    },
+    {
+      "severity": "high",
+      "type": "error_handling",
+      "location": "processOrder chargePayment",
+      "description_contains": ["error", "try", "catch", "exception", "failure", "payment"]
+    },
+    {
+      "severity": "medium",
+      "type": "logic_error",
+      "location": "cancelOrder",
+      "description_contains": ["cancel", "processing", "race", "already being processed"]
+    }
+  ]
+}

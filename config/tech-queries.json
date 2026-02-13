@@ -1,0 +1,225 @@
+{
+  "springboot": {
+    "queries": [
+      "Spring Boot {version} best practices production {year}",
+      "Spring Boot production configuration checklist security",
+      "Spring Boot performance tuning connection pool thread pool"
+    ],
+    "ttl_days": 3
+  },
+  "spring-cloud": {
+    "queries": [
+      "Spring Cloud microservices best practices {year}",
+      "Spring Cloud service discovery circuit breaker patterns"
+    ],
+    "ttl_days": 5
+  },
+  "java": {
+    "queries": [
+      "Java {version} best practices modern features {year}",
+      "Java memory management garbage collection tuning production"
+    ],
+    "ttl_days": 5
+  },
+  "kotlin": {
+    "queries": [
+      "Kotlin best practices coroutines null safety {year}",
+      "Kotlin Android development best practices"
+    ],
+    "ttl_days": 5
+  },
+  "react": {
+    "queries": [
+      "React {version} best practices hooks patterns {year}",
+      "React performance optimization memoization virtual DOM",
+      "React state management patterns {year}"
+    ],
+    "ttl_days": 3
+  },
+  "nextjs": {
+    "queries": [
+      "Next.js {version} best practices App Router {year}",
+      "Next.js performance SSR SSG ISR optimization"
+    ],
+    "ttl_days": 3
+  },
+  "vue": {
+    "queries": [
+      "Vue {version} Composition API best practices {year}",
+      "Vue performance optimization reactivity system"
+    ],
+    "ttl_days": 3
+  },
+  "angular": {
+    "queries": [
+      "Angular {version} best practices standalone components {year}",
+      "Angular performance change detection optimization"
+    ],
+    "ttl_days": 3
+  },
+  "express": {
+    "queries": [
+      "Express.js production best practices security middleware {year}",
+      "Express.js performance optimization clustering"
+    ],
+    "ttl_days": 3
+  },
+  "nestjs": {
+    "queries": [
+      "NestJS best practices module architecture {year}",
+      "NestJS performance microservices patterns"
+    ],
+    "ttl_days": 3
+  },
+  "django": {
+    "queries": [
+      "Django {version} best practices production {year}",
+      "Django performance optimization ORM query optimization"
+    ],
+    "ttl_days": 3
+  },
+  "fastapi": {
+    "queries": [
+      "FastAPI best practices async patterns {year}",
+      "FastAPI production deployment performance"
+    ],
+    "ttl_days": 3
+  },
+  "golang": {
+    "queries": [
+      "Go {version} best practices concurrency patterns {year}",
+      "Go production performance goroutine management"
+    ],
+    "ttl_days": 5
+  },
+  "rust": {
+    "queries": [
+      "Rust best practices ownership lifetime patterns {year}",
+      "Rust performance optimization async production"
+    ],
+    "ttl_days": 5
+  },
+  "swift": {
+    "queries": [
+      "Swift {version} best practices modern concurrency {year}",
+      "Swift iOS performance optimization memory management"
+    ],
+    "ttl_days": 3
+  },
+  "redis": {
+    "queries": [
+      "Redis {version} best practices production {year}",
+      "Redis connection pool configuration sentinel cluster",
+      "Redis data structure selection performance patterns"
+    ],
+    "ttl_days": 3
+  },
+  "mysql": {
+    "queries": [
+      "MySQL {version} query optimization best practices {year}",
+      "MySQL index design patterns composite covering indexes",
+      "MySQL connection pool sizing production configuration"
+    ],
+    "ttl_days": 3
+  },
+  "postgresql": {
+    "queries": [
+      "PostgreSQL {version} best practices production {year}",
+      "PostgreSQL query optimization indexing EXPLAIN ANALYZE",
+      "PostgreSQL connection pooling PgBouncer configuration"
+    ],
+    "ttl_days": 3
+  },
+  "mongodb": {
+    "queries": [
+      "MongoDB best practices schema design indexing {year}",
+      "MongoDB performance optimization aggregation pipeline"
+    ],
+    "ttl_days": 3
+  },
+  "docker": {
+    "queries": [
+      "Docker best practices multi-stage build security {year}",
+      "Dockerfile optimization image size layer caching"
+    ],
+    "ttl_days": 5
+  },
+  "kubernetes": {
+    "queries": [
+      "Kubernetes best practices production deployment {year}",
+      "Kubernetes resource management HPA pod disruption budget"
+    ],
+    "ttl_days": 5
+  },
+  "kafka": {
+    "queries": [
+      "Apache Kafka best practices producer consumer {year}",
+      "Kafka partition design consumer group optimization"
+    ],
+    "ttl_days": 5
+  },
+  "elasticsearch": {
+    "queries": [
+      "Elasticsearch best practices indexing mapping {year}",
+      "Elasticsearch performance query optimization shard sizing"
+    ],
+    "ttl_days": 5
+  },
+  "react-native": {
+    "queries": [
+      "React Native best practices performance {year}",
+      "React Native bridge optimization new architecture"
+    ],
+    "ttl_days": 3
+  },
+  "flutter": {
+    "queries": [
+      "Flutter best practices state management performance {year}",
+      "Flutter widget optimization rendering pipeline"
+    ],
+    "ttl_days": 3
+  },
+  "unity": {
+    "queries": [
+      "Unity {version} performance optimization best practices {year}",
+      "Unity memory management object pooling draw call batching",
+      "Unity game architecture patterns ECS ScriptableObjects"
+    ],
+    "ttl_days": 5
+  },
+  "unreal": {
+    "queries": [
+      "Unreal Engine {version} performance optimization {year}",
+      "Unreal Engine C++ blueprint best practices"
+    ],
+    "ttl_days": 5
+  },
+  "typescript": {
+    "queries": [
+      "TypeScript {version} best practices type safety {year}",
+      "TypeScript strict mode advanced patterns generics"
+    ],
+    "ttl_days": 5
+  },
+  "python": {
+    "queries": [
+      "Python {version} best practices production {year}",
+      "Python performance optimization async profiling"
+    ],
+    "ttl_days": 5
+  },
+  "graphql": {
+    "queries": [
+      "GraphQL API best practices schema design {year}",
+      "GraphQL performance N+1 query optimization DataLoader"
+    ],
+    "ttl_days": 3
+  },
+  "prisma": {
+    "queries": [
+      "Prisma ORM best practices query optimization {year}",
+      "Prisma production configuration connection pooling"
+    ],
+    "ttl_days": 3
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "architecture-01",
+  "category": "architecture",
+  "description": "SOLID violations, tight coupling, and design pattern issues",
+  "language": "typescript",
+  "code": "class UserManager {\n  private db: Database;\n  private mailer: Mailer;\n  private logger: Logger;\n  private cache: RedisClient;\n  private validator: Validator;\n  private analytics: Analytics;\n  private fileStorage: S3Client;\n\n  constructor() {\n    this.db = new Database('mysql://localhost/app');\n    this.mailer = new Mailer('smtp://mail.example.com');\n    this.logger = new Logger('/var/log/app.log');\n    this.cache = new RedisClient('redis://localhost');\n    this.validator = new Validator();\n    this.analytics = new Analytics('UA-12345');\n    this.fileStorage = new S3Client('us-east-1');\n  }\n\n  async createUser(data: any) {\n    if (!data.email || !data.email.includes('@')) throw new Error('Invalid email');\n    if (!data.password || data.password.length < 8) throw new Error('Weak password');\n    if (!data.name || data.name.length < 2) throw new Error('Invalid name');\n\n    const hashedPassword = await bcrypt.hash(data.password, 10);\n    const user = await this.db.query('INSERT INTO users SET ?', { ...data, password: hashedPassword });\n\n    await this.cache.del('users:list');\n    await this.cache.del(`users:count`);\n\n    await this.mailer.send({ to: data.email, subject: 'Welcome!', body: `Hi ${data.name}, welcome to our platform!` });\n\n    this.analytics.track('user_created', { userId: user.id });\n    this.logger.info(`User created: ${user.id}`);\n\n    if (data.avatar) {\n      await this.fileStorage.upload(`avatars/${user.id}`, data.avatar);\n    }\n\n    return user;\n  }\n\n  async deleteUser(userId: number) {\n    const user = await this.db.query('SELECT * FROM users WHERE id = ?', userId);\n    await this.db.query('DELETE FROM users WHERE id = ?', userId);\n    await this.db.query('DELETE FROM orders WHERE user_id = ?', userId);\n    await this.db.query('DELETE FROM reviews WHERE user_id = ?', userId);\n    await this.db.query('DELETE FROM comments WHERE user_id = ?', userId);\n\n    await this.cache.del(`users:${userId}`);\n    await this.cache.del('users:list');\n\n    await this.mailer.send({ to: user.email, subject: 'Account Deleted', body: 'Your account has been deleted.' });\n    await this.fileStorage.delete(`avatars/${userId}`);\n\n    this.analytics.track('user_deleted', { userId });\n    this.logger.info(`User deleted: ${userId}`);\n  }\n\n  async getUser(userId: number) {\n    const cached = await this.cache.get(`users:${userId}`);\n    if (cached) return JSON.parse(cached);\n    const user = await this.db.query('SELECT * FROM users WHERE id = ?', userId);\n    await this.cache.set(`users:${userId}`, JSON.stringify(user), 3600);\n    return user;\n  }\n\n  async updateUserEmail(userId: number, newEmail: string) {\n    if (!newEmail.includes('@')) throw new Error('Invalid email');\n    await this.db.query('UPDATE users SET email = ? WHERE id = ?', [newEmail, userId]);\n    await this.cache.del(`users:${userId}`);\n    await this.mailer.send({ to: newEmail, subject: 'Email Updated', body: 'Your email has been changed.' });\n  }\n\n  async searchUsers(query: string) {\n    return this.db.query(`SELECT * FROM users WHERE name LIKE '%${query}%' OR email LIKE '%${query}%'`);\n  }\n}",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "god_class",
+      "location": "UserManager class",
+      "description_contains": ["god class", "single responsibility", "SRP", "too many responsibilities"]
+    },
+    {
+      "severity": "critical",
+      "type": "tight_coupling",
+      "location": "constructor",
+      "description_contains": ["tight coupling", "dependency injection", "hardcoded", "constructor"]
+    },
+    {
+      "severity": "high",
+      "type": "no_transaction",
+      "location": "deleteUser",
+      "description_contains": ["transaction", "atomic", "rollback", "partial deletion"]
+    },
+    {
+      "severity": "high",
+      "type": "sql_injection",
+      "location": "searchUsers",
+      "description_contains": ["SQL injection", "parameterized", "concatenat"]
+    },
+    {
+      "severity": "medium",
+      "type": "missing_interface",
+      "location": "UserManager dependencies",
+      "description_contains": ["interface", "abstraction", "dependency inversion", "DIP"]
+    },
+    {
+      "severity": "medium",
+      "type": "validation_coupling",
+      "location": "createUser validation",
+      "description_contains": ["validation", "separate", "validator", "mixed concerns"]
+    }
+  ]
+}

@@ -1,0 +1,220 @@
+{
+  "feature_patterns": {
+    "chat": {
+      "keywords": ["chat", "message", "messaging", "conversation", "DM", "direct message", "inbox"],
+      "file_patterns": ["*chat*", "*message*", "*conversation*"],
+      "guidelines": [
+        {
+          "name": "Apple Push Notification Service",
+          "platform": "ios",
+          "search_query": "Apple Push Notification service APNs best practices {year}",
+          "requirements": ["certificate management", "payload optimization", "background modes", "notification categories", "silent push"]
+        },
+        {
+          "name": "Firebase Cloud Messaging",
+          "platform": "android",
+          "search_query": "Firebase Cloud Messaging FCM best practices {year}",
+          "requirements": ["topic subscription", "data vs notification messages", "high priority handling", "delivery reporting"]
+        },
+        {
+          "name": "WebSocket Best Practices",
+          "platform": "all",
+          "search_query": "WebSocket production best practices reconnection heartbeat {year}",
+          "requirements": ["connection management", "heartbeat mechanism", "reconnection strategy", "message ordering", "backpressure"]
+        },
+        {
+          "name": "End-to-End Encryption",
+          "platform": "all",
+          "search_query": "end-to-end encryption messaging implementation best practices",
+          "requirements": ["key exchange", "message encryption", "key rotation", "forward secrecy"]
+        }
+      ]
+    },
+    "auth": {
+      "keywords": ["auth", "login", "signup", "register", "password", "SSO", "OAuth", "session", "signin", "sign-in"],
+      "file_patterns": ["*auth*", "*login*", "*session*", "*credential*"],
+      "guidelines": [
+        {
+          "name": "OAuth 2.0 / OpenID Connect",
+          "platform": "all",
+          "search_query": "OAuth 2.0 OIDC security best practices {year}",
+          "requirements": ["PKCE for public clients", "token rotation", "secure token storage", "state parameter validation", "nonce verification"]
+        },
+        {
+          "name": "Sign in with Apple",
+          "platform": "ios",
+          "search_query": "Sign in with Apple implementation requirements App Store Review {year}",
+          "requirements": ["mandatory when third-party login exists", "name and email scope handling", "credential state monitoring", "server-side validation"]
+        },
+        {
+          "name": "Biometric Authentication",
+          "platform": "mobile",
+          "search_query": "biometric authentication FaceID TouchID fingerprint best practices {year}",
+          "requirements": ["fallback mechanism", "keychain keystore integration", "enrollment state handling", "user cancellation"]
+        },
+        {
+          "name": "Password Security",
+          "platform": "all",
+          "search_query": "password hashing bcrypt argon2 security best practices {year}",
+          "requirements": ["argon2id or bcrypt", "minimum 12 character requirement", "breach database checking", "rate limiting"]
+        },
+        {
+          "name": "Session Management",
+          "platform": "all",
+          "search_query": "session management security best practices OWASP {year}",
+          "requirements": ["secure cookie flags", "session rotation on auth", "idle timeout", "concurrent session control"]
+        }
+      ]
+    },
+    "payment": {
+      "keywords": ["payment", "purchase", "billing", "subscription", "IAP", "checkout", "cart", "stripe", "paypal"],
+      "file_patterns": ["*payment*", "*billing*", "*purchase*", "*subscription*", "*checkout*"],
+      "guidelines": [
+        {
+          "name": "Apple In-App Purchase (StoreKit 2)",
+          "platform": "ios",
+          "search_query": "StoreKit 2 in-app purchase implementation guide {year}",
+          "requirements": ["receipt validation server-side", "subscription lifecycle management", "restore purchases", "price localization", "grace period handling"]
+        },
+        {
+          "name": "Google Play Billing Library",
+          "platform": "android",
+          "search_query": "Google Play Billing Library implementation best practices {year}",
+          "requirements": ["purchase verification server-side", "subscription lifecycle", "grace period", "account hold handling", "price change notifications"]
+        },
+        {
+          "name": "PCI-DSS Compliance",
+          "platform": "all",
+          "search_query": "PCI DSS compliance checklist developers {year}",
+          "requirements": ["no raw card data storage", "tokenization", "TLS 1.2+ enforcement", "audit logging", "key management"]
+        },
+        {
+          "name": "SCA/PSD2 Compliance",
+          "platform": "all",
+          "search_query": "PSD2 SCA strong customer authentication implementation {year}",
+          "requirements": ["3D Secure 2.0", "exemption handling", "transaction risk analysis"]
+        }
+      ]
+    },
+    "camera": {
+      "keywords": ["camera", "photo", "image", "gallery", "video", "capture", "scanner", "QR", "barcode"],
+      "file_patterns": ["*camera*", "*photo*", "*image*", "*media*", "*capture*"],
+      "guidelines": [
+        {
+          "name": "Privacy Permissions",
+          "platform": "mobile",
+          "search_query": "iOS Android camera permission best practices usage description {year}",
+          "requirements": ["purpose strings", "graceful denial handling", "minimal permission scope", "just-in-time permission requests"]
+        },
+        {
+          "name": "Photo Library Access",
+          "platform": "ios",
+          "search_query": "iOS PHPickerViewController photo library limited access {year}",
+          "requirements": ["limited photo access support", "PHPicker over UIImagePickerController", "PhotoKit authorization levels"]
+        }
+      ]
+    },
+    "location": {
+      "keywords": ["location", "GPS", "geofence", "map", "coordinates", "tracking", "CLLocation", "FusedLocation"],
+      "file_patterns": ["*location*", "*geo*", "*map*", "*tracking*"],
+      "guidelines": [
+        {
+          "name": "Background Location Guidelines",
+          "platform": "mobile",
+          "search_query": "iOS Android background location guidelines App Store review {year}",
+          "requirements": ["always-on usage justification", "significant location changes API", "battery impact minimization", "location indicator visibility"]
+        },
+        {
+          "name": "Location Privacy",
+          "platform": "all",
+          "search_query": "location data privacy GDPR best practices {year}",
+          "requirements": ["data minimization", "retention limits", "user consent", "anonymization"]
+        }
+      ]
+    },
+    "notification": {
+      "keywords": ["notification", "push", "alert", "reminder", "badge"],
+      "file_patterns": ["*notification*", "*push*", "*alert*"],
+      "guidelines": [
+        {
+          "name": "iOS Notification Guidelines",
+          "platform": "ios",
+          "search_query": "iOS notification categories actions UNUserNotificationCenter best practices {year}",
+          "requirements": ["notification categories", "actionable notifications", "notification service extension", "provisional authorization"]
+        },
+        {
+          "name": "Android Notification Channels",
+          "platform": "android",
+          "search_query": "Android notification channels importance levels best practices {year}",
+          "requirements": ["notification channels", "importance levels", "notification grouping", "foreground service notifications"]
+        }
+      ]
+    },
+    "storage": {
+      "keywords": ["storage", "database", "cache", "persistence", "CoreData", "Room", "SQLite", "Realm"],
+      "file_patterns": ["*storage*", "*database*", "*cache*", "*persist*", "*repository*"],
+      "guidelines": [
+        {
+          "name": "Data Persistence Best Practices",
+          "platform": "mobile",
+          "search_query": "mobile data persistence encryption at rest best practices {year}",
+          "requirements": ["encryption at rest", "secure key storage", "migration strategy", "data backup exclusion for sensitive data"]
+        }
+      ]
+    },
+    "network": {
+      "keywords": ["network", "API", "REST", "GraphQL", "gRPC", "HTTP", "fetch", "axios", "retrofit"],
+      "file_patterns": ["*api*", "*network*", "*client*", "*service*"],
+      "guidelines": [
+        {
+          "name": "API Security",
+          "platform": "all",
+          "search_query": "REST API security best practices OWASP API {year}",
+          "requirements": ["certificate pinning", "token-based auth", "rate limiting", "input validation", "CORS configuration"]
+        },
+        {
+          "name": "App Transport Security",
+          "platform": "ios",
+          "search_query": "iOS App Transport Security ATS requirements {year}",
+          "requirements": ["TLS 1.2 minimum", "forward secrecy", "ATS exception justification"]
+        }
+      ]
+    },
+    "game": {
+      "keywords": ["game", "gameplay", "player", "score", "level", "sprite", "physics", "render", "frame", "shader"],
+      "file_patterns": ["*game*", "*player*", "*level*", "*scene*", "*render*"],
+      "guidelines": [
+        {
+          "name": "Platform Technical Requirements",
+          "platform": "game",
+          "search_query": "game platform technical requirements certification TRC TCR {year}",
+          "requirements": ["frame rate targets", "input handling latency", "save data management", "suspend/resume handling", "memory budgets"]
+        },
+        {
+          "name": "Game Performance Optimization",
+          "platform": "game",
+          "search_query": "game performance optimization draw calls batching LOD {year}",
+          "requirements": ["draw call batching", "LOD implementation", "object pooling", "async loading", "garbage collection management"]
+        }
+      ]
+    },
+    "accessibility": {
+      "keywords": ["accessibility", "a11y", "VoiceOver", "TalkBack", "screen reader", "WCAG"],
+      "file_patterns": ["*accessibility*", "*a11y*"],
+      "guidelines": [
+        {
+          "name": "WCAG 2.1 AA Compliance",
+          "platform": "all",
+          "search_query": "WCAG 2.1 AA compliance checklist developers {year}",
+          "requirements": ["color contrast 4.5:1", "keyboard navigation", "screen reader support", "focus management", "alt text"]
+        },
+        {
+          "name": "Mobile Accessibility",
+          "platform": "mobile",
+          "search_query": "iOS Android accessibility VoiceOver TalkBack implementation {year}",
+          "requirements": ["semantic elements", "accessibility labels", "custom actions", "dynamic type support", "motion reduction"]
+        }
+      ]
+    }
+  }
+}

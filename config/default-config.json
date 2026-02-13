@@ -1,0 +1,127 @@
+{
+  "models": {
+    "claude": {
+      "enabled": true,
+      "roles": ["security", "bugs", "architecture"],
+      "agent_model": "sonnet",
+      "max_parallel_agents": 3
+    },
+    "codex": {
+      "enabled": true,
+      "roles": ["bugs", "performance"],
+      "command": "codex exec --full-auto",
+      "timeout_seconds": 120
+    },
+    "gemini": {
+      "enabled": true,
+      "roles": ["architecture", "testing"],
+      "command": "gemini",
+      "timeout_seconds": 120,
+      "model_variant": "gemini-2.5-pro"
+    }
+  },
+  "review": {
+    "intensity": "standard",
+    "focus_areas": ["security", "bugs", "architecture", "performance", "testing"],
+    "confidence_threshold": 75,
+    "max_file_lines": 500,
+    "file_extensions": ["ts", "tsx", "js", "jsx", "py", "go", "rs", "java", "kt", "swift", "rb", "php", "c", "cpp", "cs"],
+    "exclude_patterns": ["*.test.*", "*.spec.*", "*.d.ts", "node_modules/**", "vendor/**", "dist/**"]
+  },
+  "debate": {
+    "enabled": true,
+    "max_rounds": 2,
+    "challenge_threshold": 60,
+    "consensus_threshold": 80,
+    "require_majority": true,
+    "web_search_enabled": true
+  },
+  "hook_mode": {
+    "enabled": false,
+    "batch_size": 5,
+    "min_lines_changed": 10,
+    "debounce_writes": 3
+  },
+  "output": {
+    "language": "ko",
+    "format": "markdown",
+    "show_cost_estimate": true,
+    "show_model_attribution": true,
+    "show_confidence_scores": true,
+    "show_debate_log": false,
+    "post_to_github": false
+  },
+  "intensity_presets": {
+    "quick": {
+      "phases": ["codebase"],
+      "agent_team": false,
+      "models_active": 0,
+      "focus_areas_max": 2,
+      "debate_rounds": 0,
+      "file_lines_max": 200,
+      "description_ko": "코드베이스 분석 + Claude 단독 처리, Agent Team 없음",
+      "description_en": "Codebase analysis + Claude solo, no Agent Team"
+    },
+    "standard": {
+      "models_active": 2,
+      "focus_areas_max": 4,
+      "debate_rounds": 1,
+      "file_lines_max": 500,
+      "description_ko": "표준 리뷰 - 2개 모델, 1라운드 토론",
+      "description_en": "Standard review - 2 models, 1 debate round"
+    },
+    "deep": {
+      "models_active": 3,
+      "focus_areas_max": 5,
+      "debate_rounds": 2,
+      "file_lines_max": 1000,
+      "description_ko": "심층 리뷰 - 3개 모델, 2라운드 토론",
+      "description_en": "Deep review - 3 models, 2 debate rounds"
+    },
+    "comprehensive": {
+      "models_active": 3,
+      "focus_areas_max": 5,
+      "debate_rounds": 3,
+      "file_lines_max": 2000,
+      "description_ko": "종합 리뷰 - 3개 모델, 전체 포커스, 3라운드 토론",
+      "description_en": "Comprehensive review - 3 models, all focus areas, 3 debate rounds"
+    }
+  },
+  "arena": {
+    "enabled": true,
+    "phases": ["codebase", "stack", "research", "compliance", "benchmark", "review"],
+    "default_phase": "all",
+    "interactive_by_default": false
+  },
+  "cache": {
+    "enabled": true,
+    "base_dir": "~/.claude/plugins/ai-review-arena/cache",
+    "default_ttl_days": 3,
+    "ttl_overrides": {
+      "stack": 7,
+      "research": 3,
+      "compliance": 7,
+      "benchmarks": 14,
+      "figma": 1
+    },
+    "max_cache_size_mb": 50,
+    "cleanup_age_days": 30
+  },
+  "benchmarks": {
+    "enabled": true,
+    "auto_run": true,
+    "rerun_threshold_days": 14,
+    "min_score_for_role": 60,
+    "test_cases_dir": "config/benchmarks"
+  },
+  "compliance": {
+    "enabled": true,
+    "auto_detect": true,
+    "rules_file": "config/compliance-rules.json"
+  },
+  "routing": {
+    "enabled": true,
+    "strategy": "benchmark",
+    "fallback": "default"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "performance-01",
+  "category": "performance",
+  "description": "N+1 queries, O(n^2) algorithm, memory leak, and blocking operations",
+  "language": "javascript",
+  "code": "class ReportGenerator {\n  constructor(db) {\n    this.db = db;\n    this.reportCache = [];\n  }\n\n  async generateUserReport(departmentId) {\n    const users = await this.db.query('SELECT * FROM users WHERE department_id = ?', departmentId);\n    \n    const report = [];\n    for (const user of users) {\n      const orders = await this.db.query('SELECT * FROM orders WHERE user_id = ?', user.id);\n      const reviews = await this.db.query('SELECT * FROM reviews WHERE user_id = ?', user.id);\n      const loginHistory = await this.db.query('SELECT * FROM login_history WHERE user_id = ?', user.id);\n\n      let totalSpent = 0;\n      for (const order of orders) {\n        const items = await this.db.query('SELECT * FROM order_items WHERE order_id = ?', order.id);\n        for (const item of items) {\n          totalSpent += item.price * item.quantity;\n        }\n      }\n\n      report.push({\n        user: user,\n        orders: orders,\n        reviews: reviews,\n        loginHistory: loginHistory,\n        totalSpent: totalSpent\n      });\n    }\n\n    this.reportCache.push({ departmentId, data: report, generatedAt: new Date() });\n    return report;\n  }\n\n  findDuplicateEmails(users) {\n    const duplicates = [];\n    for (let i = 0; i < users.length; i++) {\n      for (let j = 0; j < users.length; j++) {\n        if (i !== j && users[i].email === users[j].email) {\n          duplicates.push(users[i]);\n        }\n      }\n    }\n    return duplicates;\n  }\n\n  async exportToCSV(departmentId) {\n    const report = await this.generateUserReport(departmentId);\n    let csv = 'Name,Email,Total Spent,Orders,Reviews\\n';\n    for (const entry of report) {\n      csv += `${entry.user.name},${entry.user.email},${entry.totalSpent},${entry.orders.length},${entry.reviews.length}\\n`;\n    }\n    return csv;\n  }\n\n  async getAllDepartmentReports() {\n    const departments = await this.db.query('SELECT * FROM departments');\n    const allReports = [];\n    for (const dept of departments) {\n      const report = await this.generateUserReport(dept.id);\n      allReports.push({ department: dept, report: report });\n    }\n    return allReports;\n  }\n}",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "n_plus_1",
+      "location": "generateUserReport",
+      "description_contains": ["N+1", "query in loop", "batch", "JOIN", "eager"]
+    },
+    {
+      "severity": "critical",
+      "type": "nested_n_plus_1",
+      "location": "generateUserReport order items",
+      "description_contains": ["nested", "N+1", "query", "loop within loop"]
+    },
+    {
+      "severity": "high",
+      "type": "quadratic_algorithm",
+      "location": "findDuplicateEmails",
+      "description_contains": ["O(n", "quadratic", "n^2", "Set", "Map", "hash"]
+    },
+    {
+      "severity": "high",
+      "type": "memory_leak",
+      "location": "reportCache",
+      "description_contains": ["memory", "leak", "cache", "grow", "unbounded", "never cleared"]
+    },
+    {
+      "severity": "high",
+      "type": "sequential_async",
+      "location": "getAllDepartmentReports",
+      "description_contains": ["sequential", "parallel", "Promise.all", "concurrent"]
+    },
+    {
+      "severity": "medium",
+      "type": "missing_pagination",
+      "location": "generateUserReport",
+      "description_contains": ["pagination", "limit", "offset", "all records", "unbounded"]
+    }
+  ]
+}

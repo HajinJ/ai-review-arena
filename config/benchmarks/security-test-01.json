@@ -1,0 +1,45 @@
+{
+  "id": "security-01",
+  "category": "security",
+  "description": "SQL injection and XSS vulnerabilities in web endpoint",
+  "language": "javascript",
+  "code": "const express = require('express');\nconst mysql = require('mysql');\nconst app = express();\nconst db = mysql.createConnection({ host: 'localhost', user: 'root', password: 'pass', database: 'app' });\n\napp.get('/users', (req, res) => {\n  const search = req.query.search;\n  const query = `SELECT * FROM users WHERE name LIKE '%${search}%'`;\n  db.query(query, (err, results) => {\n    if (err) { res.status(500).send(err.message); return; }\n    res.send(`<h1>Results</h1><div>${results.map(r => r.name).join('<br>')}</div>`);\n  });\n});\n\napp.post('/login', express.json(), (req, res) => {\n  const { username, password } = req.body;\n  const q = \"SELECT * FROM users WHERE username='\" + username + \"' AND password='\" + password + \"'\";\n  db.query(q, (err, results) => {\n    if (results.length > 0) {\n      res.cookie('session', results[0].id);\n      res.json({ success: true });\n    } else {\n      res.status(401).json({ success: false });\n    }\n  });\n});\n\napp.listen(3000);",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "sql_injection",
+      "location": "/users endpoint",
+      "description_contains": ["SQL injection", "parameterized", "prepared statement"]
+    },
+    {
+      "severity": "critical",
+      "type": "sql_injection",
+      "location": "/login endpoint",
+      "description_contains": ["SQL injection", "concatenat"]
+    },
+    {
+      "severity": "high",
+      "type": "xss",
+      "location": "/users endpoint",
+      "description_contains": ["XSS", "cross-site", "escap", "sanitiz"]
+    },
+    {
+      "severity": "high",
+      "type": "information_disclosure",
+      "location": "/users endpoint",
+      "description_contains": ["error", "message", "stack trace", "internal"]
+    },
+    {
+      "severity": "high",
+      "type": "authentication",
+      "location": "/login endpoint",
+      "description_contains": ["plain", "hash", "bcrypt", "password"]
+    },
+    {
+      "severity": "medium",
+      "type": "session_management",
+      "location": "/login endpoint",
+      "description_contains": ["cookie", "httpOnly", "secure", "session"]
+    }
+  ]
+}

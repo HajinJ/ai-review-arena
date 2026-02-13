@@ -1,0 +1,17 @@
+{
+  "description": "AI Review Arena - Multi-AI 자동 코드 리뷰 hook",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate-review.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}

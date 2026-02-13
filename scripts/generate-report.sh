@@ -1,0 +1,305 @@
+#!/usr/bin/env bash
+# =============================================================================
+# ai-review-arena: Report Generator
+#
+# Usage: generate-report.sh <consensus_json_file> <config_file>
+#
+# Generates a formatted markdown report from consensus/aggregated findings.
+# Supports both Korean and English output based on config.
+#
+# Input: JSON file with either:
+#   - {accepted: [...], rejected: [...], disputed: [...]}  (post-debate)
+#   - [...] (plain findings array, pre-debate)
+#
+# Output: Markdown report to stdout.
+# =============================================================================
+
+set -uo pipefail
+
+# --- Arguments ---
+CONSENSUS_FILE="${1:?Usage: generate-report.sh <consensus_json_file> <config_file>}"
+CONFIG_FILE="${2:-}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- Dependencies ---
+if ! command -v jq &>/dev/null; then
+  echo "Error: jq not found"
+  exit 1
+fi
+
+# --- Read config ---
+LANG="ko"
+SHOW_COST=true
+SHOW_MODELS=true
+SHOW_CONFIDENCE=true
+INTENSITY="standard"
+
+if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+  LANG=$(jq -r '.output.language // "ko"' "$CONFIG_FILE" 2>/dev/null)
+  SHOW_COST=$(jq -r '.output.show_cost_estimate // true' "$CONFIG_FILE" 2>/dev/null)
+  SHOW_MODELS=$(jq -r '.output.show_model_attribution // true' "$CONFIG_FILE" 2>/dev/null)
+  SHOW_CONFIDENCE=$(jq -r '.output.show_confidence_scores // true' "$CONFIG_FILE" 2>/dev/null)
+  INTENSITY=$(jq -r '.review.intensity // "standard"' "$CONFIG_FILE" 2>/dev/null)
+fi
+
+# --- Read input ---
+INPUT_JSON=""
+if [ -f "$CONSENSUS_FILE" ]; then
+  INPUT_JSON=$(cat "$CONSENSUS_FILE")
+else
+  # Might be a process substitution or stdin redirect
+  INPUT_JSON=$(cat "$CONSENSUS_FILE" 2>/dev/null || echo "")
+fi
+
+if [ -z "$INPUT_JSON" ] || [ "$INPUT_JSON" = "null" ]; then
+  echo "LGTM"
+  exit 0
+fi
+
+# --- Detect input format ---
+# Check if input is consensus format {accepted, rejected, disputed} or plain array
+IS_CONSENSUS=$(echo "$INPUT_JSON" | jq 'has("accepted")' 2>/dev/null || echo "false")
+
+ACCEPTED="[]"
+REJECTED="[]"
+DISPUTED="[]"
+ALL_FINDINGS="[]"
+
+if [ "$IS_CONSENSUS" = "true" ]; then
+  ACCEPTED=$(echo "$INPUT_JSON" | jq '.accepted // []' 2>/dev/null)
+  REJECTED=$(echo "$INPUT_JSON" | jq '.rejected // []' 2>/dev/null)
+  DISPUTED=$(echo "$INPUT_JSON" | jq '.disputed // []' 2>/dev/null)
+  ALL_FINDINGS=$(echo "$INPUT_JSON" | jq '[.accepted[], .disputed[]]' 2>/dev/null)
+else
+  # Plain array: treat all as accepted
+  ALL_FINDINGS="$INPUT_JSON"
+  ACCEPTED="$INPUT_JSON"
+fi
+
+# --- Counts ---
+ACCEPTED_COUNT=$(echo "$ACCEPTED" | jq 'length' 2>/dev/null || echo "0")
+REJECTED_COUNT=$(echo "$REJECTED" | jq 'length' 2>/dev/null || echo "0")
+DISPUTED_COUNT=$(echo "$DISPUTED" | jq 'length' 2>/dev/null || echo "0")
+TOTAL_FINDINGS=$((ACCEPTED_COUNT + DISPUTED_COUNT))
+
+if [ "$TOTAL_FINDINGS" -eq 0 ]; then
+  echo "LGTM"
+  exit 0
+fi
+
+# --- Count by severity ---
+count_severity() {
+  local json_array="$1"
+  local severity="$2"
+  echo "$json_array" | jq --arg sev "$severity" '[.[] | select(.severity == $sev)] | length' 2>/dev/null || echo "0"
+}
+
+CRITICAL_COUNT=$(count_severity "$ALL_FINDINGS" "critical")
+HIGH_COUNT=$(count_severity "$ALL_FINDINGS" "high")
+MEDIUM_COUNT=$(count_severity "$ALL_FINDINGS" "medium")
+LOW_COUNT=$(count_severity "$ALL_FINDINGS" "low")
+
+# --- Collect models used ---
+MODELS_USED=$(echo "$ALL_FINDINGS" | jq -r '[.[].models[]?] | unique | join(", ")' 2>/dev/null || echo "unknown")
+FILE_COUNT=$(echo "$ALL_FINDINGS" | jq -r '[.[].file] | unique | length' 2>/dev/null || echo "0")
+
+# --- Focus areas ---
+FOCUS_AREAS=""
+if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+  FOCUS_AREAS=$(jq -r '.review.focus_areas // [] | join(", ")' "$CONFIG_FILE" 2>/dev/null)
+fi
+
+# =============================================================================
+# Localization Labels
+# =============================================================================
+
+if [ "$LANG" = "ko" ]; then
+  L_TITLE="## AI Review Arena Report"
+  L_MODELS="Models"
+  L_INTENSITY="Intensity"
+  L_FOCUS="Focus"
+  L_FILES="Files"
+  L_FINDINGS="Findings"
+  L_ACCEPTED="accepted"
+  L_REJECTED="rejected"
+  L_DISPUTED="disputed"
+  L_CRITICAL="CRITICAL"
+  L_HIGH="HIGH"
+  L_MEDIUM="MEDIUM"
+  L_LOW="LOW"
+  L_DISPUTED_SECTION="DISPUTED (수동 검토 필요)"
+  L_CONFIDENCE="신뢰도"
+  L_MODELS_LABEL="모델"
+  L_SUGGESTION="제안"
+  L_CROSS_AGREE="교차 모델 합의"
+  L_COST_TITLE="### 예상 비용"
+  L_MANUAL_REVIEW="수동 검토가 필요합니다"
+  L_FOR="찬성"
+  L_AGAINST="반대"
+else
+  L_TITLE="## AI Review Arena Report"
+  L_MODELS="Models"
+  L_INTENSITY="Intensity"
+  L_FOCUS="Focus"
+  L_FILES="Files"
+  L_FINDINGS="Findings"
+  L_ACCEPTED="accepted"
+  L_REJECTED="rejected"
+  L_DISPUTED="disputed"
+  L_CRITICAL="CRITICAL"
+  L_HIGH="HIGH"
+  L_MEDIUM="MEDIUM"
+  L_LOW="LOW"
+  L_DISPUTED_SECTION="DISPUTED (manual review needed)"
+  L_CONFIDENCE="Confidence"
+  L_MODELS_LABEL="Models"
+  L_SUGGESTION="Suggestion"
+  L_CROSS_AGREE="Cross-model agreement"
+  L_COST_TITLE="### Estimated Cost"
+  L_MANUAL_REVIEW="Manual review required"
+  L_FOR="For"
+  L_AGAINST="Against"
+fi
+
+# =============================================================================
+# Generate Report
+# =============================================================================
+
+# Header
+echo "$L_TITLE"
+echo ""
+echo "${L_MODELS}: ${MODELS_USED} | ${L_INTENSITY}: ${INTENSITY} | ${L_FOCUS}: ${FOCUS_AREAS:-all}"
+echo "${L_FILES}: ${FILE_COUNT} | ${L_FINDINGS}: ${ACCEPTED_COUNT} ${L_ACCEPTED}, ${REJECTED_COUNT} ${L_REJECTED}, ${DISPUTED_COUNT} ${L_DISPUTED}"
+echo ""
+
+# --- Helper: render findings list ---
+render_findings() {
+  local findings_json="$1"
+  local count
+  count=$(echo "$findings_json" | jq 'length' 2>/dev/null || echo "0")
+
+  if [ "$count" -eq 0 ]; then
+    return
+  fi
+
+  local i=0
+  while [ "$i" -lt "$count" ]; do
+    local finding
+    finding=$(echo "$findings_json" | jq ".[$i]" 2>/dev/null)
+
+    local file line title desc suggestion confidence models cross_agree
+    file=$(echo "$finding" | jq -r '.file // "?"' 2>/dev/null)
+    line=$(echo "$finding" | jq -r '.line // "?"' 2>/dev/null)
+    title=$(echo "$finding" | jq -r '.title // "Untitled"' 2>/dev/null)
+    desc=$(echo "$finding" | jq -r '.description // ""' 2>/dev/null)
+    suggestion=$(echo "$finding" | jq -r '.suggestion // ""' 2>/dev/null)
+    confidence=$(echo "$finding" | jq -r '.confidence // "?"' 2>/dev/null)
+    models=$(echo "$finding" | jq -r '(.models // []) | join(", ")' 2>/dev/null)
+    cross_agree=$(echo "$finding" | jq -r '.cross_model_agreement // false' 2>/dev/null)
+
+    # Shorten file path for readability
+    local short_file
+    short_file=$(basename "$file" 2>/dev/null || echo "$file")
+
+    echo "$((i + 1)). **${short_file}:${line}** - ${title}"
+
+    if [ "$SHOW_CONFIDENCE" = "true" ]; then
+      local agree_tag=""
+      if [ "$cross_agree" = "true" ]; then
+        agree_tag=" | ${L_CROSS_AGREE}"
+      fi
+      echo "   ${L_CONFIDENCE}: ${confidence}%${agree_tag}"
+    fi
+
+    if [ "$SHOW_MODELS" = "true" ] && [ -n "$models" ]; then
+      echo "   ${L_MODELS_LABEL}: ${models}"
+    fi
+
+    if [ -n "$desc" ]; then
+      echo "   ${desc}"
+    fi
+
+    if [ -n "$suggestion" ] && [ "$suggestion" != "null" ]; then
+      echo "   ${L_SUGGESTION}: ${suggestion}"
+    fi
+
+    echo ""
+    i=$((i + 1))
+  done
+}
+
+# --- Render sections by severity ---
+render_severity_section() {
+  local severity="$1"
+  local label="$2"
+  local findings
+  findings=$(echo "$ACCEPTED" | jq --arg sev "$severity" '[.[] | select(.severity == $sev)]' 2>/dev/null)
+  local count
+  count=$(echo "$findings" | jq 'length' 2>/dev/null || echo "0")
+
+  if [ "$count" -gt 0 ]; then
+    echo "### ${label} (${count})"
+    echo ""
+    render_findings "$findings"
+  fi
+}
+
+# Render accepted findings by severity
+render_severity_section "critical" "$L_CRITICAL"
+render_severity_section "high" "$L_HIGH"
+render_severity_section "medium" "$L_MEDIUM"
+render_severity_section "low" "$L_LOW"
+
+# --- Render disputed section ---
+if [ "$DISPUTED_COUNT" -gt 0 ]; then
+  echo "### ${L_DISPUTED_SECTION} (${DISPUTED_COUNT})"
+  echo ""
+
+  i=0
+  while [ "$i" -lt "$DISPUTED_COUNT" ]; do
+    finding=$(echo "$DISPUTED" | jq ".[$i]" 2>/dev/null)
+
+    file=$(echo "$finding" | jq -r '.file // "?"' 2>/dev/null)
+    line=$(echo "$finding" | jq -r '.line // "?"' 2>/dev/null)
+    title=$(echo "$finding" | jq -r '.title // "Untitled"' 2>/dev/null)
+    desc=$(echo "$finding" | jq -r '.description // ""' 2>/dev/null)
+    confidence=$(echo "$finding" | jq -r '.confidence // "?"' 2>/dev/null)
+    models=$(echo "$finding" | jq -r '(.models // []) | join(", ")' 2>/dev/null)
+    challenger=$(echo "$finding" | jq -r '.challenger // ""' 2>/dev/null)
+    debate_status=$(echo "$finding" | jq -r '.debate_status // ""' 2>/dev/null)
+
+    short_file=$(basename "$file" 2>/dev/null || echo "$file")
+
+    echo "$((i + 1)). **${short_file}:${line}** - ${title}"
+    echo "   ${L_CONFIDENCE}: ${confidence}% | ${L_MANUAL_REVIEW}"
+
+    if [ -n "$models" ]; then
+      echo "   ${L_MODELS_LABEL}: ${models}"
+    fi
+
+    if [ -n "$desc" ]; then
+      echo "   ${desc}"
+    fi
+
+    if [ -n "$challenger" ] && [ "$challenger" != "null" ]; then
+      echo "   Challenger: ${challenger} (${debate_status})"
+    fi
+
+    echo ""
+    i=$((i + 1))
+  done
+fi
+
+# =============================================================================
+# Cost Estimate
+# =============================================================================
+
+if [ "$SHOW_COST" = "true" ] && [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+  COST_ESTIMATE=$("$SCRIPT_DIR/cost-estimator.sh" "$CONFIG_FILE" 2>/dev/null) || true
+  if [ -n "$COST_ESTIMATE" ]; then
+    echo "$L_COST_TITLE"
+    echo "$COST_ESTIMATE"
+    echo ""
+  fi
+fi

@@ -1,0 +1,29 @@
+{
+  "name": "ai-review-arena",
+  "version": "2.1.0",
+  "description": "Full AI development lifecycle orchestrator - Always-On routing, codebase analysis, MCP detection, multi-AI adversarial code review",
+  "author": {
+    "name": "HajinJ",
+    "url": "https://github.com/HajinJ"
+  },
+  "repository": "https://github.com/HajinJ/ai-review-arena",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "code-review",
+    "multi-ai",
+    "codex",
+    "gemini",
+    "adversarial",
+    "debate",
+    "orchestration",
+    "lifecycle",
+    "research",
+    "compliance",
+    "benchmarking",
+    "stack-detection",
+    "codebase-analysis",
+    "always-on-routing"
+  ],
+  "hooks": "./hooks/hooks.json"
+}
