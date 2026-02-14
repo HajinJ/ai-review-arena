@@ -364,36 +364,258 @@ ai-review-arena/
 └── cache/                       # Runtime knowledge cache (gitignored)
 ```
 
-## How It Works
+## How It Works — Architecture Deep Dive
 
-### The Routing Layer
+### Entry Point: Auto-Loading
 
-`ARENA-ROUTER.md` is installed into `~/.claude/` and referenced from `~/.claude/CLAUDE.md`. This means Claude Code loads it into every session's system prompt. It contains:
+When you install Arena, the installer adds a reference to `ARENA-ROUTER.md` in `~/.claude/CLAUDE.md`. Since Claude Code loads `CLAUDE.md` into every session's system prompt, the Arena router is **always active** — no manual activation needed.
 
-1. **Context Discovery** — rules for gathering external information (issues, PRs, Figma designs, docs)
-2. **Route Selection** — intent-based routing using Claude's natural language understanding
-3. **Pipeline Execution** — instructions to load and execute the appropriate command file via the Read tool
+```
+~/.claude/CLAUDE.md
+  └── @ARENA-ROUTER.md    ← loaded into every Claude Code session
+        ├── Context Discovery rules
+        ├── Route Selection logic
+        └── Pipeline Execution instructions
+```
 
-The router never calls slash commands internally. It reads command files directly with the Read tool, ensuring the full pipeline definition is loaded into context.
+### Step 1: Context Discovery
 
-### The Pipeline
+Before routing, Arena gathers external context relevant to the request:
 
-When `arena.md` is loaded, it provides ~1910 lines of detailed instructions for the team lead (Claude) to orchestrate the entire lifecycle. Each phase has:
+| Source | What it looks for |
+|--------|------------------|
+| Git | Current branch, recent commits, uncommitted changes |
+| GitHub Issues/PRs | Referenced issue numbers, PR context |
+| Figma | Design URLs in the request (if Figma MCP available) |
+| Project config | `.ai-review-arena.json` for project-specific settings |
 
-- Entry conditions (which intensity levels include this phase)
-- Tool calls to make (Bash for scripts, Glob/Grep/Read for codebase analysis)
-- Agent Teams setup (Teammate tool for team creation, Task tool for spawning agents)
-- Inter-agent communication (SendMessage for debate coordination)
-- Output format and handoff to the next phase
+### Step 2: Route Selection
+
+The router uses Claude's natural language understanding to classify your request into one of 6 routes. This is not keyword matching — it understands intent in any language.
+
+```
+"로그인 API 구현해줘"  →  Route A: Feature Build  →  arena.md (full pipeline)
+"review PR #42"        →  Route D: Code Review    →  multi-review.md
+"rename this variable" →  Route F: Simple Change   →  arena.md (quick intensity)
+```
+
+**Important**: The router reads command `.md` files directly using the Read tool. It does **not** invoke slash commands internally, which prevents infinite recursion (a slash command calling itself through the router).
+
+### Step 3: Pipeline Execution
+
+Once a route is selected, the corresponding command file is loaded. For the main pipeline (`arena.md`, ~2100 lines), execution follows this flow:
+
+```
+Phase 0     Argument parsing + MCP dependency detection
+              │
+Phase 0.1   ★ DEBATE: Intensity Decision
+              │  intensity-advocate vs efficiency-advocate vs risk-assessor
+              │  → decides: quick | standard | deep | comprehensive
+              │
+Phase 0.5   Codebase Analysis
+              │  Scan conventions, directory structure, reusable code
+              │
+Phase 1     Stack Detection
+              │  Identify framework, language, dependencies
+              │  (cached for 7 days)
+              │
+Phase 2     ★ DEBATE: Research Direction (deep+ only)
+              │  What should we investigate before building?
+              │  → WebSearch for best practices, compliance guidelines
+              │
+Phase 3     ★ DEBATE: Compliance Scope (deep+ only)
+              │  Which compliance rules actually apply?
+              │  → Check OWASP, WCAG, GDPR, etc.
+              │
+Phase 4     Model Benchmarking (comprehensive only)
+              │  Score Claude/Codex/Gemini per review category
+              │  (cached for 14 days)
+              │
+Phase 5     Figma Design Analysis (if Figma MCP available)
+              │
+Phase 5.5   ★ DEBATE: Implementation Strategy
+              │  strategy-advocate vs alternative-advocate vs risk-assessor
+              │  → chosen approach + success criteria + scope definition
+              │
+Phase 6     Implementation + Code Review
+              │
+              ├── 6.1-6.4   Team Lead implements the code
+              ├── 6.5-6.8   Spawn reviewer agents (5-10 based on intensity)
+              ├── 6.9       Aggregate Round 1 findings by model
+              ├── 6.10      ★ 3-Round Cross-Examination (see below)
+              │
+Phase 7     Final Report + Success Criteria Verification + Cleanup
+```
+
+### Phase 6.10: 3-Round Cross-Examination in Detail
+
+This is the core innovation. Three AI families (Claude, Codex, Gemini) don't just review independently — they critique each other's work across 3 structured rounds.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    ROUND 1: Independent Review           │
+│                                                          │
+│  Claude Agent Team ──┐                                   │
+│  (5-10 reviewers)    │                                   │
+│    security-reviewer  ├──→ findings-claude.json          │
+│    bug-detector       │                                   │
+│    architecture-rev   │                                   │
+│    performance-rev    │                                   │
+│    scope-reviewer    ─┘                                   │
+│                                                          │
+│  Codex CLI ──────────────→ findings-codex.json           │
+│    codex-review.sh                                       │
+│                                                          │
+│  Gemini CLI ─────────────→ findings-gemini.json          │
+│    gemini-review.sh                                      │
+│                                                          │
+│  All 3 run in PARALLEL                                   │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│              ROUND 2: Cross-Examination                  │
+│                                                          │
+│  Codex receives Claude+Gemini findings                   │
+│    → for each finding: AGREE / DISAGREE / PARTIAL        │
+│    → confidence_adjustment, reasoning                    │
+│    → new observations other models missed                │
+│                                                          │
+│  Gemini receives Claude+Codex findings                   │
+│    → same format                                         │
+│                                                          │
+│  Claude agents receive Codex+Gemini findings             │
+│    → via SendMessage to each reviewer                    │
+│    → same format                                         │
+│                                                          │
+│  All 3 run in PARALLEL                                   │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                    Partition challenges
+                    by target model
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                  ROUND 3: Defense                         │
+│                                                          │
+│  Codex receives challenges against its Round 1 findings  │
+│    → for each challenge: DEFEND / CONCEDE / MODIFY       │
+│    → if CONCEDE: finding downgraded/removed              │
+│    → if MODIFY: revised severity + description           │
+│                                                          │
+│  Gemini receives challenges against its findings         │
+│    → same format                                         │
+│                                                          │
+│  Claude agents receive challenges against their findings │
+│    → via SendMessage                                     │
+│    → same format                                         │
+│                                                          │
+│  All 3 run in PARALLEL                                   │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│              FINAL: Consensus Synthesis                   │
+│                                                          │
+│  debate-arbitrator receives all 3 rounds of data         │
+│                                                          │
+│  Confidence calculation per finding:                     │
+│    final = original                                      │
+│          + round2_adjustments (from cross-examination)   │
+│          + cross_exam_boost   (agreement/disagreement)   │
+│          + defense_boost      (defend/concede/modify)    │
+│          + consensus_bonus    (multi-model agreement)    │
+│                                                          │
+│  cross_exam_boost:                                       │
+│    2+ models agree    → +15                              │
+│    1 agrees, 0 disagr → +5                               │
+│    1 disagrees        → -10                              │
+│    2+ disagree        → -20                              │
+│                                                          │
+│  defense_boost:                                          │
+│    DEFEND  → +10                                         │
+│    CONCEDE → -25                                         │
+│    MODIFY  → use confidence_adjustment from defense      │
+│                                                          │
+│  Output: Consensus Report with cross_examination_trail   │
+│          per finding (showing all 3 rounds of evidence)  │
+└─────────────────────────────────────────────────────────┘
+```
+
+**How Codex and Gemini participate**: Since Codex and Gemini are stateless CLI tools (not conversational agents), multi-round debate is achieved by running the CLI multiple times with accumulated context:
+
+- **Round 1**: `echo <code_context> | codex-review.sh` → findings JSON
+- **Round 2**: `echo <findings_from_others> | codex-cross-examine.sh config cross-examine` → challenges JSON
+- **Round 3**: `echo <challenges_against_me> | codex-cross-examine.sh config defend` → defense JSON
+
+Each round pipes the previous round's output as input to the next round. The Team Lead orchestrates this, forwarding results between models and to the debate-arbitrator.
 
 ### The Agent Teams
 
-Arena uses Claude Code's [Agent Teams](https://docs.anthropic.com/en/docs/claude-code) for two distinct purposes:
+Arena uses Claude Code's [Agent Teams](https://docs.anthropic.com/en/docs/claude-code) (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`) for two distinct purposes:
 
-1. **Decision Debates** (Phases 0.1, 2, 3, 5.5) — small teams of 3-4 agents with opposing roles debate critical decisions
-2. **Code Review** (Phase 6) — large teams of 5-10 reviewer agents analyze code from different perspectives, then debate findings
+#### 1. Decision Debates (Phases 0.1, 2, 3, 5.5)
 
-Each agent is a separate Claude Code instance with its own context, communicating through shared task lists and direct messages.
+Small teams of 3-4 agents with **opposing roles** debate critical decisions:
+
+```
+Team: intensity-decision
+  ├── intensity-advocate    — argues for thorough analysis
+  ├── efficiency-advocate   — argues for speed
+  ├── risk-assessor         — evaluates potential risks
+  └── intensity-arbitrator  — makes final call
+```
+
+Each agent is a separate Claude Code instance spawned via the Task tool. They communicate through SendMessage and the arbitrator synthesizes their arguments into a final decision.
+
+#### 2. Code Review (Phase 6)
+
+Large teams of 5-10 reviewer agents, each with a different perspective defined by agent `.md` files:
+
+| Agent | Focus |
+|-------|-------|
+| `security-reviewer.md` | OWASP Top 10, auth, injection, data exposure |
+| `bug-detector.md` | Logic errors, edge cases, null handling |
+| `architecture-reviewer.md` | SOLID, patterns, modularity, coupling |
+| `performance-reviewer.md` | O(n), memory, I/O, caching |
+| `test-coverage-reviewer.md` | Missing tests, edge cases, test quality |
+| `scale-advisor.md` | Concurrency, load handling, bottlenecks |
+| `scope-reviewer.md` | Surgical changes, no drive-by refactors |
+| `compliance-checker.md` | Regulatory compliance (conditional) |
+| `debate-arbitrator.md` | Synthesizes all findings into consensus |
+
+### Tech Stack
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Orchestration | Claude Code Agent Teams | Multi-agent coordination |
+| Pipeline definition | Markdown command files | ~2100 lines of structured instructions |
+| Agent definitions | Markdown agent files | Role-specific review prompts |
+| External AI integration | Bash scripts + CLI tools | Codex and Gemini via stdin/stdout JSON |
+| Configuration | JSON | Project-level and global settings |
+| Caching | File-based (jq) | Stack detection, benchmarks, research |
+| Report generation | Bash + jq | Structured JSON → Markdown reports |
+
+### Data Flow Summary
+
+```
+User Request
+  → ARENA-ROUTER.md (always loaded in system prompt)
+    → Context Discovery (git, GitHub, Figma, config)
+    → Route Selection (intent classification)
+    → Read tool loads command .md file
+      → Team Lead (Claude) executes pipeline phases
+        → Bash tool runs shell scripts (Codex/Gemini CLIs)
+        → Task tool spawns Claude agent teammates
+        → SendMessage coordinates inter-agent debate
+        → Teammate tool creates/destroys teams
+      → Final Report (Markdown) with:
+        - All findings with confidence scores
+        - Cross-examination trail per finding
+        - Success criteria PASS/FAIL
+        - Scope review verdict
+        - Cost breakdown by model
+```
 
 ## Platform Support
 
