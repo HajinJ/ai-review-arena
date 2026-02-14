@@ -1081,7 +1081,15 @@ Only execute this phase if `--figma <url>` was provided.
      - Files to Create: {list}
      - Files to Modify: {list}
      - Code to Reuse: {list}
-     - Rejected Alternatives: {what was considered but not chosen, and why}"
+     - Rejected Alternatives: {what was considered but not chosen, and why}
+     - Success Criteria:
+       1. {criterion_1} → verify: {how to check}
+       2. {criterion_2} → verify: {how to check}
+       3. {criterion_3} → verify: {how to check}
+
+     IMPORTANT: Success Criteria must be concrete and verifiable.
+     Good: 'API returns 200 for valid input → verify: curl test with sample payload'
+     Bad: 'Code is clean and well-structured' (not verifiable)"
    )
    ```
 
@@ -1096,9 +1104,9 @@ Only execute this phase if `--figma <url>` was provided.
    Teammate(operation: "cleanup")
    ```
 
-6. **Apply Strategy**: Use the arbitrator's decision as the implementation plan. Pass it as context to Phase 6 reviewers so they can verify the implementation follows the agreed strategy.
+6. **Apply Strategy**: Use the arbitrator's decision as the implementation plan. Pass it as context to Phase 6 reviewers so they can verify the implementation follows the agreed strategy. **Pass Success Criteria to Phase 7 for post-implementation verification.**
 
-7. **Implement**: Execute the implementation following the decided strategy. Apply codebase conventions from Phase 0.5. Use reusable code identified earlier.
+7. **Implement**: Execute the implementation following the decided strategy. Apply codebase conventions from Phase 0.5. Use reusable code identified earlier. **Only modify files listed in the strategy. If additional files need changes, document the deviation.**
 
 8. **Display Strategy Decision**:
    ```
@@ -1107,6 +1115,10 @@ Only execute this phase if `--figma <url>` was provided.
    - Architecture: {decisions}
    - Security: {measures}
    - Files: {create/modify list}
+   - Success Criteria:
+     1. {criterion_1} → verify: {check}
+     2. {criterion_2} → verify: {check}
+     3. {criterion_3} → verify: {check}
    ```
 
 **Error Handling:**
@@ -1229,6 +1241,12 @@ TaskCreate(
   description: "Assess scale readiness: concurrency handling, data volume patterns, observability, resource management. Send findings to team lead via SendMessage when complete.",
   activeForm: "Assessing scale readiness"
 )
+
+TaskCreate(
+  subject: "Scope verification of {scope_description}",
+  description: "Verify changes are surgical: only requested modifications were made, no drive-by refactors, no unrelated improvements. Compare implementation against Phase 5.5 strategy. Send findings to team lead via SendMessage when complete.",
+  activeForm: "Verifying change scope"
+)
 ```
 
 If compliance requirements were detected in Phase 3:
@@ -1253,7 +1271,7 @@ TaskCreate(
 
 For each active role, read the agent definition file and spawn a teammate. **Spawn ALL teammates in parallel** by making multiple Task tool calls in a single message.
 
-For each standard role (security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer):
+For each standard role (security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer, scope-reviewer):
 
 1. Read the agent definition:
    ```
@@ -1336,6 +1354,44 @@ Task(
 )
 ```
 
+**Spawn scope-reviewer** (always included):
+```
+Task(
+  subagent_type: "general-purpose",
+  team_name: "arena-review-{session_id}",
+  name: "scope-reviewer",
+  prompt: "You are a Scope Reviewer (Surgical Changes Checker). Your job is to ensure the implementation ONLY changes what was requested — nothing more.
+
+  Principle: 'Surgical Changes' — Every change must be intentional and requested. Drive-by refactors, cosmetic fixes, and unrelated improvements are violations.
+
+  --- REVIEW TASK ---
+  Task ID: {task_id}
+  Scope: {scope_description}
+
+  IMPLEMENTATION STRATEGY (from Phase 5.5):
+  {strategy_decision — including Files to Create, Files to Modify, and Success Criteria}
+
+  CODE TO REVIEW:
+  {diff_content_or_file_contents}
+  --- END CODE ---
+
+  INSTRUCTIONS:
+  1. Compare EVERY changed file against the Phase 5.5 strategy:
+     - Was this file listed in 'Files to Create' or 'Files to Modify'? If not → SCOPE_VIOLATION
+     - Does each change directly serve the stated Approach? If not → UNNECESSARY_CHANGE
+  2. For each modified file, check for:
+     - Drive-by refactors: renaming variables, reformatting code, changing patterns not related to the task
+     - Cosmetic changes: adding/removing whitespace, reordering imports, style-only edits
+     - Unrelated improvements: adding error handling, type annotations, docstrings for unchanged code
+     - Gold-plating: adding features, config options, or abstractions beyond what was requested
+  3. Send findings as JSON to team lead using SendMessage with format:
+     {\"scope_findings\": [{\"type\": \"SCOPE_VIOLATION|UNNECESSARY_CHANGE|DRIVE_BY_REFACTOR|GOLD_PLATING\", \"severity\": \"high|medium|low\", \"file\": \"...\", \"line\": N, \"description\": \"...\", \"justification\": \"Why this change was not in scope\"}]}
+  4. If all changes are in scope, send: {\"scope_findings\": [], \"verdict\": \"CLEAN — all changes are surgical and in scope\"}
+  5. Mark your task as completed using TaskUpdate
+  6. Stay active for debate phase"
+)
+```
+
 **Spawn compliance-checker** (if compliance requirements detected):
 ```
 Task(
@@ -1415,6 +1471,7 @@ TaskUpdate(taskId: "{arch_task_id}", owner: "architecture-reviewer")
 TaskUpdate(taskId: "{perf_task_id}", owner: "performance-reviewer")
 TaskUpdate(taskId: "{test_task_id}", owner: "test-coverage-reviewer")
 TaskUpdate(taskId: "{scale_task_id}", owner: "scale-advisor")
+TaskUpdate(taskId: "{scope_task_id}", owner: "scope-reviewer")
 # If compliance-checker was spawned:
 TaskUpdate(taskId: "{compliance_task_id}", owner: "compliance-checker")
 # If research-coordinator was spawned:
@@ -1665,6 +1722,27 @@ This phase follows the exact same pattern as multi-review.md Phase 6:
 
    ---
 
+   ## Success Criteria Verification
+
+   | # | Criterion | Verification Method | Result |
+   |---|-----------|-------------------|--------|
+   | 1 | {criterion_1} | {verification_check} | PASS / FAIL |
+   | 2 | {criterion_2} | {verification_check} | PASS / FAIL |
+   | 3 | {criterion_3} | {verification_check} | PASS / FAIL |
+
+   ---
+
+   ## Scope Review (Surgical Changes)
+
+   **Verdict:** {CLEAN or N violations found}
+
+   {If violations exist:}
+   | Type | File | Line | Description |
+   |------|------|------|-------------|
+   | {SCOPE_VIOLATION/DRIVE_BY_REFACTOR/GOLD_PLATING} | {file} | {line} | {description} |
+
+   ---
+
    ## Best Practice Gaps
 
    | Practice | Status | Severity | Recommendation |
@@ -1712,6 +1790,7 @@ This phase follows the exact same pattern as multi-review.md Phase 6:
    |-----------|----------------|-------------|-----------|
    | Claude Reviewers | {N} teammates | ~{X}K | ~${A.AA} |
    | Scale Advisor | 1 teammate | ~{X}K | ~${A.AA} |
+   | Scope Reviewer | 1 teammate | ~{X}K | ~${A.AA} |
    | Compliance Checker | {0 or 1} teammate | ~{X}K | ~${A.AA} |
    | Research Coordinator | {0 or 1} teammate | ~{X}K | ~${A.AA} |
    | Debate Arbitrator | 1 teammate | ~{X}K | ~${A.AA} |
@@ -1740,6 +1819,7 @@ SendMessage(type: "shutdown_request", recipient: "architecture-reviewer", conten
 SendMessage(type: "shutdown_request", recipient: "performance-reviewer", content: "Arena session complete. Thank you.")
 SendMessage(type: "shutdown_request", recipient: "test-coverage-reviewer", content: "Arena session complete. Thank you.")
 SendMessage(type: "shutdown_request", recipient: "scale-advisor", content: "Arena session complete. Thank you.")
+SendMessage(type: "shutdown_request", recipient: "scope-reviewer", content: "Arena session complete. Thank you.")
 SendMessage(type: "shutdown_request", recipient: "debate-arbitrator", content: "Arena session complete. Thank you.")
 ```
 
