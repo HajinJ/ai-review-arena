@@ -1,8 +1,8 @@
-# AI Review Arena v2.4
+# AI Review Arena v2.5
 
 > Full AI development lifecycle orchestrator for [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 
-AI Review Arena intercepts every request in Claude Code and routes it through an intelligent pipeline — from codebase analysis and pre-implementation research to multi-AI adversarial code review. Critical decisions (intensity level, research direction, compliance scope, implementation strategy) are made by **Agent Teams adversarial debate**, not static keyword matching.
+AI Review Arena intercepts every request in Claude Code and routes it through an intelligent pipeline — from codebase analysis and pre-implementation research to multi-AI adversarial code review. Critical decisions (intensity level, research direction, compliance scope, implementation strategy) are made by **Agent Teams adversarial debate**, not static keyword matching. Every implementation is verified against **success criteria** defined before coding, and a dedicated **scope reviewer** ensures changes stay surgical.
 
 ```
 Your Request
@@ -40,8 +40,8 @@ Critical pipeline decisions are made through structured debate between multiple 
 | Intensity Decision | How thorough should the pipeline be? | Every request (mandatory) |
 | Research Direction | What should we investigate before building? | deep, comprehensive |
 | Compliance Scope | Which compliance rules actually apply? | deep, comprehensive |
-| Implementation Strategy | What's the best architecture/approach? | standard, deep, comprehensive |
-| Code Review Debate | Are these findings real or false positives? | standard, deep, comprehensive |
+| Implementation Strategy | What's the best approach? + define success criteria | standard, deep, comprehensive |
+| Code Review Debate | Are findings real? Is the scope surgical? | standard, deep, comprehensive |
 
 **Example — Intensity Decision debate:**
 
@@ -67,6 +67,7 @@ Claude Agent Team (5-10 reviewers)
   ├── performance-reviewer
   ├── test-coverage-reviewer
   ├── scale-advisor
+  ├── scope-reviewer          ← NEW (surgical changes checker)
   ├── compliance-checker (conditional)
   └── debate-arbitrator
 
@@ -77,6 +78,30 @@ External Models (via CLI)
          ↓
   Adversarial Debate → Consensus Report
 ```
+
+### Success Criteria (Phase 5.5)
+
+Before any code is written, the strategy debate defines **verifiable success criteria**. These are concrete, testable conditions — not vague quality goals.
+
+```
+Success Criteria (from strategy-arbitrator):
+  1. API returns 200 for valid input      → verify: curl test with sample payload
+  2. Invalid tokens return 401             → verify: curl with expired/bad token
+  3. Rate limiting at 100 req/min          → verify: load test with k6
+```
+
+After implementation, Phase 7 verifies each criterion and reports PASS/FAIL in the final report. If criteria fail, the team knows exactly what needs fixing.
+
+### Scope Reviewer (Phase 6)
+
+A dedicated **scope-reviewer** agent verifies every implementation stays surgical. It compares the actual diff against the Phase 5.5 strategy and flags:
+
+- **SCOPE_VIOLATION** — files changed that weren't in the strategy
+- **DRIVE_BY_REFACTOR** — unrelated variable renames, reformatting, import reordering
+- **GOLD_PLATING** — features, config options, or abstractions nobody asked for
+- **UNNECESSARY_CHANGE** — cosmetic edits to code that wasn't part of the task
+
+If all changes are in scope, the verdict is `CLEAN`. This prevents the common problem of implementations that quietly grow beyond the original request.
 
 ### Codebase Analysis (Phase 0.5)
 
@@ -152,8 +177,8 @@ Phase 2     Pre-Implementation Research ★ Research Direction debate
 Phase 3     Compliance Check ★ Compliance Scope debate
 Phase 4     Model Benchmarking (score Claude/Codex/Gemini per category)
 Phase 5     Figma Design Analysis (if Figma MCP available)
-Phase 5.5   Implementation Strategy ★ Agent Teams debate
-Phase 6     Implementation + Agent Team Code Review + debate
+Phase 5.5   Implementation Strategy ★ Agent Teams debate + Success Criteria
+Phase 6     Implementation + Agent Team Code Review + Scope Review + debate
 Phase 7     Final Report + Cleanup
 ```
 
@@ -264,7 +289,7 @@ ai-review-arena/
 │   └── plugin.json              # Plugin manifest
 │
 ├── commands/                    # Slash commands (6)
-│   ├── arena.md                 # Full lifecycle orchestrator (~1830 lines)
+│   ├── arena.md                 # Full lifecycle orchestrator (~1910 lines)
 │   ├── arena-research.md        # Pre-implementation research
 │   ├── arena-stack.md           # Stack detection
 │   ├── multi-review.md          # Multi-AI code review
@@ -277,11 +302,12 @@ ai-review-arena/
 │   ├── architecture-reviewer.md
 │   ├── performance-reviewer.md
 │   ├── test-coverage-reviewer.md
+│   ├── scale-advisor.md
+│   ├── scope-reviewer.md        # Surgical changes checker (v2.5)
 │   ├── debate-arbitrator.md
 │   ├── research-coordinator.md
 │   ├── design-analyzer.md
-│   ├── compliance-checker.md
-│   └── scale-advisor.md
+│   └── compliance-checker.md
 │
 ├── scripts/                     # Shell scripts (15)
 │   ├── orchestrate-review.sh    # Core review orchestration
@@ -338,7 +364,7 @@ The router never calls slash commands internally. It reads command files directl
 
 ### The Pipeline
 
-When `arena.md` is loaded, it provides ~1830 lines of detailed instructions for the team lead (Claude) to orchestrate the entire lifecycle. Each phase has:
+When `arena.md` is loaded, it provides ~1910 lines of detailed instructions for the team lead (Claude) to orchestrate the entire lifecycle. Each phase has:
 
 - Entry conditions (which intensity levels include this phase)
 - Tool calls to make (Bash for scripts, Glob/Grep/Read for codebase analysis)
@@ -366,6 +392,12 @@ Each agent is a separate Claude Code instance with its own context, communicatin
 | Windows (Native) | Commands only | Slash commands and agents work; scripts need WSL |
 
 ## Changelog
+
+### v2.5.0
+
+- **Success Criteria** — strategy arbitrator defines verifiable goals before implementation; Phase 7 reports PASS/FAIL for each
+- **Scope Reviewer** — new reviewer agent that checks changes are surgical (no drive-by refactors, gold-plating, or scope violations)
+- Inspired by [Karpathy's coding principles](https://github.com/forrestchang/andrej-karpathy-skills) (Goal-Driven Execution, Surgical Changes)
 
 ### v2.4.0
 
