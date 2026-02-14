@@ -1314,7 +1314,9 @@ For each standard role (security-reviewer, bug-detector, architecture-reviewer, 
    2. USE the enriched context to inform your review - check against best practices and compliance requirements
    3. Send your findings JSON to the team lead using SendMessage
    4. Mark your task as completed using TaskUpdate
-   5. Stay active - you will participate in the debate phase next"
+   5. Stay active for 3-round cross-examination:
+      Round 2: You cross-examine Codex/Gemini findings (agree/disagree/partial)
+      Round 3: You defend YOUR findings against Codex/Gemini challenges (defend/concede/modify)"
    )
    ```
 
@@ -1544,93 +1546,289 @@ Merge and deduplicate findings from all sources (same as multi-review.md Phase 5
    - Best practice gaps: {G} (from research-coordinator)
    ```
 
-6. Save aggregated findings to session.
+6. **Save findings partitioned by model** for cross-examination:
+   ```bash
+   # Partition Round 1 findings by model source
+   jq '[.[] | select(.model == "claude")]' aggregated.json > "${SESSION_DIR}/findings/round1-claude.json"
+   jq '[.[] | select(.model == "codex")]' aggregated.json > "${SESSION_DIR}/findings/round1-codex.json"
+   jq '[.[] | select(.model == "gemini")]' aggregated.json > "${SESSION_DIR}/findings/round1-gemini.json"
+   ```
 
-7. If `--interactive`: ask to proceed to debate phase.
+7. If `--interactive`: ask to proceed to cross-examination.
 
-### Step 6.10: Adversarial Debate (Agent Teams)
+### Step 6.10: 3-Round Cross-Examination
 
 Skip if `--no-debate` is set or `debate.enabled` is false.
 
-This phase follows the exact same pattern as multi-review.md Phase 6:
+All 3 AI model families participate symmetrically in a structured cross-examination:
+- **Round 1**: Independent review (already completed in Steps 6.5-6.8)
+- **Round 2**: Cross-examination — each model evaluates other models' findings
+- **Round 3**: Defense — each model defends its own challenged findings
 
-1. **Spawn Debate Arbitrator**:
-   ```
-   Read(file_path: "${AGENTS_DIR}/debate-arbitrator.md")
+#### Step 6.10.1: Spawn Debate Arbitrator
 
-   Task(
-     subagent_type: "general-purpose",
-     team_name: "arena-review-{session_id}",
-     name: "debate-arbitrator",
-     prompt: "{contents of agents/debate-arbitrator.md}
+```
+Read(file_path: "${AGENTS_DIR}/debate-arbitrator.md")
 
-     --- DEBATE CONTEXT ---
-     Session: {session_id}
-     Active reviewers: {list of ALL active reviewer teammate names, including scale-advisor, compliance-checker, research-coordinator}
-     Debate rounds: {debate.max_rounds}
+Task(
+  subagent_type: "general-purpose",
+  team_name: "arena-review-{session_id}",
+  name: "debate-arbitrator",
+  prompt: "{contents of agents/debate-arbitrator.md}
 
-     AGGREGATED FINDINGS:
-     {aggregated_findings_json}
-     --- END CONTEXT ---
+  --- DEBATE CONTEXT ---
+  Session: {session_id}
+  Active reviewers: {list of ALL active reviewer teammate names}
+  Cross-examination rounds: 3
 
-     INSTRUCTIONS:
-     1. You will receive challenge/support messages from reviewer teammates
-     2. Apply the consensus algorithm as defined in your agent instructions
-     3. After all debate rounds complete, send the final consensus JSON to the team lead
-     4. Wait for the team lead to signal when each debate round ends"
-   )
-   ```
+  ROUND 1 AGGREGATED FINDINGS:
+  {aggregated_findings_json}
 
-2. **Initiate Cross-Challenges**: Send each reviewer teammate instructions to challenge findings from OTHER reviewers using SendMessage (not broadcast):
-   ```
-   SendMessage(
-     type: "message",
-     recipient: "{reviewer_name}",
-     content: "DEBATE PHASE - Round {N}/{max_rounds}
+  ROUND 1 FINDINGS BY MODEL:
+  Claude: {round1_claude_findings_json}
+  Codex: {round1_codex_findings_json}
+  Gemini: {round1_gemini_findings_json}
+  --- END CONTEXT ---
 
-     Review the following findings from OTHER reviewers and respond to debate-arbitrator with your challenges or support.
+  INSTRUCTIONS:
+  1. You will receive Round 2 cross-examination results from all 3 model families
+  2. You will receive Round 3 defense results from all 3 model families
+  3. After all 3 rounds, apply the consensus algorithm incorporating all rounds
+  4. Include a cross_examination_trail for each finding in your output
+  5. Send the final consensus JSON to the team lead after Round 3 completes"
+)
+```
 
-     FINDINGS TO EVALUATE:
-     {findings_NOT_from_this_reviewer_json}
+#### Step 6.10.2: Round 2 — Cross-Examination
 
-     For EACH finding:
-     1. CHALLENGE if you disagree - explain why it's a false positive or overrated
-     2. SUPPORT if you agree - add evidence or corroborate
-     3. Send each response to debate-arbitrator via SendMessage
+All 3 model families cross-examine each other's findings **in parallel**.
 
-     When done evaluating all findings, send a message to debate-arbitrator saying '{reviewer_name} debate complete'.",
-     summary: "Debate round {N}: evaluate other reviewers' findings"
-   )
-   ```
+**Codex cross-examines Claude + Gemini findings:**
+```bash
+# Build Round 2 context for Codex
+CODEX_R2_INPUT=$(jq -n \
+  --argjson claude "$(cat ${SESSION_DIR}/findings/round1-claude.json)" \
+  --argjson gemini "$(cat ${SESSION_DIR}/findings/round1-gemini.json)" \
+  --argjson code "$(cat ${SESSION_DIR}/code-context.json)" \
+  '{round:2, phase:"cross-examine", examiner:"codex", findings_from:{claude:$claude, gemini:$gemini}, code_context:$code}')
 
-   Repeat for each active reviewer teammate.
+echo "$CODEX_R2_INPUT" | \
+  "${SCRIPTS_DIR}/codex-cross-examine.sh" "$CONFIG" "cross-examine" \
+  > "${SESSION_DIR}/debate/round2-codex.json" 2>/dev/null &
+```
 
-3. **External Model Challenges**: For findings needing cross-model validation:
-   ```bash
-   echo '{"finding": {...}, "challenge_prompt": "..."}' | \
-     "${SCRIPTS_DIR}/codex-review.sh" "$FILE" "$CONFIG" "debate" \
-     > "${SESSION_DIR}/debate/codex-challenge-${finding_id}.json" 2>/dev/null
-   ```
+**Gemini cross-examines Claude + Codex findings:**
+```bash
+GEMINI_R2_INPUT=$(jq -n \
+  --argjson claude "$(cat ${SESSION_DIR}/findings/round1-claude.json)" \
+  --argjson codex "$(cat ${SESSION_DIR}/findings/round1-codex.json)" \
+  --argjson code "$(cat ${SESSION_DIR}/code-context.json)" \
+  '{round:2, phase:"cross-examine", examiner:"gemini", findings_from:{claude:$claude, codex:$codex}, code_context:$code}')
 
-   Send external responses to debate-arbitrator:
-   ```
-   SendMessage(
-     type: "message",
-     recipient: "debate-arbitrator",
-     content: "EXTERNAL MODEL RESPONSE ({model}):
-     Finding: {finding_title}
-     {challenge_result_json}",
-     summary: "{model} challenge response for: {finding_title}"
-   )
-   ```
+echo "$GEMINI_R2_INPUT" | \
+  "${SCRIPTS_DIR}/gemini-cross-examine.sh" "$CONFIG" "cross-examine" \
+  > "${SESSION_DIR}/debate/round2-gemini.json" 2>/dev/null &
+```
 
-4. **Web Search Verification**: For critical/high severity security findings:
+**Claude reviewers cross-examine Codex + Gemini findings:**
+
+Send to each active Claude reviewer via SendMessage:
+```
+SendMessage(
+  type: "message",
+  recipient: "{reviewer_name}",
+  content: "CROSS-EXAMINATION — Round 2 of 3
+
+  Evaluate findings from Codex and Gemini from your domain expertise.
+
+  CODEX FINDINGS:
+  {round1_codex_findings_json}
+
+  GEMINI FINDINGS:
+  {round1_gemini_findings_json}
+
+  For EACH finding relevant to your domain:
+  1. AGREE if valid — cite corroborating evidence, confidence_adjustment (+N)
+  2. DISAGREE if false positive — cite counter-evidence, confidence_adjustment (-N)
+  3. PARTIAL if partially correct — explain what's right/wrong
+
+  You may add NEW OBSERVATIONS both models missed.
+
+  Send each response to debate-arbitrator via SendMessage as JSON:
+  {\"finding_id\":\"<file:line:title>\", \"original_model\":\"codex|gemini\", \"action\":\"agree|disagree|partial\", \"confidence_adjustment\":-30 to +30, \"reasoning\":\"...\", \"new_observations\":[]}
+
+  When done: send '{reviewer_name} round 2 complete' to debate-arbitrator.",
+  summary: "Round 2: cross-examine Codex+Gemini findings"
+)
+```
+
+**Wait for all Round 2 results:**
+```bash
+wait  # Wait for Codex and Gemini background jobs
+```
+
+**Forward external Round 2 results to debate-arbitrator:**
+```
+SendMessage(
+  type: "message",
+  recipient: "debate-arbitrator",
+  content: "ROUND 2 EXTERNAL RESULTS:
+
+  CODEX CROSS-EXAMINATION:
+  {contents of round2-codex.json}
+
+  GEMINI CROSS-EXAMINATION:
+  {contents of round2-gemini.json}",
+  summary: "Round 2 external model cross-examination results"
+)
+```
+
+Wait for Claude reviewers to complete Round 2 (they message debate-arbitrator directly).
+
+**Signal Round 2 complete:**
+```
+SendMessage(
+  type: "message",
+  recipient: "debate-arbitrator",
+  content: "ROUND 2 COMPLETE. All cross-examination responses received.",
+  summary: "Round 2 cross-examination complete"
+)
+```
+
+#### Step 6.10.3: Partition Round 2 Challenges by Target
+
+Before Round 3, extract who challenged whom:
+
+```bash
+# Challenges against Codex's findings (from Claude reviewers + Gemini)
+jq '[.responses[] | select(.original_model == "codex")]' \
+  "${SESSION_DIR}/debate/round2-gemini.json" \
+  > "${SESSION_DIR}/debate/round2-challenges-against-codex.json"
+
+# Challenges against Gemini's findings (from Claude reviewers + Codex)
+jq '[.responses[] | select(.original_model == "gemini")]' \
+  "${SESSION_DIR}/debate/round2-codex.json" \
+  > "${SESSION_DIR}/debate/round2-challenges-against-gemini.json"
+
+# Challenges against Claude's findings (from Codex + Gemini)
+jq '[.responses[] | select(.original_model == "claude")]' \
+  "${SESSION_DIR}/debate/round2-codex.json" \
+  > "${SESSION_DIR}/debate/round2-codex-vs-claude.json"
+jq '[.responses[] | select(.original_model == "claude")]' \
+  "${SESSION_DIR}/debate/round2-gemini.json" \
+  > "${SESSION_DIR}/debate/round2-gemini-vs-claude.json"
+```
+
+Note: Claude reviewer challenges against Codex/Gemini were sent directly to debate-arbitrator via SendMessage. The partitioned JSON files above are for external model challenges only.
+
+#### Step 6.10.4: Round 3 — Defense
+
+All 3 model families defend their own findings **in parallel**.
+
+**Codex defends its findings:**
+```bash
+CODEX_R3_INPUT=$(jq -n \
+  --argjson challenges "$(cat ${SESSION_DIR}/debate/round2-challenges-against-codex.json)" \
+  --argjson original "$(cat ${SESSION_DIR}/findings/round1-codex.json)" \
+  --argjson code "$(cat ${SESSION_DIR}/code-context.json)" \
+  '{round:3, phase:"defend", defender:"codex", challenges_against_codex:$challenges, original_findings:$original, code_context:$code}')
+
+echo "$CODEX_R3_INPUT" | \
+  "${SCRIPTS_DIR}/codex-cross-examine.sh" "$CONFIG" "defend" \
+  > "${SESSION_DIR}/debate/round3-codex.json" 2>/dev/null &
+```
+
+**Gemini defends its findings:**
+```bash
+GEMINI_R3_INPUT=$(jq -n \
+  --argjson challenges "$(cat ${SESSION_DIR}/debate/round2-challenges-against-gemini.json)" \
+  --argjson original "$(cat ${SESSION_DIR}/findings/round1-gemini.json)" \
+  --argjson code "$(cat ${SESSION_DIR}/code-context.json)" \
+  '{round:3, phase:"defend", defender:"gemini", challenges_against_gemini:$challenges, original_findings:$original, code_context:$code}')
+
+echo "$GEMINI_R3_INPUT" | \
+  "${SCRIPTS_DIR}/gemini-cross-examine.sh" "$CONFIG" "defend" \
+  > "${SESSION_DIR}/debate/round3-gemini.json" 2>/dev/null &
+```
+
+**Claude reviewers defend their findings:**
+
+Send to each Claude reviewer whose findings were challenged:
+```
+SendMessage(
+  type: "message",
+  recipient: "{reviewer_name}",
+  content: "DEFENSE — Round 3 of 3
+
+  Codex and Gemini challenged some of YOUR Round 1 findings.
+  For each challenge, decide: DEFEND, CONCEDE, or MODIFY.
+
+  CHALLENGES AGAINST YOUR FINDINGS:
+  From Codex: {codex_challenges_against_this_reviewer}
+  From Gemini: {gemini_challenges_against_this_reviewer}
+
+  YOUR ORIGINAL FINDINGS:
+  {this_reviewer_original_findings}
+
+  For EACH challenged finding:
+  1. DEFEND — maintain with additional evidence
+  2. CONCEDE — withdraw (shows intellectual honesty)
+  3. MODIFY — adjust severity/description
+
+  Send each defense to debate-arbitrator via SendMessage as JSON:
+  {\"finding_id\":\"...\", \"action\":\"defend|concede|modify\", \"confidence_adjustment\":-30 to +30, \"reasoning\":\"...\", \"revised_severity\":null, \"revised_description\":null}
+
+  When done: send '{reviewer_name} round 3 complete' to debate-arbitrator.",
+  summary: "Round 3: defend your findings against challenges"
+)
+```
+
+**Wait for all Round 3 results:**
+```bash
+wait  # External CLIs
+```
+
+**Forward external Round 3 results to debate-arbitrator:**
+```
+SendMessage(
+  type: "message",
+  recipient: "debate-arbitrator",
+  content: "ROUND 3 EXTERNAL RESULTS:
+
+  CODEX DEFENSE:
+  {contents of round3-codex.json}
+
+  GEMINI DEFENSE:
+  {contents of round3-gemini.json}",
+  summary: "Round 3 external model defense results"
+)
+```
+
+**Signal Round 3 complete:**
+```
+SendMessage(
+  type: "message",
+  recipient: "debate-arbitrator",
+  content: "ROUND 3 COMPLETE. All defenses received. Synthesize the final consensus from all 3 rounds.",
+  summary: "Round 3 defense complete — synthesize consensus"
+)
+```
+
+#### Step 6.10.5: Web Search Verification & Final Consensus
+
+1. **Web Search Verification**: For critical/high severity security findings:
    - Use WebSearch for CVE entries, OWASP guidelines, security advisories
    - Send verification results to debate-arbitrator
 
-5. **Repeat** for additional rounds if `debate.max_rounds` > 1.
+2. **Collect Consensus**: Wait for debate-arbitrator to send the final consensus JSON incorporating all 3 rounds (CONFIRMED / DISMISSED / DISPUTED with full cross_examination_trail).
 
-6. **Collect Consensus**: Wait for debate-arbitrator to send final consensus (CONFIRMED / DISMISSED / DISPUTED).
+#### Cross-Examination Error Handling
+
+- **Round 2 external CLI timeout**: Proceed without that model's cross-examination. Note in report.
+- **Round 3 external CLI timeout**: Treat as implicit defense (findings maintained at current confidence).
+- **Claude reviewer no response**: Proceed with available responses.
+- **All Round 2 fails**: Skip Round 3, fall back to Round 1 data only for consensus.
+- **All Round 3 fails**: Synthesize based on Round 1 + Round 2 data only.
 
 ---
 
@@ -1680,7 +1878,9 @@ This phase follows the exact same pattern as multi-review.md Phase 6:
    - **File:** `{file_path}:{line}`
    - **Confidence:** {confidence}% {cross-validated badge if applicable}
    - **Found by:** {model(s)}
-   - **Debate status:** {confirmed|adjusted|disputed}
+   - **Cross-Examination:** {confirmed|challenged|modified|conceded}
+   - **Round 2:** Codex: {agree/disagree/partial}, Gemini: {agree/disagree/partial}
+   - **Round 3:** {defended/conceded/modified} by {original_model}
    - **Agreement:** {unanimous|majority|single-source-validated}
 
    **Description:**
@@ -1764,10 +1964,30 @@ This phase follows the exact same pattern as multi-review.md Phase 6:
 
    ---
 
+   ## Cross-Examination Summary
+
+   ### Round 2: Cross-Examination Results
+   | Finding | Claude Assessment | Codex Assessment | Gemini Assessment |
+   |---------|-------------------|-------------------|-------------------|
+   | {title} | agree (+10) | disagree (-15) | partial (-5) |
+
+   **New Observations from Round 2**: {N} additional findings discovered
+
+   ### Round 3: Defense Results
+   | Finding | Defender | Action | Outcome |
+   |---------|----------|--------|---------|
+   | {title} | Claude | defend | maintained (conf: 85→90) |
+   | {title} | Codex | concede | withdrawn |
+   | {title} | Gemini | modify | severity: critical→high |
+
+   **Concessions**: {N} findings withdrawn | **Modifications**: {M} adjusted | **Defended**: {K} maintained
+
+   ---
+
    ## Model Agreement Matrix
 
-   | Finding | Claude Reviewers | Codex | Gemini | Consensus |
-   |---------|-----------------|-------|--------|-----------|
+   | Finding | Claude Reviewers | Codex | Gemini | Round 2 | Round 3 | Consensus |
+   |---------|-----------------|-------|--------|---------|---------|-----------|
 
    ---
 
@@ -1780,7 +2000,7 @@ This phase follows the exact same pattern as multi-review.md Phase 6:
 
    ## Debate Log (if show_debate_log is true)
 
-   {Inter-agent message summary, challenges, supports, and resolutions}
+   {3-round cross-examination log: Round 1 findings, Round 2 cross-examinations, Round 3 defenses, and final synthesis}
 
    ---
 
@@ -1788,15 +2008,25 @@ This phase follows the exact same pattern as multi-review.md Phase 6:
 
    | Component | Teammates/Calls | Est. Tokens | Est. Cost |
    |-----------|----------------|-------------|-----------|
+   | **Round 1: Review** | | | |
    | Claude Reviewers | {N} teammates | ~{X}K | ~${A.AA} |
    | Scale Advisor | 1 teammate | ~{X}K | ~${A.AA} |
    | Scope Reviewer | 1 teammate | ~{X}K | ~${A.AA} |
    | Compliance Checker | {0 or 1} teammate | ~{X}K | ~${A.AA} |
    | Research Coordinator | {0 or 1} teammate | ~{X}K | ~${A.AA} |
-   | Debate Arbitrator | 1 teammate | ~{X}K | ~${A.AA} |
-   | Codex CLI | {N} calls | ~{X}K | ~${B.BB} |
-   | Gemini CLI | {N} calls | ~{X}K | ~${C.CC} |
-   | **Total** | | | **~${D.DD}** |
+   | Codex CLI (Round 1) | {N} calls | ~{X}K | ~${B.BB} |
+   | Gemini CLI (Round 1) | {N} calls | ~{X}K | ~${C.CC} |
+   | **Round 2: Cross-Exam** | | | |
+   | Claude Reviewers (R2) | {N} teammates | ~{X}K | ~${D.DD} |
+   | Codex CLI (Round 2) | 1 call | ~{X}K | ~${E.EE} |
+   | Gemini CLI (Round 2) | 1 call | ~{X}K | ~${F.FF} |
+   | **Round 3: Defense** | | | |
+   | Claude Reviewers (R3) | {N} teammates | ~{X}K | ~${G.GG} |
+   | Codex CLI (Round 3) | 1 call | ~{X}K | ~${H.HH} |
+   | Gemini CLI (Round 3) | 1 call | ~{X}K | ~${I.II} |
+   | **Arbitration** | | | |
+   | Debate Arbitrator | 1 teammate | ~{X}K | ~${J.JJ} |
+   | **Total** | | | **~${K.KK}** |
    ```
 
 **Output Steps:**

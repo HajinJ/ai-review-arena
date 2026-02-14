@@ -1,4 +1,4 @@
-# AI Review Arena v2.5
+# AI Review Arena v2.6
 
 > Full AI development lifecycle orchestrator for [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 
@@ -41,7 +41,7 @@ Critical pipeline decisions are made through structured debate between multiple 
 | Research Direction | What should we investigate before building? | deep, comprehensive |
 | Compliance Scope | Which compliance rules actually apply? | deep, comprehensive |
 | Implementation Strategy | What's the best approach? + define success criteria | standard, deep, comprehensive |
-| Code Review Debate | Are findings real? Is the scope surgical? | standard, deep, comprehensive |
+| 3-Round Cross-Exam | All AIs cross-examine + defend findings | standard, deep, comprehensive |
 
 **Example — Intensity Decision debate:**
 
@@ -55,29 +55,38 @@ risk-assessor:       "Production outage. Service disruption risk. deep+."
 intensity-arbitrator: "deep. Production risk + concurrency complexity."
 ```
 
-### Multi-AI Adversarial Code Review
+### Multi-AI 3-Round Cross-Examination
 
-Claude, OpenAI Codex, and Google Gemini review code independently, then debate each other's findings. Only consensus findings make the final report.
+Claude, OpenAI Codex, and Google Gemini don't just review independently — they **cross-examine each other** in a structured 3-round debate. Every AI sees every other AI's findings and can agree, disagree, or add new observations. Then each AI defends its own findings against challenges.
 
 ```
-Claude Agent Team (5-10 reviewers)
-  ├── security-reviewer
-  ├── bug-detector
-  ├── architecture-reviewer
-  ├── performance-reviewer
-  ├── test-coverage-reviewer
-  ├── scale-advisor
-  ├── scope-reviewer          ← NEW (surgical changes checker)
-  ├── compliance-checker (conditional)
-  └── debate-arbitrator
+Round 1: Independent Review (parallel)
+  Claude Agent Team (5-10 reviewers)     → findings JSON
+    ├── security-reviewer
+    ├── bug-detector
+    ├── architecture-reviewer
+    ├── performance-reviewer
+    ├── test-coverage-reviewer
+    ├── scale-advisor
+    ├── scope-reviewer
+    ├── compliance-checker (conditional)
+    └── debate-arbitrator
+  OpenAI Codex CLI                       → findings JSON
+  Google Gemini CLI                      → findings JSON
 
-External Models (via CLI)
-  ├── OpenAI Codex ─── independent review
-  └── Google Gemini ── independent review
+Round 2: Cross-Examination (parallel)
+  Codex reads Claude+Gemini findings     → agree/disagree/partial
+  Gemini reads Claude+Codex findings     → agree/disagree/partial
+  Claude reads Codex+Gemini findings     → agree/disagree/partial
 
-         ↓
-  Adversarial Debate → Consensus Report
+Round 3: Defense (parallel)
+  Each AI defends its own findings       → defend/concede/modify
+  against the other two AIs' challenges
+
+Final: debate-arbitrator synthesizes all 3 rounds → Consensus Report
 ```
+
+**Why this matters**: A single-round review can't catch false positives. With cross-examination, if Codex flags a "security vulnerability" but Claude and Gemini both disagree with evidence, the finding gets downgraded or dismissed. If all three agree, confidence increases. If an AI concedes during defense, that's strong signal the finding was wrong.
 
 ### Success Criteria (Phase 5.5)
 
@@ -178,7 +187,8 @@ Phase 3     Compliance Check ★ Compliance Scope debate
 Phase 4     Model Benchmarking (score Claude/Codex/Gemini per category)
 Phase 5     Figma Design Analysis (if Figma MCP available)
 Phase 5.5   Implementation Strategy ★ Agent Teams debate + Success Criteria
-Phase 6     Implementation + Agent Team Code Review + Scope Review + debate
+Phase 6     Implementation + Agent Team Code Review + Scope Review
+Phase 6.10  3-Round Cross-Examination (Round 1 → Round 2 → Round 3 → Consensus)
 Phase 7     Final Report + Cleanup
 ```
 
@@ -289,7 +299,7 @@ ai-review-arena/
 │   └── plugin.json              # Plugin manifest
 │
 ├── commands/                    # Slash commands (6)
-│   ├── arena.md                 # Full lifecycle orchestrator (~1910 lines)
+│   ├── arena.md                 # Full lifecycle orchestrator (~2100 lines)
 │   ├── arena-research.md        # Pre-implementation research
 │   ├── arena-stack.md           # Stack detection
 │   ├── multi-review.md          # Multi-AI code review
@@ -309,7 +319,7 @@ ai-review-arena/
 │   ├── design-analyzer.md
 │   └── compliance-checker.md
 │
-├── scripts/                     # Shell scripts (15)
+├── scripts/                     # Shell scripts (17)
 │   ├── orchestrate-review.sh    # Core review orchestration
 │   ├── codex-review.sh          # Codex CLI integration
 │   ├── gemini-review.sh         # Gemini CLI integration
@@ -324,20 +334,24 @@ ai-review-arena/
 │   ├── search-guidelines.sh     # Compliance guideline search
 │   ├── setup.sh                 # Review setup
 │   ├── setup-arena.sh           # Arena setup
+│   ├── codex-cross-examine.sh   # Codex cross-examination wrapper (v2.6)
+│   ├── gemini-cross-examine.sh  # Gemini cross-examination wrapper (v2.6)
 │   └── utils.sh                 # Shared utilities
 │
 ├── config/
 │   ├── default-config.json      # All settings
 │   ├── compliance-rules.json    # Feature → guideline mapping
 │   ├── tech-queries.json        # Technology → search queries (31 techs)
-│   ├── review-prompts/          # Role-specific review prompts (7)
+│   ├── review-prompts/          # Role-specific review prompts (9)
 │   │   ├── security.txt
 │   │   ├── bugs.txt
 │   │   ├── architecture.txt
 │   │   ├── performance.txt
 │   │   ├── testing.txt
 │   │   ├── debate-challenge.txt
-│   │   └── debate-synthesis.txt
+│   │   ├── debate-synthesis.txt
+│   │   ├── cross-examine.txt      # Round 2 cross-examination prompt (v2.6)
+│   │   └── defend.txt             # Round 3 defense prompt (v2.6)
 │   └── benchmarks/              # Model benchmark test cases (4)
 │       ├── security-test-01.json
 │       ├── bugs-test-01.json
@@ -392,6 +406,18 @@ Each agent is a separate Claude Code instance with its own context, communicatin
 | Windows (Native) | Commands only | Slash commands and agents work; scripts need WSL |
 
 ## Changelog
+
+### v2.6.0
+
+- **3-Round Cross-Examination** — all AI models (Claude, Codex, Gemini) now cross-examine each other's findings in a structured 3-round debate:
+  - Round 1: Independent review (existing)
+  - Round 2: Each AI evaluates other AIs' findings (agree/disagree/partial + new observations)
+  - Round 3: Each AI defends its own findings against challenges (defend/concede/modify)
+- New scripts: `codex-cross-examine.sh`, `gemini-cross-examine.sh`
+- New prompt templates: `cross-examine.txt`, `defend.txt`
+- Updated `debate-arbitrator.md` with 3-round consensus algorithm and `cross_examination_trail` output
+- All intensity levels now use 3-round cross-examination (standard/deep/comprehensive)
+- Phase 7 report includes Cross-Examination Summary with per-round breakdown
 
 ### v2.5.0
 

@@ -30,11 +30,14 @@
   },
   "debate": {
     "enabled": true,
-    "max_rounds": 2,
+    "max_rounds": 3,
+    "cross_examination_enabled": true,
     "challenge_threshold": 60,
     "consensus_threshold": 80,
     "require_majority": true,
-    "web_search_enabled": true
+    "web_search_enabled": true,
+    "round2_timeout_seconds": 180,
+    "round3_timeout_seconds": 180
   },
   "hook_mode": {
     "enabled": false,
@@ -65,18 +68,18 @@
     "standard": {
       "models_active": 2,
       "focus_areas_max": 4,
-      "debate_rounds": 1,
+      "debate_rounds": 3,
       "file_lines_max": 500,
-      "description_ko": "표준 리뷰 - 2개 모델, 1라운드 토론",
-      "description_en": "Standard review - 2 models, 1 debate round"
+      "description_ko": "표준 리뷰 - 2개 모델, 3라운드 교차심문",
+      "description_en": "Standard review - 2 models, 3-round cross-examination"
     },
     "deep": {
       "models_active": 3,
       "focus_areas_max": 5,
-      "debate_rounds": 2,
+      "debate_rounds": 3,
       "file_lines_max": 1000,
-      "description_ko": "심층 리뷰 - 3개 모델, 2라운드 토론",
-      "description_en": "Deep review - 3 models, 2 debate rounds"
+      "description_ko": "심층 리뷰 - 3개 모델, 3라운드 교차심문",
+      "description_en": "Deep review - 3 models, 3-round cross-examination"
     },
     "comprehensive": {
       "models_active": 3,

@@ -36,23 +36,84 @@ As an Agent Team teammate, you receive input in two ways:
 - List of active reviewer teammates
 - Number of debate rounds
 
-### 2. Teammate Messages (via SendMessage)
-During the debate phase, you will receive messages from:
-- **Reviewer teammates**: Challenge/support responses in JSON format
-- **Team lead**: External model (Codex/Gemini) challenge responses, web search verification results, and round control signals
+### 2. Teammate Messages (via SendMessage) — 3-Round Cross-Examination
 
-Message format from reviewers:
+You receive messages across 3 rounds. Track which round each message belongs to.
+
+**Round 1 data** (in your initial spawn context):
+- Aggregated findings from all models, partitioned by model source
+
+**Round 2: Cross-Examination** — each model evaluates other models' findings:
+
+From Claude reviewers (via SendMessage):
 ```json
 {
   "finding_id": "<file:line:title>",
-  "action": "challenge|support",
-  "confidence_adjustment": -20 to +20,
+  "original_model": "codex|gemini",
+  "action": "agree|disagree|partial",
+  "confidence_adjustment": -30 to +30,
   "reasoning": "<detailed reasoning>",
-  "evidence": "<supporting evidence>"
+  "new_observations": []
 }
 ```
 
-When you receive these messages, parse the JSON content and incorporate the challenge/support data into the appropriate phase of the consensus algorithm below.
+From team lead (forwarding external model results):
+```json
+{
+  "model": "codex|gemini",
+  "round": 2,
+  "phase": "cross-examine",
+  "responses": [
+    {
+      "finding_id": "<file:line:title>",
+      "original_model": "<model>",
+      "action": "agree|disagree|partial",
+      "confidence_adjustment": -30 to +30,
+      "reasoning": "...",
+      "new_observations": [...]
+    }
+  ]
+}
+```
+
+**Round 3: Defense** — each model defends its own challenged findings:
+
+From Claude reviewers (via SendMessage):
+```json
+{
+  "finding_id": "<file:line:title>",
+  "action": "defend|concede|modify",
+  "confidence_adjustment": -30 to +30,
+  "reasoning": "<detailed reasoning>",
+  "revised_severity": null,
+  "revised_description": null
+}
+```
+
+From team lead (forwarding external model results):
+```json
+{
+  "model": "codex|gemini",
+  "round": 3,
+  "phase": "defend",
+  "defenses": [
+    {
+      "finding_id": "<file:line:title>",
+      "action": "defend|concede|modify",
+      "confidence_adjustment": -30 to +30,
+      "reasoning": "...",
+      "revised_severity": null,
+      "revised_description": null
+    }
+  ]
+}
+```
+
+**Round control signals from team lead**:
+- `"ROUND 2 COMPLETE"` — all cross-examination responses received
+- `"ROUND 3 COMPLETE"` — all defenses received, synthesize final consensus
+
+When you receive these messages, parse the JSON content and incorporate the data into the appropriate phase of the consensus algorithm below.
 
 ## Consensus Algorithm
 
@@ -225,6 +286,67 @@ IF challenge confirms validity:
   Maintain or upgrade finding
 ```
 
+### Phase 5.5: Cross-Examination Integration
+
+Integrate Round 2 cross-examination and Round 3 defense data:
+
+```
+FOR each finding:
+  # --- Round 2: Cross-Examination Score ---
+  Collect all Round 2 responses targeting this finding.
+
+  agreements = count(action == "agree" or action == "partial")
+  disagreements = count(action == "disagree")
+
+  IF agreements >= 2:
+    cross_exam_boost = +15
+  ELIF agreements == 1 AND disagreements == 0:
+    cross_exam_boost = +5
+  ELIF disagreements >= 2:
+    cross_exam_boost = -20
+  ELIF disagreements == 1:
+    cross_exam_boost = -10
+  ELSE:
+    cross_exam_boost = 0
+
+  # Incorporate new observations from Round 2
+  FOR each new_observation in Round 2 responses:
+    Add as new finding with:
+      source = "round2_observation"
+      confidence = observation.confidence - 10  (lower for late discovery)
+      Process through Phase 1-5 as normal
+
+  # --- Round 3: Defense Score ---
+  Collect Round 3 defense for this finding from the original model.
+
+  IF action == "defend" AND reasoning is substantive:
+    defense_boost = +10
+  ELIF action == "concede":
+    defense_boost = -25  (finding likely invalid, consider rejecting)
+  ELIF action == "modify":
+    Apply revised_severity if provided
+    Apply revised_description if provided
+    defense_boost = confidence_adjustment from defense
+  ELSE:
+    defense_boost = 0  (no defense received = implicit defense)
+
+  # --- Final Confidence Calculation ---
+  finding.confidence = clamp(
+    original_confidence
+    + sum(round2_confidence_adjustments)
+    + cross_exam_boost
+    + defense_boost
+    + consensus_bonus,
+    0, 100
+  )
+
+  # Concession handling
+  IF defense action == "concede" AND cross_exam_boost <= -10:
+    Move finding to rejected (original model withdrew + cross-examination negative)
+  ELIF defense action == "concede" AND cross_exam_boost > 0:
+    Keep finding but note concession (other models still support it)
+```
+
 ### Phase 6: Security Advisory Cross-Reference
 
 For security-related findings:
@@ -347,7 +469,26 @@ The consensus JSON sent via SendMessage to the team lead MUST use the following 
       "line": <line_number>,
       "title": "<consensus finding title>",
       "description": "<synthesized description incorporating evidence from all relevant models, resolution rationale for any conflicts, and cross-reference results>",
-      "suggestion": "<best remediation from all model suggestions, combined when complementary>"
+      "suggestion": "<best remediation from all model suggestions, combined when complementary>",
+      "cross_examination_trail": {
+        "round1": {
+          "original_model": "<model>",
+          "original_severity": "<severity>",
+          "original_confidence": 0
+        },
+        "round2": {
+          "codex": {"action": "agree|disagree|partial|N/A", "confidence_adjustment": 0, "reasoning": "..."},
+          "gemini": {"action": "agree|disagree|partial|N/A", "confidence_adjustment": 0, "reasoning": "..."},
+          "claude_reviewers": [{"reviewer": "<name>", "action": "...", "confidence_adjustment": 0}]
+        },
+        "round3": {
+          "defender": "<original_model>",
+          "action": "defend|concede|modify|N/A",
+          "confidence_adjustment": 0,
+          "reasoning": "..."
+        },
+        "final_confidence_calculation": "<formula showing how final confidence was derived>"
+      }
     }
   ],
   "consensus": {
@@ -393,7 +534,25 @@ The consensus JSON sent via SendMessage to the team lead MUST use the following 
     "disputes_unresolved": <number>,
     "unique_findings_accepted": <number>,
     "unique_findings_rejected": <number>,
-    "security_advisories_checked": <number>
+    "security_advisories_checked": <number>,
+    "round2_cross_examination": {
+      "responses_received": {"claude": <n>, "codex": <n>, "gemini": <n>},
+      "agreements": <number>,
+      "disagreements": <number>,
+      "partial_agreements": <number>,
+      "new_observations_added": <number>
+    },
+    "round3_defense": {
+      "defenses_received": {"claude": <n>, "codex": <n>, "gemini": <n>},
+      "defended": <number>,
+      "conceded": <number>,
+      "modified": <number>
+    },
+    "confidence_changes": {
+      "increased": <number>,
+      "decreased": <number>,
+      "unchanged": <number>
+    }
   },
   "summary": "<executive summary: overall code quality consensus, key findings all models agree on, major disagreements and how they were resolved, items requiring human attention, and final risk assessment>"
 }
