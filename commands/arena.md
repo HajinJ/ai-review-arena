@@ -13,12 +13,29 @@ You are the **team lead** for the AI Review Arena full lifecycle orchestrator. T
 ```
 Team Lead (You - this session)
 ├── Phase 0: Context & Configuration (+ MCP Dependency Detection)
+├── Phase 0.1: Intensity Decision (Agent Teams debate - MANDATORY)
+│   ├── intensity-advocate     → argues for higher intensity
+│   ├── efficiency-advocate    → argues for lower intensity
+│   ├── risk-assessor          → evaluates production/security risk
+│   └── intensity-arbitrator   → synthesizes consensus, decides intensity
 ├── Phase 0.5: Codebase Analysis (conventions, reusable code, structure)
 ├── Phase 1: Stack Detection (detect-stack.sh)
 ├── Phase 2: Pre-Implementation Research (search-best-practices.sh + WebSearch)
+│   └── Research Direction Debate (deep+ only)
+│       ├── researcher agents  → propose different research angles
+│       └── research-arbitrator → prioritizes research agenda
 ├── Phase 3: Compliance Detection (search-guidelines.sh + WebSearch)
+│   └── Compliance Scope Debate (deep+ only)
+│       ├── compliance-advocate → argues for more rules
+│       ├── scope-challenger    → argues against over-application
+│       └── compliance-arbitrator → decides actual scope
 ├── Phase 4: Model Benchmarking (benchmark-models.sh + Task subagents)
 ├── Phase 5: Figma Analysis (Figma MCP tools, optional)
+├── Phase 5.5: Implementation Strategy (Agent Teams debate - standard+)
+│   ├── architecture-advocate  → proposes design approach
+│   ├── security-challenger    → challenges security implications
+│   ├── pragmatic-challenger   → challenges complexity/feasibility
+│   └── strategy-arbitrator    → synthesizes best approach
 ├── Phase 6: Agent Team Review (follows multi-review.md pattern)
 │   ├── Create team (Teammate tool)
 │   ├── Spawn reviewer teammates (Task tool with team_name)
@@ -40,10 +57,10 @@ Claude Reviewer Teammates (independent Claude Code instances)
 ├── architecture-reviewer─┤── SendMessage -> debate-arbitrator
 ├── performance-reviewer ─┤── SendMessage -> team lead (findings)
 ├── test-reviewer        ─┤
-├── scale-advisor        ─┤── NEW: scale/concurrency analysis
-├── compliance-checker   ─┘── NEW: guideline compliance (conditional)
+├── scale-advisor        ─┤── scale/concurrency analysis
+├── compliance-checker   ─┘── guideline compliance (conditional)
 │
-├── research-coordinator ─── NEW: deep intensity only
+├── research-coordinator ─── deep intensity only
 └── debate-arbitrator    ─── Receives challenges/supports -> synthesizes consensus
 
 External CLIs (via Bash, not teammates)
@@ -111,17 +128,23 @@ Establish project context, load configuration, and prepare the session environme
    ```
 
 6. Determine which phases to execute based on `--phase`:
-   - `all` (default): Run phases 0.5, 1-7 in sequence
+   - `all` (default): Run phases 0.1, 0.5, 1-7 in sequence (intensity determines which phases run)
    - `codebase`: Run Phase 0.5 only (codebase analysis)
-   - `codebase,review`: Run Phase 0.5 + Phase 6 + Phase 7 (refactoring mode)
+   - `codebase,review`: Run Phase 0.5 + Phase 5.5 + Phase 6 + Phase 7 (refactoring mode)
    - `stack`: Run Phase 0.5 + Phase 1 only
-   - `research`: Run Phase 0.5 + Phase 1 + Phase 2
-   - `compliance`: Run Phase 0.5 + Phase 1 + Phase 3
+   - `research`: Run Phase 0.1 + Phase 0.5 + Phase 1 + Phase 2
+   - `compliance`: Run Phase 0.1 + Phase 0.5 + Phase 1 + Phase 3
    - `benchmark`: Run Phase 4 only
    - `review`: Run Phase 0.5 + Phase 1 (for context) + Phase 6 + Phase 7
 
-   **Quick Intensity Mode** (`--intensity quick`):
-   - Run Phase 0 + Phase 0.5 only
+   **Intensity determines Phase scope** (decided by Phase 0.1 debate or `--intensity` flag):
+   - `quick`: Phase 0 → 0.1 → 0.5 only (Claude solo, no Agent Team)
+   - `standard`: Phase 0 → 0.1 → 0.5 → 1(cached) → 5.5 → 6 → 7
+   - `deep`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 5.5 → 6 → 7
+   - `comprehensive`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 4 → 5 → 5.5 → 6 → 7
+
+   **Quick Intensity Mode** (`--intensity quick` or decided by Phase 0.1):
+   - Run Phase 0 + Phase 0.1 + Phase 0.5 only
    - Skip all other phases (1-6)
    - Claude executes the task solo using codebase analysis results
    - After task completion, perform simplified self-review (no Agent Team)
@@ -201,6 +224,184 @@ Establish project context, load configuration, and prepare the session environme
          "notion_mcp": "available|installed|unavailable"
        }
        ```
+
+---
+
+## Phase 0.1: Intensity Decision (Agent Teams Debate)
+
+**MANDATORY for all requests.** Determine the appropriate intensity level through adversarial debate among Claude agents. Skip only if user explicitly specified `--intensity`.
+
+**Purpose**: Prevent both under-engineering (missing critical issues) and over-engineering (wasting resources). No single Claude instance can reliably judge complexity alone.
+
+**Steps:**
+
+1. **Create Decision Team**:
+   ```
+   Teammate(
+     operation: "spawnTeam",
+     team_name: "intensity-decision-{YYYYMMDD-HHMMSS}",
+     description: "Intensity level determination debate"
+   )
+   ```
+
+2. **Create Debate Tasks**:
+   ```
+   TaskCreate(
+     subject: "Advocate for higher intensity",
+     description: "Argue for the highest reasonable intensity level for this request. Consider: worst-case scenarios, security implications, complexity hidden in seemingly simple tasks, production risk, cross-module impact, concurrency issues, data integrity risks. Provide specific technical reasoning.",
+     activeForm: "Advocating for higher intensity"
+   )
+
+   TaskCreate(
+     subject: "Advocate for lower intensity",
+     description: "Argue for the lowest reasonable intensity level for this request. Consider: practical scope, cost efficiency, whether the task is well-understood, whether existing patterns can be reused, time constraints. Provide specific technical reasoning.",
+     activeForm: "Advocating for lower intensity"
+   )
+
+   TaskCreate(
+     subject: "Assess risk and impact",
+     description: "Evaluate the production risk, security sensitivity, and failure impact of this request. Consider: is this production code? Could a bug cause data loss? Is this security-critical? What's the blast radius of a mistake? Provide risk assessment with severity rating.",
+     activeForm: "Assessing risk and impact"
+   )
+
+   TaskCreate(
+     subject: "Arbitrate intensity decision",
+     description: "Wait for all three advocates to present their arguments. Weigh the technical merits of each position. Decide the final intensity level (quick/standard/deep/comprehensive) with clear justification. Send the decision to the team lead.",
+     activeForm: "Arbitrating intensity decision"
+   )
+   ```
+
+3. **Spawn Debate Agents** (all in parallel):
+   ```
+   Task(
+     subagent_type: "general-purpose",
+     team_name: "intensity-decision-{session}",
+     name: "intensity-advocate",
+     prompt: "You are the Intensity Advocate. Your role is to argue for the HIGHEST reasonable intensity level.
+
+     USER REQUEST: {user_request}
+     CONTEXT: {discovered_context_from_step1}
+     PROJECT TYPE: {detected_from_codebase}
+
+     Analyze this request and argue why it needs a higher intensity level. Consider:
+     - Hidden complexity (e.g., deadlock bugs seem simple but are concurrency issues)
+     - Security implications (e.g., any auth/payment touches are high-risk)
+     - Production impact (e.g., a bug fix in production needs more scrutiny)
+     - Cross-module effects (e.g., changes that ripple through the system)
+     - Compliance requirements (e.g., features touching user data)
+
+     Present your argument to intensity-arbitrator via SendMessage.
+     Then engage with efficiency-advocate's counter-arguments.
+     Continue debating until intensity-arbitrator makes a decision."
+   )
+
+   Task(
+     subagent_type: "general-purpose",
+     team_name: "intensity-decision-{session}",
+     name: "efficiency-advocate",
+     prompt: "You are the Efficiency Advocate. Your role is to argue for the LOWEST reasonable intensity level.
+
+     USER REQUEST: {user_request}
+     CONTEXT: {discovered_context_from_step1}
+     PROJECT TYPE: {detected_from_codebase}
+
+     Analyze this request and argue why a lower intensity is sufficient. Consider:
+     - Is the scope truly limited? (single file, single function)
+     - Are existing patterns reusable? (well-known solutions)
+     - Is the risk actually low? (non-critical path, internal tool)
+     - Would higher intensity waste resources without proportional benefit?
+
+     Present your argument to intensity-arbitrator via SendMessage.
+     Then engage with intensity-advocate's counter-arguments.
+     Continue debating until intensity-arbitrator makes a decision."
+   )
+
+   Task(
+     subagent_type: "general-purpose",
+     team_name: "intensity-decision-{session}",
+     name: "risk-assessor",
+     prompt: "You are the Risk Assessor. Your role is to provide an objective risk evaluation.
+
+     USER REQUEST: {user_request}
+     CONTEXT: {discovered_context_from_step1}
+     PROJECT TYPE: {detected_from_codebase}
+
+     Evaluate:
+     1. Production Risk: Is this production code? What happens if the change has a bug?
+     2. Security Risk: Does this touch authentication, authorization, data handling, or network?
+     3. Complexity Risk: Is this a concurrency issue, distributed system change, or state management problem?
+     4. Data Risk: Could this cause data loss, corruption, or leaks?
+     5. Blast Radius: How many users/systems are affected if something goes wrong?
+
+     Rate overall risk as: LOW / MEDIUM / HIGH / CRITICAL
+     Send your assessment to intensity-arbitrator via SendMessage."
+   )
+
+   Task(
+     subagent_type: "general-purpose",
+     team_name: "intensity-decision-{session}",
+     name: "intensity-arbitrator",
+     prompt: "You are the Intensity Arbitrator. Your role is to make the FINAL intensity decision.
+
+     Wait for arguments from:
+     1. intensity-advocate (argues for higher intensity)
+     2. efficiency-advocate (argues for lower intensity)
+     3. risk-assessor (provides risk evaluation)
+
+     After receiving all arguments:
+     1. Weigh the technical merits of each position
+     2. Consider the risk assessment
+     3. Decide: quick, standard, deep, or comprehensive
+     4. Provide clear justification for your decision
+
+     Intensity guidelines:
+     - quick: Single element, obvious change, no risk
+     - standard: Multi-file, moderate complexity, low-medium risk
+     - deep: Complex logic, security-sensitive, high risk, compliance needed
+     - comprehensive: System-wide, critical security (auth/payment), needs model benchmarking
+
+     Send your final decision to the team lead via SendMessage in this format:
+     INTENSITY_DECISION: {level}
+     JUSTIFICATION: {reasoning}
+     RISK_LEVEL: {from risk-assessor}
+     KEY_FACTORS: {bullet points}"
+   )
+   ```
+
+4. **Assign Tasks**:
+   ```
+   TaskUpdate(taskId: "{advocate_task}", owner: "intensity-advocate")
+   TaskUpdate(taskId: "{efficiency_task}", owner: "efficiency-advocate")
+   TaskUpdate(taskId: "{risk_task}", owner: "risk-assessor")
+   TaskUpdate(taskId: "{arbitrator_task}", owner: "intensity-arbitrator")
+   ```
+
+5. **Wait for Decision**: Wait for intensity-arbitrator to send the final decision via SendMessage.
+
+6. **Shutdown Decision Team**:
+   ```
+   SendMessage(type: "shutdown_request", recipient: "intensity-advocate", content: "Decision made.")
+   SendMessage(type: "shutdown_request", recipient: "efficiency-advocate", content: "Decision made.")
+   SendMessage(type: "shutdown_request", recipient: "risk-assessor", content: "Decision made.")
+   SendMessage(type: "shutdown_request", recipient: "intensity-arbitrator", content: "Decision made.")
+   Teammate(operation: "cleanup")
+   ```
+
+7. **Apply Decision**: Set the intensity for all subsequent phases based on the arbitrator's decision.
+
+8. **Display Decision**:
+   ```
+   ## Intensity Decision (Phase 0.1)
+   - Decision: {intensity_level}
+   - Risk Level: {risk_level}
+   - Key Factors: {key_factors}
+   - Justification: {justification}
+   ```
+
+**Error Handling:**
+- If Agent Teams are unavailable: fall back to Claude solo judgment with explicit reasoning logged.
+- If debate times out (>60 seconds): use the last available position from the arbitrator, or default to `standard`.
+- If no consensus reached: default to `deep` (err on the side of caution).
 
 ---
 
@@ -371,6 +572,48 @@ Gather best practices and implementation patterns for each detected technology.
 
 **Steps:**
 
+**Pre-Step: Research Direction Debate** (deep/comprehensive intensity only):
+
+Before executing searches, debate what to research:
+
+1. Create a lightweight decision team:
+   ```
+   Teammate(
+     operation: "spawnTeam",
+     team_name: "research-direction-{YYYYMMDD-HHMMSS}",
+     description: "Research direction debate"
+   )
+   ```
+
+2. Spawn 3 researcher agents + arbitrator (all in parallel):
+   - **researcher-tech**: Proposes research directions based on detected technology stack (frameworks, languages, versions)
+   - **researcher-domain**: Proposes research directions based on the feature domain (security patterns, UX patterns, data patterns)
+   - **researcher-risk**: Proposes research directions based on risk areas (what could go wrong, edge cases, failure modes)
+   - **research-arbitrator**: Weighs all proposals, prioritizes the research agenda, decides top 3-5 research topics
+
+3. Each researcher sends proposals to research-arbitrator via SendMessage. Researchers can challenge each other's priorities.
+
+4. research-arbitrator sends final research agenda to team lead:
+   ```
+   RESEARCH_AGENDA:
+   1. {topic} - Priority: HIGH - Reason: {why}
+   2. {topic} - Priority: HIGH - Reason: {why}
+   3. {topic} - Priority: MEDIUM - Reason: {why}
+   ...
+   ```
+
+5. Shutdown research direction team and proceed with the prioritized research agenda.
+
+6. Display research direction decision:
+   ```
+   ## Research Direction (Debate Result)
+   {research_agenda}
+   ```
+
+---
+
+Now execute the main research steps using the debate-determined agenda:
+
 1. For each detected technology in the stack profile:
    a. Run the search-best-practices script:
       ```bash
@@ -441,6 +684,49 @@ Gather best practices and implementation patterns for each detected technology.
 Identify applicable compliance guidelines based on feature keywords and detected platform.
 
 **Steps:**
+
+**Pre-Step: Compliance Scope Debate** (deep/comprehensive intensity only):
+
+Before matching compliance rules, debate which rules actually apply:
+
+1. Create a lightweight decision team:
+   ```
+   Teammate(
+     operation: "spawnTeam",
+     team_name: "compliance-scope-{YYYYMMDD-HHMMSS}",
+     description: "Compliance scope debate"
+   )
+   ```
+
+2. Spawn debate agents (all in parallel):
+   - **compliance-advocate**: Argues for broader compliance scope. Considers regulations that might not be obvious (e.g., COPPA for games, GDPR for user data, accessibility laws). Errs on the side of inclusion.
+   - **scope-challenger**: Argues against over-application. Considers the actual deployment context (internal vs. public, region, user base). Challenges unnecessary compliance burden.
+   - **compliance-arbitrator**: Weighs both positions, decides which compliance rules actually apply. Considers legal risk vs. practical burden.
+
+3. Agents debate via SendMessage until compliance-arbitrator reaches a decision.
+
+4. compliance-arbitrator sends final scope to team lead:
+   ```
+   COMPLIANCE_SCOPE:
+   APPLICABLE:
+   - {rule}: {reason}
+   - {rule}: {reason}
+   NOT_APPLICABLE:
+   - {rule}: {reason for exclusion}
+   ```
+
+5. Shutdown compliance scope team and proceed with the scoped compliance check.
+
+6. Display compliance scope decision:
+   ```
+   ## Compliance Scope (Debate Result)
+   Applicable: {list}
+   Excluded: {list with reasons}
+   ```
+
+---
+
+Now execute the main compliance steps using the debate-determined scope:
 
 1. Extract feature keywords from multiple sources:
    a. User's description/arguments (from `$ARGUMENTS`)
@@ -676,6 +962,157 @@ Only execute this phase if `--figma <url>` was provided.
 - If Figma MCP tools fail to load: skip Figma analysis, warn user.
 - If URL is invalid or inaccessible: report error and continue to review phase.
 - If partial data retrieved: use what is available and note gaps.
+
+---
+
+## Phase 5.5: Implementation Strategy (Agent Teams Debate)
+
+**Applies to**: standard, deep, comprehensive intensity. Skip for quick.
+
+**Purpose**: Before implementing code, debate the best approach. Prevents costly rework by catching architectural issues, security concerns, and over-engineering before code is written.
+
+**Steps:**
+
+1. **Create Strategy Team**:
+   ```
+   Teammate(
+     operation: "spawnTeam",
+     team_name: "strategy-decision-{YYYYMMDD-HHMMSS}",
+     description: "Implementation strategy debate"
+   )
+   ```
+
+2. **Prepare Context**: Compile all information gathered so far:
+   - User's original request
+   - Codebase analysis results (Phase 0.5: conventions, reusable code)
+   - Stack profile (Phase 1)
+   - Research findings (Phase 2, if executed)
+   - Compliance requirements (Phase 3, if executed)
+   - Figma analysis (Phase 5, if executed)
+
+3. **Spawn Strategy Agents** (all in parallel):
+   ```
+   Task(
+     subagent_type: "general-purpose",
+     team_name: "strategy-decision-{session}",
+     name: "architecture-advocate",
+     prompt: "You are the Architecture Advocate. Propose the best implementation approach.
+
+     REQUEST: {user_request}
+     CODEBASE CONVENTIONS: {phase_0.5_results}
+     STACK: {phase_1_results}
+     RESEARCH: {phase_2_results_if_available}
+     COMPLIANCE: {phase_3_results_if_available}
+     REUSABLE CODE: {identified_reusable_code}
+
+     Propose:
+     1. Overall architecture/design approach
+     2. Which existing code to reuse vs. create new
+     3. File structure and organization
+     4. Key design patterns to apply
+     5. Integration points with existing code
+
+     Send your proposal to strategy-arbitrator via SendMessage.
+     Engage with challenges from other agents."
+   )
+
+   Task(
+     subagent_type: "general-purpose",
+     team_name: "strategy-decision-{session}",
+     name: "security-challenger",
+     prompt: "You are the Security Challenger. Challenge the proposed implementation for security issues.
+
+     REQUEST: {user_request}
+     COMPLIANCE: {phase_3_results_if_available}
+
+     Wait for architecture-advocate's proposal, then:
+     1. Identify security vulnerabilities in the proposed approach
+     2. Challenge unsafe patterns or missing security measures
+     3. Suggest security-hardened alternatives
+     4. Flag compliance gaps in the proposed design
+
+     Send challenges to strategy-arbitrator via SendMessage.
+     Engage in debate with architecture-advocate."
+   )
+
+   Task(
+     subagent_type: "general-purpose",
+     team_name: "strategy-decision-{session}",
+     name: "pragmatic-challenger",
+     prompt: "You are the Pragmatic Challenger. Challenge the proposed implementation for over-engineering and feasibility.
+
+     REQUEST: {user_request}
+     CODEBASE CONVENTIONS: {phase_0.5_results}
+     REUSABLE CODE: {identified_reusable_code}
+
+     Wait for architecture-advocate's proposal, then:
+     1. Challenge unnecessary complexity
+     2. Identify simpler alternatives that achieve the same goal
+     3. Check if existing code/patterns are being ignored in favor of new code
+     4. Flag YAGNI violations (building for hypothetical future needs)
+     5. Consider maintenance burden of the proposed approach
+
+     Send challenges to strategy-arbitrator via SendMessage.
+     Engage in debate with architecture-advocate."
+   )
+
+   Task(
+     subagent_type: "general-purpose",
+     team_name: "strategy-decision-{session}",
+     name: "strategy-arbitrator",
+     prompt: "You are the Strategy Arbitrator. Synthesize the best implementation approach.
+
+     Wait for:
+     1. architecture-advocate's proposal
+     2. security-challenger's challenges
+     3. pragmatic-challenger's challenges
+
+     Then:
+     1. Weigh each position on its technical merits
+     2. Resolve conflicts between security and pragmatism
+     3. Ensure the final strategy follows existing codebase conventions
+     4. Produce a concrete implementation plan
+
+     Send your decision to the team lead via SendMessage:
+     IMPLEMENTATION_STRATEGY:
+     - Approach: {chosen approach with justification}
+     - Architecture: {design decisions}
+     - Security Measures: {required security patterns}
+     - Files to Create: {list}
+     - Files to Modify: {list}
+     - Code to Reuse: {list}
+     - Rejected Alternatives: {what was considered but not chosen, and why}"
+   )
+   ```
+
+4. **Assign Tasks and Wait for Decision**.
+
+5. **Shutdown Strategy Team**:
+   ```
+   SendMessage(type: "shutdown_request", recipient: "architecture-advocate", content: "Strategy decided.")
+   SendMessage(type: "shutdown_request", recipient: "security-challenger", content: "Strategy decided.")
+   SendMessage(type: "shutdown_request", recipient: "pragmatic-challenger", content: "Strategy decided.")
+   SendMessage(type: "shutdown_request", recipient: "strategy-arbitrator", content: "Strategy decided.")
+   Teammate(operation: "cleanup")
+   ```
+
+6. **Apply Strategy**: Use the arbitrator's decision as the implementation plan. Pass it as context to Phase 6 reviewers so they can verify the implementation follows the agreed strategy.
+
+7. **Implement**: Execute the implementation following the decided strategy. Apply codebase conventions from Phase 0.5. Use reusable code identified earlier.
+
+8. **Display Strategy Decision**:
+   ```
+   ## Implementation Strategy (Phase 5.5 Debate Result)
+   - Approach: {approach}
+   - Architecture: {decisions}
+   - Security: {measures}
+   - Files: {create/modify list}
+   ```
+
+**Error Handling:**
+- If Agent Teams are unavailable: fall back to Claude solo strategy with explicit reasoning.
+- If debate times out: use architecture-advocate's initial proposal with security-challenger's concerns noted.
+- If no consensus: err on the side of security (security-challenger's position takes precedence on security matters).
 
 ---
 

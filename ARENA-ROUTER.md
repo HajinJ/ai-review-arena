@@ -1,4 +1,4 @@
-# ARENA-ROUTER.md - AI Review Arena Routing System v2.3
+# ARENA-ROUTER.md - AI Review Arena Routing System v2.4
 
 ## Core Rule
 
@@ -158,37 +158,37 @@ Claude의 자연어 이해 능력으로 요청의 의도를 판단하여 적절�
 
 ### Intensity 결정
 
-| Intensity | 기준 | Phase 범위 | Agent Team |
-|-----------|------|------------|------------|
-| `quick` | 단일 파일, 단일 요소, 명확한 변경 | 0 → 0.5 | 없음 (Claude 단독) |
-| `standard` | 중간 규모, 여러 파일, 리팩토링 | 0 → 0.5 → 1(cached) → 6 → 7 | 3-5 agents |
-| `deep` | 복합 기능, 여러 관심사, 컴플라이언스 필요 | 0 → 0.5 → 1 → 2 → 3 → 6 → 7 | 5-7 agents |
-| `comprehensive` | 전체 시스템, Figma 포함, 벤치마크 포함 | 0 → 0.5 → 1 → 2 → 3 → 4 → 5 → 6 → 7 | 7-10 agents |
+Intensity는 Phase 0.1에서 **Agent Teams 찬반 토론**으로 결정된다. Claude 혼자 판단하지 않는다.
 
-### Intensity 자동 판단 기준
+#### Phase 0.1: Intensity Decision (필수)
 
-- **Figma URL 포함** → comprehensive
-- **인증/결제/채팅 등 컴플라이언스 민감 기능** → deep 이상
-- **여러 레이어 관여 (프론트+백엔드, API+UI)** → deep 이상
-- **단일 파일/요소 변경** → quick
-- **판단 불가** → standard (기본값)
+모든 요청에서 Phase 0 직후에 실행. 3-4개 Claude 에이전트가 적절한 intensity를 토론한다:
 
-### Compliance 민감 기능 참고
+- **intensity-advocate**: 더 높은 intensity를 주장. 최악의 시나리오, 보안 리스크, 복잡도 고려.
+- **efficiency-advocate**: 더 낮은 intensity를 주장. 실용성, 비용, 범위 고려.
+- **risk-assessor**: 프로덕션 영향도, 보안 민감도, 버그 복잡도를 평가.
+- **intensity-arbitrator**: 양측 논거를 평가하고 최종 intensity 결정.
 
-다음 기능이 포함된 요청은 컴플라이언스 체크 (Phase 3)를 반드시 포함:
+토론은 합의에 도달할 때까지 진행. 사용자가 `--intensity`를 명시한 경우 토론을 스킵한다.
 
-| 기능 | 신호 |
-|------|------|
-| 인증/로그인 | auth, login, signup, OAuth, session, JWT |
-| 결제 | payment, purchase, billing, subscription |
-| 메시징/채팅 | chat, message, DM, real-time |
-| 카메라/미디어 | camera, photo, gallery, media |
-| 위치 | location, GPS, map, geolocation |
-| 알림 | push notification, alert |
-| 게임 | game, multiplayer, score, level |
-| 저장소 | file upload, storage, cloud |
-| 네트워크 | API, REST, GraphQL, WebSocket |
-| 접근성 | accessibility, a11y, screen reader |
+#### Intensity별 Phase 범위
+
+| Intensity | Phase 범위 | Decision Debates | Review Agents |
+|-----------|-----------|------------------|---------------|
+| `quick` | 0 → 0.1 → 0.5 | intensity만 | 없음 (Claude 단독) |
+| `standard` | 0 → 0.1 → 0.5 → 1(cached) → 5.5 → 6 → 7 | intensity + 구현전략 | 3-5 agents |
+| `deep` | 0 → 0.1 → 0.5 → 1 → 2 → 3 → 5.5 → 6 → 7 | intensity + 리서치방향 + 컴플라이언스범위 + 구현전략 | 5-7 agents |
+| `comprehensive` | 0 → 0.1 → 0.5 → 1 → 2 → 3 → 4 → 5 → 5.5 → 6 → 7 | 전체 (4개 디베이트) | 7-10 agents |
+
+#### Decision Debate 적용 범위
+
+| Decision Debate | 목적 | 적용 Intensity |
+|----------------|------|---------------|
+| Phase 0.1: Intensity Decision | 파이프라인 강도 결정 | 전체 (필수) |
+| Phase 2 내 Research Direction Debate | 무엇을 조사할지 방향 결정 | deep, comprehensive |
+| Phase 3 내 Compliance Scope Debate | 어떤 컴플라이언스 규칙이 적용되는지 범위 결정 | deep, comprehensive |
+| Phase 5.5: Strategy Decision | 구현 전 설계/접근법 토론 | standard, deep, comprehensive |
+| Phase 6.10: Code Review Debate | 코드 리뷰 찬반 토론 (기존) | standard, deep, comprehensive |
 
 ---
 
@@ -233,19 +233,29 @@ Claude의 자연어 이해 능력으로 요청의 의도를 판단하여 적절�
 요청: "내 git 이슈에 있는거 다음 순서 처리해줘"
 
 Step 1: gh issue list → 이슈 목록 확인 → 다음 이슈 선택 → gh issue view N → 내용 파악
-Step 2: 이슈 내용이 "Add lobby system" → Route A (기능 구현), intensity deep
+Step 2: 이슈 내용이 "Add lobby system" → Route A (기능 구현)
 Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
-        → --intensity deep 로 Phase 0 → 0.5 → 1 → 2 → 3 → 6 → 7 파이프라인 실행
+        → Phase 0 실행 → Phase 0.1 Intensity Debate
+          intensity-advocate: "멀티플레이어는 네트워크+보안+동시성 복합 문제. comprehensive 필요"
+          efficiency-advocate: "로비만이면 deep이면 충분"
+          risk-assessor: "게임 서비스라 보안+컴플라이언스 중요"
+          intensity-arbitrator: "deep 결정. 로비 자체는 comprehensive까지는 불필요"
+        → deep intensity로 후속 Phase 실행
 ```
 
-### Figma 기반 구현
+### 데드락 버그 수정
 ```
-요청: "피그마 보고 이거 만들어줘 https://figma.com/file/xxx"
+요청: "프로덕션에서 데드락 발생하는데 고쳐줘"
 
-Step 1: Figma MCP로 디자인 정보 수집
-Step 2: 새 기능 구현 → Route A (기능 구현), intensity comprehensive
+Step 1: git diff, 관련 코드 파악
+Step 2: 버그 수정 → Route A (기능 구현, 복합 작업이므로)
 Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
-        → --figma URL + --intensity comprehensive 로 전체 Phase 파이프라인 실행
+        → Phase 0 실행 → Phase 0.1 Intensity Debate
+          intensity-advocate: "데드락은 동시성 버그. 잘못 고치면 새 레이스 컨디션 발생. deep 필요"
+          efficiency-advocate: "알려진 패턴이면 standard로 충분"
+          risk-assessor: "프로덕션 장애. 서비스 중단 리스크. deep 이상 권장"
+          intensity-arbitrator: "deep 결정. 프로덕션 리스크 + 동시성 복잡도"
+        → deep intensity로 후속 Phase 실행
 ```
 
 ### 간단한 수정
@@ -253,9 +263,28 @@ Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
 요청: "rename this function to calculateScore"
 
 Step 1: 컨텍스트 충분 → 발견 불필요
-Step 2: 단순 변경 → Route F (간단한 변경), intensity quick
+Step 2: 단순 변경 → Route F (간단한 변경)
 Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
-        → --intensity quick 으로 Phase 0 → 0.5 실행 (Claude 단독)
+        → Phase 0 실행 → Phase 0.1 Intensity Debate
+          intensity-advocate: "이름 변경이 다른 파일에 영향 줄 수 있다"
+          efficiency-advocate: "단순 rename이다. quick으로 충분"
+          intensity-arbitrator: "quick 결정. 단일 요소 변경"
+        → quick intensity로 Phase 0.5만 실행 (Claude 단독)
+```
+
+### 인증 시스템 구현
+```
+요청: "OAuth 로그인 시스템 구현해줘"
+
+Step 1: 컨텍스트 충분
+Step 2: 기능 구현 → Route A
+Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
+        → Phase 0 실행 → Phase 0.1 Intensity Debate
+          intensity-advocate: "인증은 한 번 뚫리면 전체 시스템 위험. comprehensive 필요"
+          efficiency-advocate: "OAuth는 표준 프로토콜. deep이면 충분"
+          risk-assessor: "인증은 보안 최우선. 모델 벤치마킹으로 최고의 보안 리뷰어 필요"
+          intensity-arbitrator: "comprehensive 결정. 보안 최우선 + Phase 4 벤치마킹 필요"
+        → comprehensive intensity로 전체 Phase 실행
 ```
 
 ### 코드 리뷰
@@ -268,32 +297,13 @@ Step 3: Read tool로 ${PLUGIN_DIR}/commands/multi-review.md 읽기
         → --pr 42 --focus security 로 리뷰 파이프라인 실행
 ```
 
-### 조사 요청
-```
-요청: "Redis 캐싱 어떻게 하면 좋을까?"
-
-Step 1: 컨텍스트 충분 → 발견 불필요
-Step 2: 사전 조사 → Route B (사전 조사)
-Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena-research.md 읽기
-        → "Redis 캐싱" 주제로 리서치 파이프라인 실행
-```
-
 ### 리팩토링
 ```
 요청: "이 서비스 코드 정리 좀 해줘"
 
 Step 1: 대상 파일/디렉토리 파악
-Step 2: 코드 개선 → Route E (리팩토링), intensity standard
+Step 2: 코드 개선 → Route E (리팩토링)
 Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
-        → --phase codebase,review --intensity standard 로 파이프라인 실행
-```
-
-### 커밋
-```
-요청: "커밋해줘"
-
-Step 1: git status, git diff로 변경사항 파악
-Step 2: 간단한 작업 → Route F (간단한 변경), intensity quick
-Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
-        → --intensity quick 으로 Phase 0 → 0.5 실행 (코드베이스 컨벤션에 맞는 커밋 메시지 생성)
+        → Phase 0 실행 → Phase 0.1 Intensity Debate → intensity 결정
+        → --phase codebase,review 로 파이프라인 실행
 ```
