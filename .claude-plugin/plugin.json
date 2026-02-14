@@ -1,6 +1,6 @@
 {
   "name": "ai-review-arena",
-  "version": "2.1.0",
+  "version": "2.6.0",
   "description": "Full AI development lifecycle orchestrator - Always-On routing, codebase analysis, MCP detection, multi-AI adversarial code review",
   "author": {
     "name": "HajinJ",
