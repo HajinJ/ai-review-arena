@@ -68,7 +68,7 @@ CONFIG_DIR="${PLUGIN_DIR}/config"
 CACHE_DIR="${PLUGIN_DIR}/cache"
 AGENTS_DIR="${PLUGIN_DIR}/agents"
 DEFAULT_CONFIG="${CONFIG_DIR}/default-config.json"
-SESSION_DIR="/tmp/ai-review-arena-biz/$(date +%Y%m%d-%H%M%S)"
+SESSION_DIR="$(mktemp -d /tmp/ai-review-arena-biz.XXXXXXXXXX)"
 ```
 
 ## Phase B0: Context & Configuration
@@ -410,6 +410,10 @@ Establish business context, load configuration, and prepare the session environm
    SendMessage(type: "shutdown_request", recipient: "efficiency-advocate", content: "Decision made.")
    SendMessage(type: "shutdown_request", recipient: "risk-assessor", content: "Decision made.")
    SendMessage(type: "shutdown_request", recipient: "intensity-arbitrator", content: "Decision made.")
+   ```
+   **Wait for all shutdown confirmations** before proceeding to cleanup.
+   Each teammate must respond with `shutdown_response` (approve: true) before cleanup.
+   ```
    Teammate(operation: "cleanup")
    ```
 
@@ -459,17 +463,27 @@ Analyze the existing project documentation to extract business context, brand vo
      - *alerting* or *policy* (operational policies)
 
 2. **Read Key Business Documents** (Read):
-   Read the top business documents identified in step 1. Prioritize:
+   Use the glob results from step 1 to dynamically find and read key business documents.
+   Do NOT hardcode filenames — match against the patterns defined above:
    ```
+   # Always read README if it exists
    Read(file_path: "${PROJECT_ROOT}/README.md")
-   Read(file_path: "${PROJECT_ROOT}/docs/REVISED_BUSINESS_PLAN_2026-02.md")
-   Read(file_path: "${PROJECT_ROOT}/docs/REVISED_DEVELOPMENT_SPEC_2026-02.md")
-   Read(file_path: "${PROJECT_ROOT}/docs/HANDOFF.md")
-   Read(file_path: "${PROJECT_ROOT}/docs/IMPLEMENTATION_TRACKER.md")
-   Read(file_path: "${PROJECT_ROOT}/docs/POST_MVP_DIRECTION_2026-02.md")
-   Read(file_path: "${PROJECT_ROOT}/docs/JUDGING_30_POINT_READINESS.md")
+
+   # Dynamically find business documents using glob results from step 1
+   # Match files against patterns: *business*plan*, *development*spec*, *handoff*,
+   # *implementation*tracker*, *direction*, *roadmap*, *judging*, *readiness*,
+   # *deploy*, *runbook*, *alerting*, *policy*
+   #
+   # For each pattern, read the FIRST matching file (most recent by modification time):
+   Glob(pattern: "docs/*business*plan*", path: "${PROJECT_ROOT}")  -> Read first match
+   Glob(pattern: "docs/*development*spec*", path: "${PROJECT_ROOT}")  -> Read first match
+   Glob(pattern: "docs/*handoff*", path: "${PROJECT_ROOT}")  -> Read first match
+   Glob(pattern: "docs/*implementation*tracker*", path: "${PROJECT_ROOT}")  -> Read first match
+   Glob(pattern: "docs/*direction*", path: "${PROJECT_ROOT}")  -> Read first match
+   Glob(pattern: "docs/*judging*", path: "${PROJECT_ROOT}")  -> Read first match
+   Glob(pattern: "docs/*roadmap*", path: "${PROJECT_ROOT}")  -> Read first match
    ```
-   Read up to 7 key documents. If specific files do not exist, skip them without error.
+   Read up to 7 key documents. If no files match a pattern, skip without error.
 
 3. **Extract Business Context**:
    From the documents read, extract and compile the following categories:

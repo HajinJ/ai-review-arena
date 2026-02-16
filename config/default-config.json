@@ -131,7 +131,7 @@
     "enabled": true,
     "default_type": "content",
     "default_audience": "general",
-    "default_tone": "professional",
+    "default_tone": "formal",
     "focus_areas": ["accuracy", "audience-fit", "competitive-positioning", "communication-clarity", "data-evidence"],
     "confidence_threshold": 70
   },
