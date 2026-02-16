@@ -304,7 +304,7 @@ After route selection, extract the following from the request and pass as pipeli
 | Explicit intensity | `--intensity <level>` |
 | Business type (content, strategy, communication) | `--type <type>` |
 | Target audience (investor, customer, partner, internal) | `--audience <audience>` |
-| Tone (professional, casual, persuasive, technical) | `--tone <tone>` |
+| Tone (formal, casual, persuasive, analytical) | `--tone <tone>` |
 
 ---
 
