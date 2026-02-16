@@ -263,19 +263,25 @@ Debate continues until consensus is reached. Skipped if user explicitly specifie
 
 | Intensity | Phases | Decision Debates | Review Agents |
 |-----------|--------|------------------|---------------|
-| `quick` | 0 → 0.1 → 0.5 | intensity only | none (Claude solo) |
-| `standard` | 0 → 0.1 → 0.5 → 1(cached) → 5.5 → 6 → 7 | intensity + implementation strategy | 3-5 agents |
-| `deep` | 0 → 0.1 → 0.5 → 1 → 2 → 3 → 5.5 → 6 → 7 | intensity + research direction + compliance scope + strategy | 5-7 agents |
-| `comprehensive` | 0 → 0.1 → 0.5 → 1 → 2 → 3 → 4 → 5 → 5.5 → 6 → 7 | all 4 debates | 7-10 agents |
+| `quick` | 0 → 0.1 → 0.2 → 0.5 | intensity only | none (Claude solo) |
+| `standard` | 0 → 0.1 → 0.2 → 0.5 → 1(cached) → 5.5 → 6 → 6.5 → 7 | intensity + implementation strategy | 3-5 agents |
+| `deep` | 0 → 0.1 → 0.2 → 0.5 → 1 → 2 → 3 → 5.5 → 6 → 6.5 → 7 | intensity + research direction + compliance scope + strategy | 5-7 agents |
+| `comprehensive` | 0 → 0.1 → 0.2 → 0.5 → 1 → 2 → 3 → 4 → 5 → 5.5 → 6 → 6.5 → 7 | all 4 debates | 7-10 agents |
+
+Phase 0.2 = Cost & Time Estimation (user can cancel or adjust intensity before execution begins).
+Phase 6.5 = Auto-Fix Loop (applies safe, high-confidence findings with test verification).
 
 #### Business Pipeline: Intensity Phase Scope
 
 | Intensity | Phases | Decision Debates | Review Agents |
 |-----------|--------|------------------|---------------|
-| `quick` | B0 → B0.1 → B0.5 | intensity only | none (Claude solo) |
-| `standard` | B0 → B0.1 → B0.5 → B1 → B5.5 → B6 → B6.5 → B7 | intensity + content strategy | 5 agents |
-| `deep` | B0 → B0.1 → B0.5 → B1 → B2(+debate) → B3(+debate) → B5.5 → B6 → B6.5 → B7 | intensity + research + accuracy scope + strategy | 5 agents |
-| `comprehensive` | all phases with full debates | all debates | 5 agents |
+| `quick` | B0 → B0.1 → B0.2 → B0.5 | intensity only | none (Claude solo) |
+| `standard` | B0 → B0.1 → B0.2 → B0.5 → B1 → B5.5 → B6 → B6.5 → B7 | intensity + content strategy | 5 agents + external CLIs (cross-review) |
+| `deep` | B0 → B0.1 → B0.2 → B0.5 → B1 → B2(+debate) → B3(+debate) → B5.5 → B6 → B6.5 → B7 | intensity + research + accuracy scope + strategy | 5 agents + external CLIs (cross-review) |
+| `comprehensive` | B0 → B0.1 → B0.2 → B0.5 → B1 → B2 → B3 → B4 → B5.5 → B6 → B6.5 → B7 | all debates | 5 agents + external CLIs (benchmark-driven role) |
+
+Phase B0.2 = Cost & Time Estimation (user can cancel or adjust intensity before execution begins).
+Phase B4 = Business Model Benchmarking (comprehensive only — determines external CLI role assignment).
 
 #### Decision Debates Overview
 

@@ -178,5 +178,34 @@
     "web_search_enabled": true,
     "round2_timeout_seconds": 180,
     "round3_timeout_seconds": 180
+  },
+  "fallback": {
+    "external_cli_timeout_seconds": 120,
+    "external_cli_debate_timeout_seconds": 180,
+    "retry_attempts": 1,
+    "retry_delay_seconds": 5,
+    "strategy": "graceful_degradation",
+    "levels": {
+      "level_0": "full_operation",
+      "level_1": "benchmark_failure_use_defaults",
+      "level_2": "research_failure_skip_context",
+      "level_3": "agent_teams_failure_use_subagents",
+      "level_4": "external_cli_failure_claude_only",
+      "level_5": "all_failure_inline_analysis"
+    },
+    "report_impact": true
+  },
+  "cost_estimation": {
+    "enabled": true,
+    "show_before_execution": true,
+    "auto_proceed_under_dollars": 5.0,
+    "token_cost_per_1k": {
+      "claude_input": 0.003,
+      "claude_output": 0.015,
+      "codex_input": 0.003,
+      "codex_output": 0.012,
+      "gemini_input": 0.00125,
+      "gemini_output": 0.005
+    }
   }
 }

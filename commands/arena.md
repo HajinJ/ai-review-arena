@@ -18,6 +18,7 @@ Team Lead (You - this session)
 │   ├── efficiency-advocate    → argues for lower intensity
 │   ├── risk-assessor          → evaluates production/security risk
 │   └── intensity-arbitrator   → synthesizes consensus, decides intensity
+├── Phase 0.2: Cost & Time Estimation (user approval before proceeding)
 ├── Phase 0.5: Codebase Analysis (conventions, reusable code, structure)
 ├── Phase 1: Stack Detection (detect-stack.sh)
 ├── Phase 2: Pre-Implementation Research (search-best-practices.sh + WebSearch)
@@ -45,11 +46,16 @@ Team Lead (You - this session)
 │   ├── Run external CLIs (Codex, Gemini via Bash)
 │   ├── Coordinate debate phase
 │   └── Aggregate findings & generate report
+├── Phase 6.5: Apply Findings (auto-fix safe, high-confidence findings)
+│   ├── Filter findings by strict auto-fix criteria
+│   ├── Apply fixes
+│   ├── Run test suite verification
+│   └── Revert on test failure
 ├── Phase 7: Final Report & Cleanup
 │   ├── Generate enriched report with compliance + scale sections
 │   ├── Shutdown all teammates
 │   └── Cleanup team
-└── Error handling & graceful degradation
+└── Fallback Framework (structured 6-level graceful degradation)
 
 Claude Reviewer Teammates (independent Claude Code instances)
 ├── security-reviewer    ─┐
@@ -402,6 +408,66 @@ Establish project context, load configuration, and prepare the session environme
 - If Agent Teams are unavailable: fall back to Claude solo judgment with explicit reasoning logged.
 - If debate times out (>60 seconds): use the last available position from the arbitrator, or default to `standard`.
 - If no consensus reached: default to `deep` (err on the side of caution).
+
+---
+
+## Phase 0.2: Cost & Time Estimation
+
+Based on the decided intensity, estimate costs and time before proceeding. This phase runs immediately after intensity decision for ALL intensity levels.
+
+**Purpose**: Give the user visibility into expected resource usage before committing to execution.
+
+### Estimation Formula
+
+Sum the applicable components based on decided intensity:
+
+| Component | Applies At | Token Estimate | Est. Cost |
+|-----------|-----------|---------------|-----------|
+| Phase 0.5 Codebase Analysis | all | ~8K | ~$0.40 |
+| Phase 1 Stack Detection | standard+ | ~3K | ~$0.06 |
+| Phase 2 Research | deep+ | ~15K | ~$0.75 |
+| Phase 3 Compliance | deep+ | ~12K | ~$0.60 |
+| Phase 4 Benchmarking | comprehensive | ~40K | ~$2.00 |
+| Phase 5 Figma (if URL provided) | standard+ | ~20K | ~$1.00 |
+| Phase 5.5 Strategy Debate | standard+ | ~25K | ~$1.25 |
+| Phase 6 Review per Claude agent | standard+ | ~12K | ~$0.60 |
+| Phase 6 per Codex CLI call | standard+ | ~8K | ~$0.16 |
+| Phase 6 per Gemini CLI call | standard+ | ~8K | ~$0.10 |
+| Phase 6 Debate Rounds 2+3 | standard+ | ~60K | ~$3.00 |
+| Phase 6.5 Auto-Fix | standard+ | ~10K | ~$0.50 |
+| Phase 7 Report | all | ~5K | ~$0.25 |
+
+### Calculation
+
+```
+total_tokens = SUM(applicable_components)
+total_cost = SUM(component_tokens * config.cost_estimation.token_cost_per_1k)
+est_time_minutes = CEIL(total_tokens / 15000)  # ~15K tokens per minute throughput
+```
+
+### Display to User
+
+```
+## Cost & Time Estimate (Phase 0.2)
+
+Intensity: {intensity}
+Phases: {phase_list}
+Claude Agents: {N} teammates
+External CLIs: Codex ({M} roles), Gemini ({K} roles)
+
+Est. Tokens: ~{total}K
+Est. Cost:   ~${cost}
+Est. Time:   ~{minutes} min
+
+[Proceed / Adjust intensity / Cancel]
+```
+
+### Decision
+
+- IF `--non-interactive` OR cost <= `config.cost_estimation.auto_proceed_under_dollars`: Proceed automatically
+- IF user selects "Cancel": Stop pipeline, display summary of what was gathered so far
+- IF user selects "Adjust intensity": Prompt for new intensity level, skip back to Phase 0.1 with `--intensity` override
+- IF user selects "Proceed": Continue to Phase 0.5
 
 ---
 
@@ -2088,53 +2154,95 @@ Use `/multi-review-status --last` to view this report again.
 
 ---
 
-## Error Handling & Fallback Strategy
+## Fallback Framework
 
-### Level 0 - Full Operation
-All phases complete, all models available, full Agent Teams with enriched context.
+Track the current fallback level throughout execution. Initialize at Level 0 and escalate as failures occur.
 
-### Level 1 - Benchmark Failure
-Skip benchmarking, use default role assignments from config.
-- Warn: "Benchmarking failed - using default model routing from config"
-- Continue with all other phases
+```
+FALLBACK_LEVEL=0
+FALLBACK_LOG=[]
+```
 
-### Level 2 - Compliance/Research Failure
-Skip compliance or research, proceed with review only.
-- Warn: "Compliance detection failed - proceeding without compliance context"
-- Warn: "Research phase failed - proceeding without best practice context"
-- Reviewers receive code without enriched context for failed phases
+### Fallback Level Definitions
 
-### Level 3 - Agent Teams Failure
-If spawning teammates fails or resources are insufficient:
-- Warn: "Agent Teams unavailable - falling back to subagent mode"
-- Use Task tool subagents instead of teammates (no inter-agent messaging)
-- Skip debate phase
-- Include research/compliance context in subagent prompts
+| Level | Name | Trigger | Action | Report Impact |
+|-------|------|---------|--------|---------------|
+| 0 | Full Operation | — | All phases, all models, full Agent Teams | None |
+| 1 | Benchmark Failure | Phase 4 fails or times out | Use default role assignments from config | "Benchmark: skipped — default routing" |
+| 2 | Research/Compliance Failure | Phase 2 or 3 fails | Proceed without enriched context | "Research: unavailable" or "Compliance: unavailable" |
+| 3 | Agent Teams Failure | Teammate spawn fails | Fall back to Task subagents (no inter-agent messaging, no debate) | "Mode: subagent (no debate)" |
+| 4 | External CLI Failure | All Codex/Gemini calls fail | Claude-only Agent Teams review | "External models: unavailable" |
+| 5 | All Failure | Agent Teams AND subagents fail | Claude solo inline analysis | "Mode: solo inline" |
 
-### Level 4 - All External Failures
-Claude-only single analysis with whatever context is available.
-- Warn: "External CLIs unavailable, Agent Teams failed - running Claude-only analysis"
-- Read files directly and provide inline analysis
-- Include whatever enriched context was successfully gathered
+### Per-Phase Fallback Rules
 
-### Teammate Errors
-- **Teammate stops unexpectedly**: Check TaskList for incomplete tasks. Spawn replacement teammate if needed.
-- **Teammate not responding**: Send a follow-up message. If still no response after 60 seconds, proceed without their input.
-- **Debate-arbitrator fails**: Collect whatever challenge/support messages were received. Synthesize consensus manually using the same algorithm.
+| Phase | On Failure | Fallback Behavior | Level Escalation |
+|-------|-----------|-------------------|-----------------|
+| Phase 1 (Stack) | Script error or timeout | Use manual stack hints from config or codebase analysis | Stay at current level |
+| Phase 2 (Research) | WebSearch fails or timeout | Skip research context, warn reviewers | Escalate to Level 2 if not already |
+| Phase 3 (Compliance) | Script error or timeout | Skip compliance rules, note in report | Escalate to Level 2 if not already |
+| Phase 4 (Benchmark) | Script error or timeout | Use default model-role mapping from config | Escalate to Level 1 |
+| Phase 5 (Figma) | MCP unavailable | Skip Figma analysis entirely | Stay at current level |
+| Phase 5.5 (Strategy) | Debate agents fail | Skip strategy debate, proceed directly to review | Stay at current level |
+| Phase 6 (Review) | Teammate spawn fails | Try Task subagents; if that fails, solo analysis | Escalate to Level 3 or 5 |
+| Phase 6 (External CLI) | Codex/Gemini timeout or error | Retry once (5s delay), then exclude model | Escalate to Level 4 if all external fail |
+| Phase 6.10 (Debate) | Arbitrator fails | Manual consensus synthesis from available responses | Stay at current level |
 
-### Timeout Handling
-- If a teammate times out, use whatever partial results they sent
-- If an external CLI times out, log and continue with other models
-- Include timeout notes in the final report
+### External CLI Retry Logic
 
-### JSON Parse Errors
-- If a model returns invalid JSON, attempt extraction with regex
-- If extraction fails, log error and continue
+```
+FOR each external CLI call:
+  attempt = 1
+  WHILE attempt <= config.fallback.retry_attempts + 1:
+    result = execute_with_timeout(cli_command, config.fallback.external_cli_timeout_seconds)
+
+    IF result.success:
+      BREAK
+    ELIF attempt <= config.fallback.retry_attempts:
+      WAIT config.fallback.retry_delay_seconds
+      attempt += 1
+      LOG "Retry #{attempt} for {model} {role}"
+    ELSE:
+      LOG "FAILED: {model} {role} after {attempt} attempts"
+      APPEND to FALLBACK_LOG: {phase, model, role, error, attempts}
+      BREAK
+```
+
+### Teammate Error Recovery
+
+- **Teammate stops unexpectedly**: Check TaskList for incomplete tasks. Spawn replacement if total active < minimum required.
+- **Teammate not responding**: Send follow-up message. Wait 60s. If still no response, mark as failed and proceed with other teammates.
+- **Debate-arbitrator fails**: Collect available challenge/support messages. Synthesize consensus manually using the same algorithm defined in debate-arbitrator.md.
+- **JSON Parse Errors**: Attempt extraction via 4-layer fallback: direct parse → ` ```json ` block → ` ``` ` block → first-`{`-to-last-`}` regex. If all fail, discard and continue.
 
 ### Cleanup on Error
+
 If an error occurs mid-process, always attempt cleanup:
 1. Send shutdown requests to all spawned teammates
-2. Wait briefly for confirmations
+2. Wait for confirmations (max 30s)
 3. Run Teammate cleanup
 4. Report the error with partial results if available
-5. Save whatever session data exists for debugging
+5. Save session data to `${SESSION_DIR}/` for debugging
+
+### Report Integration
+
+The final report MUST include a Fallback Status section:
+
+```markdown
+## Fallback Status
+
+| Metric | Value |
+|--------|-------|
+| Final Level | {FALLBACK_LEVEL} — {level_name} |
+| Phases Skipped | {list of skipped phases} |
+| Models Excluded | {list of failed models with error type} |
+| Retries Attempted | {total retry count} |
+| Context Available | {list: stack ✓, research ✗, compliance ✓, ...} |
+
+### Fallback Log
+{FALLBACK_LOG entries with timestamps}
+```
+
+IF FALLBACK_LEVEL >= 3:
+  Add prominent warning at top of report:
+  "⚠ This review ran at degraded capacity (Level {N}). Results may be less comprehensive than a full review."

@@ -18,6 +18,7 @@ Team Lead (You - this session)
 |   +-- efficiency-advocate    -> argues for lower intensity
 |   +-- risk-assessor          -> evaluates audience/brand/accuracy risk
 |   +-- intensity-arbitrator   -> synthesizes consensus, decides intensity
++-- Phase B0.2: Cost & Time Estimation (user approval before proceeding)
 +-- Phase B0.5: Business Context Analysis (docs, README, specs, plans)
 +-- Phase B1: Market/Industry Context (WebSearch)
 +-- Phase B2: Content Best Practices Research (deep+ only, with debate)
@@ -48,7 +49,7 @@ Team Lead (You - this session)
 |   +-- Generate enriched business review report
 |   +-- Shutdown all teammates
 |   +-- Cleanup team
-+-- Error handling & graceful degradation
++-- Fallback Framework (structured 5-level graceful degradation)
 
 Business Reviewer Teammates (independent Claude Code instances)
 +-- domain-accuracy-reviewer    --+
@@ -432,6 +433,66 @@ Establish business context, load configuration, and prepare the session environm
 - If Agent Teams are unavailable: fall back to Claude solo judgment with explicit reasoning logged.
 - If debate times out (>60 seconds): use the last available position from the arbitrator, or default to `standard`.
 - If no consensus reached: default to `deep` (err on the side of caution for business content).
+
+---
+
+## Phase B0.2: Cost & Time Estimation
+
+Based on the decided intensity, estimate costs and time before proceeding. This phase runs immediately after intensity decision for ALL intensity levels.
+
+**Purpose**: Give the user visibility into expected resource usage before committing to execution.
+
+### Estimation Formula
+
+Sum the applicable components based on decided intensity:
+
+| Component | Applies At | Token Estimate | Est. Cost |
+|-----------|-----------|---------------|-----------|
+| Phase B0.5 Context Analysis | all | ~10K | ~$0.50 |
+| Phase B1 Market Research | standard+ | ~15K | ~$0.75 |
+| Phase B2 Best Practices Research | deep+ | ~20K | ~$1.00 |
+| Phase B3 Accuracy Audit | deep+ | ~18K | ~$0.90 |
+| Phase B4 Benchmarking | comprehensive | ~40K | ~$2.00 |
+| Phase B5.5 Strategy Debate | standard+ | ~25K | ~$1.25 |
+| Phase B6 Review (5 agents) | standard+ | ~60K | ~$3.00 |
+| Phase B6 External CLI (if enabled) | standard+ | ~16K | ~$0.26 |
+| Phase B6 Debate Rounds 2+3 | standard+ | ~50K | ~$2.50 |
+| Phase B6.5 Auto-Fix | standard+ | ~15K | ~$0.75 |
+| Phase B7 Report | all | ~8K | ~$0.40 |
+
+### Calculation
+
+```
+total_tokens = SUM(applicable_components)
+total_cost = SUM(component_tokens * config.cost_estimation.token_cost_per_1k)
+est_time_minutes = CEIL(total_tokens / 15000)  # ~15K tokens per minute throughput
+```
+
+### Display to User
+
+```
+## Cost & Time Estimate (Phase B0.2)
+
+Intensity: {intensity}
+Content Type: {type}
+Audience: {audience}
+Phases: {phase_list}
+Claude Agents: {N} reviewers + arbitrator
+External CLIs: {available models}
+
+Est. Tokens: ~{total}K
+Est. Cost:   ~${cost}
+Est. Time:   ~{minutes} min
+
+[Proceed / Adjust intensity / Cancel]
+```
+
+### Decision
+
+- IF `--non-interactive` OR cost <= `config.cost_estimation.auto_proceed_under_dollars`: Proceed automatically
+- IF user selects "Cancel": Stop pipeline, display summary of what was gathered so far
+- IF user selects "Adjust intensity": Prompt for new intensity level, skip back to Phase B0.1 with `--intensity` override
+- IF user selects "Proceed": Continue to Phase B0.5
 
 ---
 
@@ -2451,73 +2512,86 @@ Teammate(operation: "cleanup")
 
 ---
 
-## Error Handling & Fallback Strategy
+## Fallback Framework
 
-### Level 0 - Full Operation
-All phases complete, all Agent Teams functional, full 5-reviewer debate with enriched context.
+Track the current fallback level throughout execution. Initialize at Level 0 and escalate as failures occur.
 
-### Level 1 - Market Research Failure
-Skip Phase B1, proceed without market context.
-- Warn: "Market research failed - proceeding without market/industry context"
-- Continue with all other phases
-- Reviewers receive content without market context
-- Competitive-positioning-reviewer and data-evidence-reviewer operate with limited external data
+```
+FALLBACK_LEVEL=0
+FALLBACK_LOG=[]
+```
 
-### Level 2 - Accuracy Audit Failure
-Skip Phase B3, proceed with available data.
-- Warn: "Accuracy audit failed - proceeding without pre-verification data"
-- Continue with Phase B5.5 and Phase B6
-- domain-accuracy-reviewer and data-evidence-reviewer operate without pre-verified claims
-- Note in report that accuracy was not pre-audited
+### Fallback Level Definitions
 
-### Level 3 - Agent Teams Failure
-If spawning teammates fails or resources are insufficient:
-- Warn: "Agent Teams unavailable - falling back to Claude solo review"
-- Use Task tool subagents instead of teammates (no inter-agent messaging)
-- Skip debate phase
-- Include business context, market research, and best practices in subagent prompts
-- Run each reviewer role as a sequential subagent call
-- Aggregate findings without debate (no cross-validation boost)
+| Level | Name | Trigger | Action | Report Impact |
+|-------|------|---------|--------|---------------|
+| 0 | Full Operation | — | All phases, all Agent Teams, full 5-reviewer debate | None |
+| 1 | Research Failure | Phase B1 or B2 fails | Proceed without market/research context | "Market context: unavailable" or "Research: unavailable" |
+| 2 | Accuracy Audit Failure | Phase B3 fails | Skip pre-verification, reviewers work without pre-audited claims | "Accuracy: not pre-audited" |
+| 3 | Agent Teams Failure | Teammate spawn fails | Fall back to Task subagents (no debate, sequential) | "Mode: subagent (no debate)" |
+| 4 | All Failure | Agent Teams AND subagents fail | Claude solo inline analysis with self-review checklist | "Mode: solo inline" |
 
-### Level 4 - All Failures
-Claude-only single analysis with whatever context is available.
-- Warn: "All review infrastructure failed - running Claude-only business content analysis"
-- Read the content directly
-- Apply whatever enriched context was successfully gathered (business context, market data)
-- Provide inline analysis covering all 5 review categories
-- Include self-review checklist:
-  ```
-  Self-Review Checklist (Fallback Mode):
-  - Consistent with project documentation
-  - Matches existing brand voice/tone
-  - Claims align with actual product capabilities
-  - Target audience appropriate
-  - No factual errors detected
-  - Competitive positioning reasonable
-  - Data claims appear supported
-  - Communication is clear and well-structured
-  ```
+### Per-Phase Fallback Rules
 
-### Teammate Errors
-- **Teammate stops unexpectedly**: Check TaskList for incomplete tasks. Spawn replacement teammate if needed.
-- **Teammate not responding**: Send a follow-up message. If still no response after 60 seconds, proceed without their input.
-- **business-debate-arbitrator fails**: Collect whatever challenge/support messages were received. Synthesize consensus manually using the same algorithm: group by section+category, apply confidence adjustments, sort by severity then confidence.
+| Phase | On Failure | Fallback Behavior | Level Escalation |
+|-------|-----------|-------------------|-----------------|
+| Phase B0.5 (Context) | Glob/Read fails | Use minimal context from user request only | Stay at current level |
+| Phase B1 (Market) | WebSearch fails or timeout | Skip market context, warn reviewers | Escalate to Level 1 |
+| Phase B2 (Research) | Debate or WebSearch fails | Skip best practices, note in report | Escalate to Level 1 if not already |
+| Phase B3 (Accuracy) | Audit debate fails | Skip pre-verification | Escalate to Level 2 |
+| Phase B5.5 (Strategy) | Strategy debate agents fail | Skip strategy, proceed to review | Stay at current level |
+| Phase B6 (Review) | Teammate spawn fails | Try Task subagents; if that fails, solo | Escalate to Level 3 or 4 |
+| Phase B6 (Debate) | Arbitrator fails | Manual consensus from available responses | Stay at current level |
+| Phase B6.5 (Auto-Fix) | Fix verification fails | Revert all fixes, flag for manual review | Stay at current level |
 
-### Timeout Handling
-- If a reviewer teammate times out, use whatever partial results they sent
-- If a debate round times out, use available responses for that round
-- Include timeout notes in the final report
-- Default timeout: 90 seconds per reviewer, 120 seconds for arbitrator
+### Teammate Error Recovery
 
-### JSON Parse Errors
-- If a reviewer returns invalid JSON, attempt extraction with regex
-- If extraction fails, log error and continue with other reviewers
-- Note parsing failures in the report
+- **Teammate stops unexpectedly**: Check TaskList for incomplete tasks. Spawn replacement if total active < minimum required (3 reviewers minimum for valid debate).
+- **Teammate not responding**: Send follow-up message. Wait 60s. If still no response, mark as failed and proceed with other teammates.
+- **business-debate-arbitrator fails**: Collect available challenge/support messages. Synthesize consensus manually: group by section+category, apply confidence adjustments, sort by severity then confidence.
+- **JSON Parse Errors**: Attempt extraction via regex (first-`{`-to-last-`}`). If fails, discard and continue.
+
+### Self-Review Checklist (Level 4 Fallback)
+
+When all review infrastructure fails, apply this self-review checklist:
+```
+Self-Review Checklist (Fallback Mode):
+- Consistent with project documentation
+- Matches existing brand voice/tone
+- Claims align with actual product capabilities
+- Target audience appropriate
+- No factual errors detected
+- Competitive positioning reasonable
+- Data claims appear supported
+- Communication is clear and well-structured
+```
 
 ### Cleanup on Error
+
 If an error occurs mid-process, always attempt cleanup:
 1. Send shutdown requests to all spawned teammates
-2. Wait briefly for confirmations (10 seconds max)
+2. Wait for confirmations (max 30s)
 3. Run Teammate cleanup
 4. Report the error with partial results if available
-5. Save whatever session data exists for debugging
+5. Save session data to `${SESSION_DIR}/` for debugging
+
+### Report Integration
+
+The final report MUST include a Fallback Status section:
+
+```markdown
+## Fallback Status
+
+| Metric | Value |
+|--------|-------|
+| Final Level | {FALLBACK_LEVEL} — {level_name} |
+| Phases Skipped | {list of skipped phases} |
+| Context Available | {list: business_context ✓, market ✗, research ✓, accuracy ✗, ...} |
+
+### Fallback Log
+{FALLBACK_LOG entries with timestamps}
+```
+
+IF FALLBACK_LEVEL >= 3:
+  Add prominent warning at top of report:
+  "This review ran at degraded capacity (Level {N}). Results may be less comprehensive than a full review."
