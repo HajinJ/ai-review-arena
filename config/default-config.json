@@ -126,5 +126,55 @@
     "enabled": true,
     "strategy": "benchmark",
     "fallback": "default"
+  },
+  "business": {
+    "enabled": true,
+    "default_type": "content",
+    "default_audience": "general",
+    "default_tone": "professional",
+    "focus_areas": ["accuracy", "audience-fit", "competitive-positioning", "communication-clarity", "data-evidence"],
+    "confidence_threshold": 70
+  },
+  "business_intensity_presets": {
+    "quick": {
+      "phases": ["context"],
+      "agent_team": false,
+      "review_agents": 0,
+      "debate_rounds": 0,
+      "description_ko": "비즈니스 컨텍스트 분석 + Claude 단독 처리",
+      "description_en": "Business context analysis + Claude solo"
+    },
+    "standard": {
+      "phases": ["context", "market", "strategy", "review", "report"],
+      "agent_team": true,
+      "review_agents": 5,
+      "debate_rounds": 2,
+      "description_ko": "표준 비즈니스 리뷰 - 5 에이전트, 2라운드 토론",
+      "description_en": "Standard business review - 5 agents, 2-round debate"
+    },
+    "deep": {
+      "phases": ["context", "market", "research", "accuracy", "strategy", "review", "report"],
+      "agent_team": true,
+      "review_agents": 5,
+      "debate_rounds": 2,
+      "description_ko": "심층 비즈니스 리뷰 - 5 에이전트, 리서치+정확성 감사",
+      "description_en": "Deep business review - 5 agents, research + accuracy audit"
+    },
+    "comprehensive": {
+      "phases": ["context", "market", "research", "accuracy", "strategy", "review", "report"],
+      "agent_team": true,
+      "review_agents": 5,
+      "debate_rounds": 2,
+      "description_ko": "종합 비즈니스 리뷰 - 5 에이전트, 전체 토론",
+      "description_en": "Comprehensive business review - 5 agents, full debates"
+    }
+  },
+  "business_debate": {
+    "enabled": true,
+    "max_rounds": 2,
+    "challenge_threshold": 60,
+    "consensus_threshold": 75,
+    "require_majority": true,
+    "web_search_enabled": true
   }
 }
