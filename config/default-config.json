@@ -148,25 +148,28 @@
       "phases": ["context", "market", "strategy", "review", "report"],
       "agent_team": true,
       "review_agents": 5,
+      "external_models_cross_review": true,
       "debate_rounds": 3,
-      "description_ko": "표준 비즈니스 리뷰 - 5 에이전트, 2라운드 토론",
-      "description_en": "Standard business review - 5 agents, 2-round debate"
+      "description_ko": "표준 비즈니스 리뷰 - 5 에이전트 + 외부 모델 교차검토, 3라운드 토론",
+      "description_en": "Standard business review - 5 agents + external model cross-review, 3-round debate"
     },
     "deep": {
       "phases": ["context", "market", "research", "accuracy", "strategy", "review", "report"],
       "agent_team": true,
       "review_agents": 5,
+      "external_models_cross_review": true,
       "debate_rounds": 3,
-      "description_ko": "심층 비즈니스 리뷰 - 5 에이전트, 리서치+정확성 감사",
-      "description_en": "Deep business review - 5 agents, research + accuracy audit"
+      "description_ko": "심층 비즈니스 리뷰 - 5 에이전트 + 외부 모델 교차검토, 리서치+정확성 감사",
+      "description_en": "Deep business review - 5 agents + external model cross-review, research + accuracy audit"
     },
     "comprehensive": {
-      "phases": ["context", "market", "research", "accuracy", "strategy", "review", "report"],
+      "phases": ["context", "market", "research", "accuracy", "benchmark", "strategy", "review", "report"],
       "agent_team": true,
       "review_agents": 5,
+      "external_models": true,
       "debate_rounds": 3,
-      "description_ko": "종합 비즈니스 리뷰 - 5 에이전트, 전체 토론",
-      "description_en": "Comprehensive business review - 5 agents, full debates"
+      "description_ko": "종합 비즈니스 리뷰 - 5 에이전트 + 외부 모델, 벤치마크 기반 역할 배정, 전체 토론",
+      "description_en": "Comprehensive business review - 5 agents + external models, benchmark-driven role assignment, full debates"
     }
   },
   "business_debate": {
@@ -194,6 +197,29 @@
       "level_5": "all_failure_inline_analysis"
     },
     "report_impact": true
+  },
+  "business_models": {
+    "codex": {
+      "enabled": true,
+      "role": "cross-reviewer",
+      "timeout_seconds": 120,
+      "script": "scripts/codex-business-review.sh"
+    },
+    "gemini": {
+      "enabled": true,
+      "role": "cross-reviewer",
+      "timeout_seconds": 120,
+      "script": "scripts/gemini-business-review.sh"
+    }
+  },
+  "business_benchmarks": {
+    "enabled": true,
+    "auto_run": true,
+    "rerun_threshold_days": 14,
+    "min_score_for_role": 60,
+    "test_cases_dir": "config/benchmarks",
+    "test_case_prefix": "business-",
+    "script": "scripts/benchmark-business-models.sh"
   },
   "cost_estimation": {
     "enabled": true,

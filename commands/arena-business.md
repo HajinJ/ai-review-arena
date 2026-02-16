@@ -6,7 +6,7 @@ allowed-tools: [Bash, Glob, Grep, Read, Task, WebSearch, WebFetch, Teammate, Sen
 
 # AI Review Arena - Business Content Lifecycle Orchestrator (Agent Teams)
 
-You are the **team lead** for the AI Review Arena business content lifecycle orchestrator. This command orchestrates the entire business content review lifecycle: business context extraction, market/industry research, content best practices research, accuracy & consistency auditing, content strategy debate, and multi-agent adversarial business review with Agent Teams. All agents are Claude Agent Teams -- no external CLIs.
+You are the **team lead** for the AI Review Arena business content lifecycle orchestrator. This command orchestrates the entire business content review lifecycle: business context extraction, market/industry research, content best practices research, accuracy & consistency auditing, business model benchmarking, content strategy debate, and multi-agent adversarial business review with Agent Teams and optional external CLI models (Codex, Gemini).
 
 ## Architecture
 
@@ -32,15 +32,22 @@ Team Lead (You - this session)
 |       +-- accuracy-advocate     -> argues for broader verification
 |       +-- scope-challenger      -> argues against over-verification
 |       +-- accuracy-arbitrator   -> decides verification scope
++-- Phase B4: Business Model Benchmarking (comprehensive only)
+|   +-- Run benchmark-business-models.sh against planted-error test cases
+|   +-- Score each model (Claude, Codex, Gemini) per category (avg F1)
+|   +-- Determine model role assignments for Phase B6
 +-- Phase B5.5: Content Strategy Debate (standard+)
 |   +-- messaging-advocate       -> proposes messaging strategy
 |   +-- audience-challenger      -> challenges audience fit
 |   +-- accuracy-challenger      -> challenges factual claims
 |   +-- strategy-arbitrator      -> synthesizes content strategy
-+-- Phase B6: Multi-Agent Business Review (5 reviewers + arbitrator, 3-round debate)
++-- Phase B6: Multi-Agent Business Review (5 reviewers + arbitrator + external CLIs, 3-round debate)
+|   +-- Step B6.1.5: Determine external model participation (benchmark-driven at comprehensive)
 |   +-- Create team (Teammate tool)
 |   +-- Spawn business reviewer teammates (Task tool with team_name)
+|   +-- Run external CLI Round 1 if assigned as primary (parallel with Claude teammates)
 |   +-- Coordinate 3-round debate phase (independent review, cross-review, defense)
+|   +-- Run external CLI Round 2 cross-review (parallel with Claude Round 2)
 |   +-- Aggregate findings & generate consensus
 +-- Phase B6.5: Apply Findings (review→fix loop for critical/high findings)
 |   +-- Auto-revise content based on consensus findings
@@ -58,6 +65,11 @@ Business Reviewer Teammates (independent Claude Code instances)
 +-- communication-clarity-reviewer --+-- SendMessage -> team lead (findings)
 +-- data-evidence-reviewer      --+
 +-- business-debate-arbitrator  ------ Receives challenges/supports -> synthesizes consensus
+
+External CLI Models (intensity-dependent roles)
++-- Codex CLI (codex-business-review.sh)  --+-- Round 1 primary (if benchmark-assigned at comprehensive)
++-- Gemini CLI (gemini-business-review.sh) --+-- Round 2 cross-reviewer (default at standard/deep)
+                                              +-- Round 1 primary OR Round 2 cross (comprehensive, benchmark-driven)
 ```
 
 ## Constants
@@ -1328,6 +1340,107 @@ Now execute the main accuracy audit using the debate-determined scope:
 
 ---
 
+## Phase B4: Business Model Benchmarking (comprehensive intensity only)
+
+**Applies to**: comprehensive intensity only. Skip for quick, standard, deep. Can be forced with `--force-benchmark`.
+
+**Purpose**: Benchmark Claude, Codex, and Gemini on planted-error business documents to determine which model is best at catching each category of business content issues. Results drive model role assignments in Phase B6 — the highest-scoring model for each category becomes the Round 1 primary reviewer for that category.
+
+**Steps:**
+
+1. **Check benchmark cache**:
+   ```bash
+   BENCHMARK_CACHE=$("${SCRIPTS_DIR}/cache-manager.sh" read "${PROJECT_ROOT}" "benchmarks" "business-model-scores" 2>/dev/null)
+   ```
+   Cache TTL: 14 days (from `config.cache.ttl_overrides.benchmarks`).
+
+2. **Run benchmarks if cache miss or stale**:
+   ```bash
+   BENCHMARK_RESULTS=$(bash "${SCRIPTS_DIR}/benchmark-business-models.sh" \
+     --category all \
+     --models "codex,gemini,claude" \
+     --config "${DEFAULT_CONFIG}")
+   ```
+
+3. **Handle Claude benchmarks** (Claude cannot be called via CLI):
+
+   The script outputs `claude_benchmark_needed: true` with test cases. For each test case:
+   ```
+   Task(
+     subagent_type: "general-purpose",
+     prompt: "You are a business content reviewer specializing in {category}.
+     Review this content and return findings JSON.
+
+     CONTENT:
+     {test_case_content}
+
+     Return JSON: {model: 'claude', role: '{category}', findings: [{severity, confidence, section, title, category, description, suggestion}]}"
+   )
+   ```
+
+   Score Claude findings against ground_truth using the same matching algorithm as the script (section match + keyword majority). Compute F1 per test case, average per category.
+
+4. **Parse results and determine model role assignments**:
+
+   ```
+   FOR each review category (accuracy, audience, positioning, clarity, evidence):
+     scores = {
+       claude: benchmark_results.scores.claude[category],
+       codex: benchmark_results.scores.codex[category],
+       gemini: benchmark_results.scores.gemini[category]
+     }
+
+     best_model = model with highest score
+     min_score = config.business_benchmarks.min_score_for_role (default: 60)
+
+     IF best_model is an external model (codex or gemini) AND score >= min_score:
+       Assign external model as Round 1 PRIMARY reviewer for this category
+       Claude still participates as Round 2 cross-reviewer for this category
+     ELSE:
+       Claude is Round 1 primary (default)
+       External models participate as Round 2 cross-reviewers
+   ```
+
+5. **Store role assignments**:
+   ```bash
+   echo '${ROLE_ASSIGNMENTS_JSON}' > "${SESSION_DIR}/benchmark-role-assignments.json"
+   ```
+
+   Role assignments JSON format:
+   ```json
+   {
+     "accuracy": { "primary": "claude|codex|gemini", "cross_reviewers": ["codex", "gemini"] },
+     "audience": { "primary": "claude|codex|gemini", "cross_reviewers": ["codex", "gemini"] },
+     "positioning": { "primary": "claude|codex|gemini", "cross_reviewers": ["codex", "gemini"] },
+     "clarity": { "primary": "claude|codex|gemini", "cross_reviewers": ["codex", "gemini"] },
+     "evidence": { "primary": "claude|codex|gemini", "cross_reviewers": ["codex", "gemini"] }
+   }
+   ```
+
+6. **Display benchmark results**:
+   ```
+   BUSINESS MODEL BENCHMARK RESULTS
+   | Category     | Claude | Codex | Gemini | Primary Reviewer |
+   |-------------|--------|-------|--------|-----------------|
+   | accuracy     | {f1}   | {f1}  | {f1}   | {best_model}    |
+   | audience     | {f1}   | {f1}  | {f1}   | {best_model}    |
+   | positioning  | {f1}   | {f1}  | {f1}   | {best_model}    |
+   | clarity      | {f1}   | {f1}  | {f1}   | {best_model}    |
+   | evidence     | {f1}   | {f1}  | {f1}   | {best_model}    |
+   ```
+
+7. **Cache results**:
+   ```bash
+   echo '${BENCHMARK_RESULTS}' | "${SCRIPTS_DIR}/cache-manager.sh" write "${PROJECT_ROOT}" "benchmarks" "business-model-scores" 2>/dev/null
+   ```
+
+**Error Handling:**
+- If benchmark script fails: use default assignments (Claude primary for all, externals as cross-reviewers). Set `FALLBACK_LEVEL = max(FALLBACK_LEVEL, 1)`.
+- If one external model fails benchmarking: exclude that model, use remaining models.
+- If Claude benchmark Task fails: use score of 70 (assumed baseline) for Claude in that category.
+
+---
+
 ## Phase B5.5: Content Strategy Debate (standard/deep/comprehensive intensity)
 
 **Applies to**: standard, deep, comprehensive intensity. Skip for quick.
@@ -1549,7 +1662,7 @@ Now execute the main accuracy audit using the debate-determined scope:
 
 ## Phase B6: Multi-Agent Business Review (standard/deep/comprehensive intensity)
 
-This phase deploys 5 specialized business reviewer teammates plus a debate arbitrator to perform a comprehensive multi-perspective review of the business content. Each reviewer examines the content from their domain expertise, then they cross-review each other's findings in a structured 2-round debate.
+This phase deploys 5 specialized business reviewer teammates plus a debate arbitrator, with optional external CLI models (Codex, Gemini), to perform a comprehensive multi-perspective review of the business content. Each reviewer examines the content from their domain expertise, then they cross-review each other's findings in a structured 3-round debate. External models participate as either Round 1 primary reviewers (if benchmark-assigned at comprehensive intensity) or Round 2 cross-reviewers (default at standard/deep).
 
 ### Step B6.1: Create Agent Team
 
@@ -1561,6 +1674,61 @@ Teammate(
   team_name: "biz-review-{YYYYMMDD-HHMMSS}",
   description: "AI Review Arena - Business content review session"
 )
+```
+
+### Step B6.1.5: Determine External Model Participation
+
+Determine which external models (Codex, Gemini) will participate and in what role, based on intensity and benchmark results.
+
+**Role Assignment Logic:**
+
+```
+IF intensity == "comprehensive" AND Phase B4 benchmark results exist:
+  Load role assignments from "${SESSION_DIR}/benchmark-role-assignments.json"
+
+  FOR each review category (accuracy, audience, positioning, clarity, evidence):
+    IF role_assignments[category].primary is an external model:
+      Mark that external model as Round 1 PRIMARY for this category
+      The corresponding Claude reviewer still participates but with CROSS-REVIEWER role
+    ELSE:
+      External models participate as Round 2 cross-reviewers only (default)
+
+ELIF intensity in ["standard", "deep"]:
+  # No benchmarking data available — all external models are Round 2 cross-reviewers only
+  FOR each available external model (codex, gemini):
+    IF config.models[model].enabled AND CLI is available:
+      Assign as Round 2 cross-reviewer
+
+ELSE:
+  # quick intensity — no external models
+  Skip external model participation
+```
+
+**Check CLI availability:**
+```bash
+# Check Codex
+command -v codex &>/dev/null && echo "codex_available=true" || echo "codex_available=false"
+
+# Check Gemini
+command -v gemini &>/dev/null && echo "gemini_available=true" || echo "gemini_available=false"
+```
+
+**Store participation plan:**
+```
+EXTERNAL_PARTICIPATION = {
+  "codex": {
+    "available": true|false,
+    "role": "round1_primary|round2_cross|none",
+    "primary_categories": ["accuracy", ...] or [],  // only at comprehensive with benchmark
+    "cross_review_categories": ["audience", ...] or ["all"]
+  },
+  "gemini": {
+    "available": true|false,
+    "role": "round1_primary|round2_cross|none",
+    "primary_categories": [...] or [],
+    "cross_review_categories": [...] or ["all"]
+  }
+}
 ```
 
 ### Step B6.2: Create Review Tasks
@@ -1599,9 +1767,34 @@ TaskCreate(
 )
 ```
 
-### Step B6.3: Spawn Business Reviewer Teammates
+### Step B6.3: Spawn Business Reviewer Teammates + External CLI Round 1
 
 For each of the 5 reviewers, read the agent definition file and spawn a teammate with ENRICHED business context. **Spawn ALL 5 reviewers + arbitrator in parallel** by making multiple Task tool calls in a single message.
+
+**External CLI Round 1 (if assigned as primary):**
+
+If any external model was assigned as Round 1 primary for a category in Step B6.1.5, run the corresponding CLI script **in parallel** with Claude teammate spawning:
+
+```bash
+# For each external model assigned as Round 1 primary:
+IF EXTERNAL_PARTICIPATION.codex.role == "round1_primary":
+  FOR category IN EXTERNAL_PARTICIPATION.codex.primary_categories:
+    echo "$BUSINESS_CONTENT_WITH_CONTEXT" | \
+      "${SCRIPTS_DIR}/codex-business-review.sh" "${DEFAULT_CONFIG}" --mode round1 --category "$category" \
+      > "${SESSION_DIR}/findings/round1-codex-${category}.json" 2>/dev/null &
+
+IF EXTERNAL_PARTICIPATION.gemini.role == "round1_primary":
+  FOR category IN EXTERNAL_PARTICIPATION.gemini.primary_categories:
+    echo "$BUSINESS_CONTENT_WITH_CONTEXT" | \
+      "${SCRIPTS_DIR}/gemini-business-review.sh" "${DEFAULT_CONFIG}" --mode round1 --category "$category" \
+      > "${SESSION_DIR}/findings/round1-gemini-${category}.json" 2>/dev/null &
+```
+
+Where `$BUSINESS_CONTENT_WITH_CONTEXT` includes the business content plus enriched context (market data, best practices, accuracy audit if available). Wait for external CLIs to complete alongside Claude teammates.
+
+**Merging external Round 1 results**: After external CLI Round 1 completes, parse the JSON output and merge into the findings aggregation alongside Claude reviewer results. Each external finding follows the same schema: `{model, role, mode, findings: [{severity, confidence, section, title, category, description, suggestion}]}`.
+
+**NOTE**: When an external model is Round 1 primary for a category, the corresponding Claude reviewer for that category still runs independently. Both sets of findings are included in Round 2 cross-review and debate. This provides redundancy — if the external CLI fails, the Claude reviewer's findings are still available.
 
 **Spawn domain-accuracy-reviewer:**
 ```
@@ -2142,14 +2335,59 @@ SendMessage(
 )
 ```
 
-**Wait for all Round 2 responses**: All 5 reviewers send their challenge/support responses directly to business-debate-arbitrator via SendMessage. Wait for each reviewer to send their completion message.
+**Wait for all Claude Round 2 responses**: All 5 Claude reviewers send their challenge/support responses directly to business-debate-arbitrator via SendMessage. Wait for each reviewer to send their completion message.
+
+**Step B6.7.2: External CLI Cross-Review (Round 2)**
+
+Run external CLI cross-review **in parallel** with Claude Round 2 responses. External models that are NOT assigned as Round 1 primary participate as Round 2 cross-reviewers:
+
+```bash
+# Prepare aggregated Round 1 findings for external CLI input
+ALL_ROUND1_FINDINGS=$(jq -s '.' "${SESSION_DIR}"/findings/round1-*.json 2>/dev/null)
+
+# Codex Round 2 cross-review (if available and configured as cross-reviewer for any category)
+IF config.models.codex.enabled AND codex_available AND codex has cross_review_categories:
+  echo "$ALL_ROUND1_FINDINGS" | \
+    "${SCRIPTS_DIR}/codex-business-review.sh" "${DEFAULT_CONFIG}" --mode round2 \
+    > "${SESSION_DIR}/debate/round2-codex-biz.json" 2>/dev/null &
+
+# Gemini Round 2 cross-review
+IF config.models.gemini.enabled AND gemini_available AND gemini has cross_review_categories:
+  echo "$ALL_ROUND1_FINDINGS" | \
+    "${SCRIPTS_DIR}/gemini-business-review.sh" "${DEFAULT_CONFIG}" --mode round2 \
+    > "${SESSION_DIR}/debate/round2-gemini-biz.json" 2>/dev/null &
+
+wait  # Wait for external CLIs (parallel with Claude Round 2)
+```
+
+**Merge external Round 2 responses**: Parse external CLI cross-review JSON and forward to business-debate-arbitrator alongside Claude Round 2 data:
+
+```
+FOR each external_model_round2_file IN "${SESSION_DIR}/debate/round2-*-biz.json":
+  Parse JSON responses
+  IF valid AND has responses array:
+    Forward to business-debate-arbitrator via SendMessage:
+    SendMessage(
+      type: "message",
+      recipient: "business-debate-arbitrator",
+      content: "External model cross-review (Round 2):
+      Model: {model_name}
+      {external_round2_json}",
+      summary: "External {model} Round 2 cross-review results"
+    )
+```
+
+**Error handling for external Round 2:**
+- If external CLI times out: skip that model's cross-review, note in report
+- If external CLI returns invalid JSON: skip, note in report
+- External cross-review failure does NOT block the debate — Claude Round 2 is sufficient
 
 **Signal Round 2 complete to arbitrator:**
 ```
 SendMessage(
   type: "message",
   recipient: "business-debate-arbitrator",
-  content: "ROUND 2 COMPLETE. All cross-review responses received from all 5 reviewers. Hold for Round 3 defense responses.",
+  content: "ROUND 2 COMPLETE. All cross-review responses received from all 5 Claude reviewers + {N} external model(s). Hold for Round 3 defense responses.",
   summary: "Round 2 cross-review complete -- preparing Round 3"
 )
 ```
@@ -2188,9 +2426,14 @@ SendMessage(
 )
 ```
 
-**NOTE**: Only send defense requests to reviewers who had at least one finding challenged. Reviewers with zero challenges skip Round 3.
+**NOTE**: Only send defense requests to Claude reviewers who had at least one finding challenged. Reviewers with zero challenges skip Round 3.
 
-**Wait for all Round 3 responses**: All challenged reviewers send their defend/withdraw/revise responses directly to business-debate-arbitrator via SendMessage.
+**External model Round 3 defense**: If an external model participated as Round 1 primary and its findings were challenged, the external model **cannot** defend (no interactive CLI capability). In this case:
+- The finding receives `defense_status = "implicit_defend"` in the arbitrator
+- The finding stands at its post-Round 2 confidence (no recovery)
+- The arbitrator should note "external model — no interactive defense capability"
+
+**Wait for all Round 3 responses**: All challenged Claude reviewers send their defend/withdraw/revise responses directly to business-debate-arbitrator via SendMessage. External model findings with challenges use implicit defense.
 
 **Signal Round 3 complete to arbitrator:**
 ```
@@ -2527,7 +2770,9 @@ FALLBACK_LOG=[]
 |-------|------|---------|--------|---------------|
 | 0 | Full Operation | — | All phases, all Agent Teams, full 5-reviewer debate | None |
 | 1 | Research Failure | Phase B1 or B2 fails | Proceed without market/research context | "Market context: unavailable" or "Research: unavailable" |
+| 1.5 | Benchmark Failure | Phase B4 fails | Use default role assignments (Claude primary for all, externals as cross-reviewers) | "Benchmarks: defaults used" |
 | 2 | Accuracy Audit Failure | Phase B3 fails | Skip pre-verification, reviewers work without pre-audited claims | "Accuracy: not pre-audited" |
+| 2.5 | External CLI Failure | Codex/Gemini CLI fails | Proceed with Claude reviewers only | "External models: unavailable" |
 | 3 | Agent Teams Failure | Teammate spawn fails | Fall back to Task subagents (no debate, sequential) | "Mode: subagent (no debate)" |
 | 4 | All Failure | Agent Teams AND subagents fail | Claude solo inline analysis with self-review checklist | "Mode: solo inline" |
 
@@ -2539,7 +2784,9 @@ FALLBACK_LOG=[]
 | Phase B1 (Market) | WebSearch fails or timeout | Skip market context, warn reviewers | Escalate to Level 1 |
 | Phase B2 (Research) | Debate or WebSearch fails | Skip best practices, note in report | Escalate to Level 1 if not already |
 | Phase B3 (Accuracy) | Audit debate fails | Skip pre-verification | Escalate to Level 2 |
+| Phase B4 (Benchmark) | Script or Claude scoring fails | Use default role assignments | Escalate to Level 1.5 |
 | Phase B5.5 (Strategy) | Strategy debate agents fail | Skip strategy, proceed to review | Stay at current level |
+| Phase B6 (External CLI) | Codex/Gemini CLI fails | Proceed with Claude reviewers only | Escalate to Level 2.5 |
 | Phase B6 (Review) | Teammate spawn fails | Try Task subagents; if that fails, solo | Escalate to Level 3 or 4 |
 | Phase B6 (Debate) | Arbitrator fails | Manual consensus from available responses | Stay at current level |
 | Phase B6.5 (Auto-Fix) | Fix verification fails | Revert all fixes, flag for manual review | Stay at current level |

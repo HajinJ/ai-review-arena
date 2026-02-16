@@ -1,0 +1,38 @@
+{
+  "id": "biz-accuracy-02",
+  "category": "accuracy",
+  "content_type": "business_plan",
+  "content": "# HealthTrack AI - 3-Year Business Plan\n\n## Executive Summary\n\nHealthTrack AI provides predictive health analytics for insurance companies using machine learning models trained on patient data. Our platform helps insurers reduce claim costs by identifying high-risk patients early.\n\n## Regulatory Environment\n\nAs a B2B SaaS platform serving US insurance companies, we operate under HIPAA compliance requirements. Since our customers are US-based and we only process data within US data centers, GDPR regulations do not apply to our business model. Our legal team has confirmed that European data protection laws are not relevant for US-to-US data flows.\n\n## Market Analysis\n\nThe health insurance AI market is experiencing rapid adoption. Industry data shows:\n- 67% of insurers have implemented AI-driven risk assessment tools (Source: Healthcare Innovation Survey, 2019)\n- Average ROI of 340% within first 18 months\n- Market growing at 45% CAGR through 2028\n\nAccording to recent industry analysis, the average insurance claim processing time has decreased from 12 days to 3 days thanks to AI automation. This represents a fundamental shift in how insurers operate.\n\n## Technology Infrastructure\n\nOur ML models achieve 94% accuracy in predicting patient readmission risk. We process over 2.3 million patient records daily with 99.97% uptime. The platform leverages proprietary algorithms developed by our team of former Johns Hopkins researchers.\n\n## Go-to-Market Strategy\n\nWe'll target mid-market insurers (100K-500K covered lives) initially, then expand to enterprise accounts. Our pricing model is $0.12 per member per month, with typical contracts spanning 3-5 years.\n\n## Financial Projections\n\nYear 1: $3.2M revenue, 35 customers\nYear 2: $8.7M revenue, 120 customers\nYear 3: $22M revenue, 340 customers\n\nGross margins of 82% with CAC payback period of 14 months.",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "regulatory_error",
+      "section": "Regulatory Environment",
+      "description_contains": ["GDPR", "appl", "EU", "residents", "extraterritorial", "incorrect"]
+    },
+    {
+      "severity": "high",
+      "type": "outdated_data",
+      "section": "Market Analysis",
+      "description_contains": ["2019", "outdated", "2025", "current", "stale"]
+    },
+    {
+      "severity": "high",
+      "type": "misleading_statement",
+      "section": "Regulatory Environment",
+      "description_contains": ["US-to-US", "GDPR", "wrong", "EU citizens", "location"]
+    },
+    {
+      "severity": "medium",
+      "type": "uncited_statistic",
+      "section": "Market Analysis",
+      "description_contains": ["12 days to 3 days", "source", "citation", "verify"]
+    },
+    {
+      "severity": "medium",
+      "type": "unsubstantiated_claim",
+      "section": "Technology Infrastructure",
+      "description_contains": ["94% accuracy", "validation", "methodology", "benchmark"]
+    }
+  ]
+}

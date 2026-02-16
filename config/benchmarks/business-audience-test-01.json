@@ -1,0 +1,38 @@
+{
+  "id": "biz-audience-01",
+  "category": "audience",
+  "content_type": "pitch_deck",
+  "content": "# DataCrunch - Investor Pitch 🚀\n\nHey everyone! So we're totally crushing it in the data analytics space and wanted to share what we've been cooking up 🔥\n\n## The Problem\n\nOkay so like, companies have TONS of data but honestly they're just vibing with Excel spreadsheets and it's lowkey a disaster. We've talked to literally hundreds of companies and they're all struggling fr fr.\n\n## Our Solution\n\nDataCrunch is basically this super sick platform that helps companies make sense of their data. We built it from scratch and it's honestly pretty dope. The UI is clean, the features are 🔥, and customers are obsessed.\n\n## Why We're Different\n\nUnlike our competitors who are stuck in 2015, we're bringing modern vibes to enterprise software. Our team is incredibly talented (we've got people from Google, Meta, and some other cool places) and we really care about our customers.\n\n## Traction\n\nWe've been grinding for 18 months and the results speak for themselves:\n- Got like 200+ customers using our platform\n- Revenue is growing super fast\n- People keep telling us they love the product\n- Some big companies are in our pipeline rn\n\n## The Market\n\nThe data analytics market is huge and getting bigger every day. Everyone needs data tools, and we're positioned perfectly to capture market share. The timing couldn't be better tbh.\n\n## Team\n\nOur founding team is stacked:\n- Me (CEO) - built stuff at tech companies\n- CTO - brilliant engineer, shipped products at scale\n- Head of Sales - knows how to close deals\n\n## The Ask\n\nWe're raising capital to take things to the next level. With the right resources, we'll dominate this space. Hit us up if you want to be part of something special! 💪\n\nLet's goooo! 🎯",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "tone_mismatch",
+      "section": "Overall",
+      "description_contains": ["informal", "casual", "slang", "investor", "professional", "unprofessional"]
+    },
+    {
+      "severity": "critical",
+      "type": "missing_financial_metrics",
+      "section": "Traction",
+      "description_contains": ["CAC", "LTV", "burn rate", "revenue", "specific", "metrics", "investor"]
+    },
+    {
+      "severity": "high",
+      "type": "inappropriate_elements",
+      "section": "Overall",
+      "description_contains": ["emoji", "excessive", "investor deck", "professional"]
+    },
+    {
+      "severity": "high",
+      "type": "vague_ask",
+      "section": "The Ask",
+      "description_contains": ["raise amount", "valuation", "use of funds", "specific", "unclear"]
+    },
+    {
+      "severity": "medium",
+      "type": "unquantified_claims",
+      "section": "Traction",
+      "description_contains": ["super fast", "quantify", "numbers", "growth rate", "vague"]
+    }
+  ]
+}

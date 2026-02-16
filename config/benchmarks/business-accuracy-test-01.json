@@ -1,0 +1,38 @@
+{
+  "id": "biz-accuracy-01",
+  "category": "accuracy",
+  "content_type": "pitch_deck",
+  "content": "# CloudSync - Series A Pitch Deck\n\n## Market Opportunity\n\nThe enterprise cloud storage market represents a $50 billion TAM, growing at 300% annually. Our research shows that 78% of Fortune 500 companies struggle with data synchronization across hybrid cloud environments.\n\n## Traction\n\nWe've achieved remarkable growth in the past 18 months:\n- 450 enterprise customers\n- $4.2M ARR with 98% gross margins\n- Average contract value of $85K\n- NRR of 142%\n\n## Competitive Landscape\n\nOur primary competitor, DataVault Inc., reported $180M in revenue last year but struggles with enterprise adoption. Box.com has pivoted away from enterprise storage, focusing instead on collaboration tools. Meanwhile, legacy players like Dropbox Business continue to lose market share to modern solutions.\n\n## Our Advantage\n\nCloudSync's proprietary Delta Sync technology reduces bandwidth usage by 95% compared to traditional solutions. We're the only player offering true real-time synchronization with zero-conflict resolution. Our patent-pending compression algorithm enables 10x faster sync speeds.\n\n## Use of Funds\n\nWe're raising $12M to:\n- Expand sales team from 8 to 35 reps\n- Accelerate product development in APAC markets\n- Build out SOC 2 Type II and ISO 27001 compliance infrastructure\n- Scale customer success operations\n\nWith this capital, we'll reach $15M ARR by end of 2026 and achieve profitability by Q3 2027.",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "factual_error",
+      "section": "Market Opportunity",
+      "description_contains": ["TAM", "$50 billion", "market size", "overstat", "actual", "$12"]
+    },
+    {
+      "severity": "critical",
+      "type": "misleading_metric",
+      "section": "Market Opportunity",
+      "description_contains": ["300%", "growth rate", "inflat", "unrealistic", "typical", "20-40%"]
+    },
+    {
+      "severity": "high",
+      "type": "factual_error",
+      "section": "Competitive Landscape",
+      "description_contains": ["DataVault", "$180M", "revenue", "incorrect", "misquot"]
+    },
+    {
+      "severity": "high",
+      "type": "unsubstantiated_claim",
+      "section": "Our Advantage",
+      "description_contains": ["only player", "zero-conflict", "unverified", "competitor", "similar"]
+    },
+    {
+      "severity": "medium",
+      "type": "misleading_statement",
+      "section": "Competitive Landscape",
+      "description_contains": ["Box", "pivot", "still offer", "incorrect", "enterprise"]
+    }
+  ]
+}

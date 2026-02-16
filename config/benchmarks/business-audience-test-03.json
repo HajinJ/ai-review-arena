@@ -1,0 +1,38 @@
+{
+  "id": "biz-audience-03",
+  "category": "audience",
+  "content_type": "internal_memo",
+  "content": "# Q1 2026 Strategy Memo - All Hands\n\nTO: All Employees\nFROM: Executive Team\nRE: Strategic Initiatives for Q1 2026\n\n## Market Leadership Update\n\nWe're thrilled to announce that FinanceFlow continues to dominate the market as the premier financial management platform trusted by thousands of businesses worldwide. Our innovative approach to cash flow management is disrupting the industry and setting new standards for excellence.\n\n## Competitive Intelligence\n\nOur analysis shows that competitor pricing is significantly higher than previously understood. QuickBooks Enterprise charges $8,500/year while our platform delivers superior functionality at just $4,200/year. Additionally, we've confirmed that FreshBooks Pro costs $6,800/year under their new enterprise contract terms disclosed in their recent partnership with Intuit.\n\nCompetitor AccountingPro has been struggling with customer retention, losing 23% of their enterprise accounts last quarter according to our sources. Their recent pivot to SMB markets indicates weakness in their core offering.\n\n## Revolutionary Features\n\nOur platform leverages cutting-edge AI technology to provide predictive cash flow analytics that no competitor can match. We're the only solution offering real-time banking integration across 4,000+ financial institutions. FinanceFlow is changing how businesses think about their finances.\n\n## Growth Trajectory\n\nThanks to our world-class team and innovative product, we've achieved remarkable milestones. Our customer satisfaction scores are the highest in the industry, and businesses are choosing FinanceFlow over legacy solutions at unprecedented rates.\n\n## Q1 Priorities\n\nEach department will focus on amplifying our market position:\n- Sales: Emphasize our competitive advantages in every customer conversation\n- Marketing: Launch campaign highlighting our innovation leadership\n- Product: Continue building features that leave competitors behind\n- Customer Success: Showcase transformation stories from our client base\n\nTogether, we're building the future of financial management. Our momentum is unstoppable, and Q1 will be our strongest quarter yet.",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "confidentiality_breach",
+      "section": "Competitive Intelligence",
+      "description_contains": ["competitor pricing", "NDA", "sensitive", "confidential", "legal risk"]
+    },
+    {
+      "severity": "critical",
+      "type": "audience_mismatch",
+      "section": "Overall",
+      "description_contains": ["marketing language", "internal memo", "employees", "external", "tone"]
+    },
+    {
+      "severity": "high",
+      "type": "inappropriate_disclosure",
+      "section": "Competitive Intelligence",
+      "description_contains": ["sources", "23%", "retention", "verify", "legal", "competitive intelligence"]
+    },
+    {
+      "severity": "high",
+      "type": "promotional_tone",
+      "section": "Market Leadership Update",
+      "description_contains": ["press release", "internal", "objective", "factual", "hyperbole"]
+    },
+    {
+      "severity": "medium",
+      "type": "unsubstantiated_claims",
+      "section": "Revolutionary Features",
+      "description_contains": ["only solution", "no competitor", "verify", "validate", "claim"]
+    }
+  ]
+}

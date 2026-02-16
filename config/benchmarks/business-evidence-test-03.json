@@ -1,0 +1,44 @@
+{
+  "id": "biz-evidence-03",
+  "category": "evidence",
+  "content_type": "case_study",
+  "content": "# Case Study: How RetailCorp Increased Sales 340% with InventoryAI\n\n## Executive Summary\n\nRetailCorp, a mid-sized retail chain, implemented InventoryAI's predictive inventory management platform and achieved remarkable results within 6 months. This case study demonstrates the transformative impact of AI-powered inventory optimization on retail operations.\n\n## The Challenge\n\nRetailCorp struggled with inventory management across their 45 retail locations:\n- Frequent stockouts of popular items\n- Excess inventory of slow-moving products\n- Manual forecasting processes prone to error\n- Lost sales opportunities due to poor inventory positioning\n\n## The Solution\n\nRetailCorp deployed InventoryAI in January 2025, integrating the platform with their existing POS and warehouse management systems. The implementation took 3 weeks, and the team began seeing results within the first month.\n\n## Results\n\nThe impact of InventoryAI on RetailCorp's operations was immediate and substantial:\n\n### Sales Performance\n- **Sales increased by 340%** in the first 6 months\n- Same-store sales grew 287% year-over-year\n- Average transaction value increased by 67%\n- Customer retention improved by 45%\n\n### Operational Efficiency\n- Inventory carrying costs reduced by 34%\n- Stockout incidents decreased by 89%\n- Forecasting accuracy improved to 94%\n- Labor hours for inventory management reduced by 23%\n\n### Financial Impact\n- Gross margins improved from 31% to 42%\n- Working capital freed up: $2.3M\n- ROI achieved within 4.5 months\n- Annual cost savings projected at $1.8M\n\n## Customer Testimonial\n\n\"InventoryAI completely transformed our business. Within weeks, we were seeing improvements we never thought possible. Our customers love that we always have what they need in stock, and our team can focus on serving customers instead of chasing inventory issues. This is the best investment we've made in our 15-year history.\"\n\n— Sarah Mitchell, VP of Operations, RetailCorp\n\n## Why InventoryAI Works\n\nRetailCorp's success story is not unique. Our customers consistently report similar results:\n- 94% of customers see ROI within 6 months\n- Average sales increase of 156% in first year\n- Customer satisfaction scores improve by average of 38 points\n- Inventory costs decrease by average of 29%\n\nCustomers love the platform's intuitive interface and the support from our success team. The combination of powerful AI technology and human expertise delivers results that speak for themselves.\n\n## Key Takeaways\n\nRetailCorp's experience demonstrates that modern AI technology can deliver immediate, measurable impact on retail operations. By trusting InventoryAI to optimize their inventory management, RetailCorp achieved growth that exceeded their most optimistic projections.",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "survivorship_bias",
+      "section": "Overall",
+      "description_contains": ["success story", "failure", "typical", "cherry-picked", "representative"]
+    },
+    {
+      "severity": "critical",
+      "type": "implausible_results",
+      "section": "Sales Performance",
+      "description_contains": ["340%", "unrealistic", "6 months", "question", "extraordinary"]
+    },
+    {
+      "severity": "high",
+      "type": "missing_control_group",
+      "section": "Results",
+      "description_contains": ["control", "comparison", "market condition", "seasonal", "attribute"]
+    },
+    {
+      "severity": "high",
+      "type": "anecdotal_evidence",
+      "section": "Why InventoryAI Works",
+      "description_contains": ["customers love", "anecdotal", "data", "systematic", "testimonial"]
+    },
+    {
+      "severity": "medium",
+      "type": "confounding_variables",
+      "section": "Results",
+      "description_contains": ["other factor", "marketing", "external", "solely", "attribution"]
+    },
+    {
+      "severity": "medium",
+      "type": "unverified_aggregate_claims",
+      "section": "Why InventoryAI Works",
+      "description_contains": ["94%", "156%", "source", "methodology", "sample"]
+    }
+  ]
+}

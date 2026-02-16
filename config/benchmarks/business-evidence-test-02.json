@@ -1,0 +1,38 @@
+{
+  "id": "biz-evidence-02",
+  "category": "evidence",
+  "content_type": "market_report",
+  "content": "# SaaS Pricing Model Analysis - 2026 Market Report\n\n## Research Methodology\n\nTo understand optimal SaaS pricing strategies, we surveyed decision-makers from companies currently using B2B SaaS products. Our research team conducted in-depth interviews and collected quantitative data to identify key trends and preferences.\n\n## Key Findings\n\n### Pricing Model Preferences\n\nOur analysis reveals strong preferences for specific pricing models:\n- 68% of respondents prefer annual contracts over monthly\n- 82% favor usage-based pricing for certain product categories\n- Per-seat pricing remains popular with 71% adoption\n- Tiered pricing increases conversion rates by 43%\n\n### Willingness to Pay Analysis\n\nSurvey data indicates that companies are willing to pay premium prices for products that demonstrate clear ROI:\n- 76% would pay 30% more for better customer support\n- 89% prioritize feature completeness over price\n- Average acceptable price increase for enterprise features: 2.4x\n\n### Price Sensitivity Factors\n\nOur research identified several factors influencing price sensitivity:\n\n1. **Company Size Impact:** Larger companies (1000+ employees) show 34% less price sensitivity than mid-market (100-999 employees)\n\n2. **Industry Variation:** Financial services companies demonstrate 41% higher willingness to pay compared to retail/e-commerce\n\n3. **Implementation Costs:** When implementation costs are included, 92% of buyers prefer higher subscription prices with free implementation\n\n## Causation Analysis\n\n### ROI and Retention\n\nOur data demonstrates that pricing model directly influences customer retention. Companies using usage-based pricing experience 23% higher retention than those using flat-rate pricing. This proves that aligning pricing with value consumption causes customers to perceive higher fairness and remain longer-term subscribers.\n\n### Price Points and Growth\n\nWe found that SaaS companies with entry-level tiers under $50/month grow 67% faster than those starting above $100/month. The lower price point causes higher top-of-funnel conversion, directly resulting in accelerated company growth.\n\n## Conclusions\n\nBased on our comprehensive analysis of 847 responses, we conclude that optimal SaaS pricing strategy should incorporate usage-based components with annual commitment options. The evidence clearly shows that this approach maximizes both customer acquisition and long-term retention.\n\nCompanies implementing these recommendations can expect to see improved unit economics and reduced churn within the first year.",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "biased_sample",
+      "section": "Research Methodology",
+      "description_contains": ["current users", "existing customers", "bias", "representative", "sample"]
+    },
+    {
+      "severity": "critical",
+      "type": "correlation_as_causation",
+      "section": "Causation Analysis - ROI and Retention",
+      "description_contains": ["causes", "correlation", "causation", "confounding", "prove"]
+    },
+    {
+      "severity": "high",
+      "type": "small_sample_extrapolation",
+      "section": "Conclusions",
+      "description_contains": ["847", "sample size", "statistically significant", "market", "generalize"]
+    },
+    {
+      "severity": "high",
+      "type": "causation_error",
+      "section": "Price Points and Growth",
+      "description_contains": ["causes", "directly result", "correlation", "other factor", "self-selection"]
+    },
+    {
+      "severity": "medium",
+      "type": "missing_context",
+      "section": "Key Findings",
+      "description_contains": ["43%", "baseline", "compared to", "context", "what"]
+    }
+  ]
+}

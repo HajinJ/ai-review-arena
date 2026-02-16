@@ -1,0 +1,38 @@
+{
+  "id": "biz-accuracy-03",
+  "category": "accuracy",
+  "content_type": "investor_update",
+  "content": "# Q4 2025 Investor Update - PayFlow\n\nDear Investors,\n\nWe're excited to share our strongest quarter yet. Q4 2025 delivered exceptional results across all key metrics.\n\n## Financial Performance\n\n**Revenue Growth:** We achieved $8.3M in Q4 revenue, representing +45% quarter-over-quarter growth and +156% year-over-year growth compared to Q4 2024. This significantly exceeds our original guidance of $7.1M.\n\n**Customer Acquisition:** Added 127 new enterprise customers, bringing total customer count to 892. This represents our largest customer addition quarter to date.\n\n**Gross Margins:** Improved to 76%, up from 71% in Q3, driven by infrastructure optimizations and better vendor negotiations.\n\n## Operational Highlights\n\n- Launched PayFlow Pro tier with advanced analytics\n- Expanded to UK and Germany markets\n- Hired 23 new team members across engineering and sales\n- Achieved SOC 2 Type II certification\n\n## Customer Success Metrics\n\n- NRR reached 138%, our highest ever\n- Average contract value increased to $78K (from $62K in Q1)\n- Churn rate decreased to 1.2% monthly (industry average is 3.5%)\n- Customer satisfaction score: 4.7/5.0\n\n## Year-Over-Year Comparison\n\nComparing Q4 2025 to Q4 2024:\n- Revenue: +156% ($8.3M vs $3.3M)\n- Customers: +184% (892 vs 314)\n- Team size: +92% (78 vs 41)\n- ARR: +168% ($31.2M vs $11.7M)\n\nThese metrics demonstrate our continued momentum and market leadership.\n\n## Looking Ahead\n\nFor Q1 2026, we're projecting $9.2M in revenue (+11% QoQ) as we focus on deepening customer relationships and expanding in APAC markets. We remain on track for our Series B raise in mid-2026.\n\nThank you for your continued support.\n\nBest regards,\nSarah Chen, CEO",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "overstated_metric",
+      "section": "Financial Performance",
+      "description_contains": ["+45%", "quarter-over-quarter", "inflat", "actual", "+12%", "misleading"]
+    },
+    {
+      "severity": "high",
+      "type": "misleading_comparison",
+      "section": "Year-Over-Year Comparison",
+      "description_contains": ["Q4 2024", "baseline", "cherry-pick", "weak quarter", "misleading"]
+    },
+    {
+      "severity": "high",
+      "type": "inconsistent_data",
+      "section": "Financial Performance vs YoY Comparison",
+      "description_contains": ["$8.3M", "$3.3M", "+156%", "math", "inconsistent", "calculation"]
+    },
+    {
+      "severity": "medium",
+      "type": "optimistic_framing",
+      "section": "Customer Acquisition",
+      "description_contains": ["largest", "context", "Q3", "comparison", "seasonal"]
+    },
+    {
+      "severity": "medium",
+      "type": "selective_disclosure",
+      "section": "Overall",
+      "description_contains": ["burn rate", "runway", "negative", "omit", "loss"]
+    }
+  ]
+}

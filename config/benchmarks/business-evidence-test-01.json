@@ -1,0 +1,38 @@
+{
+  "id": "biz-evidence-01",
+  "category": "evidence",
+  "content_type": "business_plan",
+  "content": "# SkillBoost - Online Learning Platform Business Plan\n\n## Market Validation\n\nOur extensive market research validates the significant opportunity in corporate training:\n\nStudies show that 80% of employees feel their current training programs are inadequate. Additionally, companies that invest in employee development see 24% higher profit margins compared to those that don't. The ROI on corporate training averages 353% according to recent industry analysis.\n\nEmployees who receive regular training are 67% more likely to stay with their employer beyond three years, significantly reducing recruitment costs. Furthermore, 94% of employees would stay at a company longer if it invested in their career development.\n\n## Competitive Advantages\n\n### Learning Effectiveness\n\nSkillBoost's proprietary adaptive learning algorithm improves knowledge retention by 47% compared to traditional e-learning methods. Our data shows that learners complete courses 3.2x faster while achieving higher assessment scores.\n\nThe platform's micro-learning approach aligns with cognitive science research showing that information delivered in 5-7 minute segments results in 72% better retention than hour-long sessions.\n\n### Business Impact\n\nOur pilot program with enterprise customers demonstrated clear results:\n- 89% of managers reported improved team performance within 60 days\n- Productivity metrics increased by 34% after platform rollout\n- Employee engagement scores rose by 28 points\n- Skills gap reduction of 61% across technical competencies\n\nThese results significantly outperform industry benchmarks for corporate learning solutions.\n\n## Financial Projections\n\nBased on market analysis and early traction:\n\n**Year 1:** $2.4M revenue from 45 enterprise customers (average $4,500 MRR)\n**Year 2:** $8.9M revenue with 180 customers (improved upsell showing $4,100 MRR average)\n**Year 3:** $24M revenue reaching 520 customers\n\nOur customer acquisition strategy targets mid-market companies (500-2,000 employees) where our data indicates 43% are actively seeking training platform replacements. Market surveys show these organizations allocate an average of $1,200 per employee annually for professional development.\n\n## Go-to-Market Strategy\n\nContent partnerships with industry experts will drive organic growth, as evidenced by competitor success using similar strategies. Our content library will include 500+ courses at launch, expanding to 2,000+ by end of Year 2.",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "uncited_statistics",
+      "section": "Market Validation",
+      "description_contains": ["80%", "24%", "353%", "source", "citation", "studies show"]
+    },
+    {
+      "severity": "critical",
+      "type": "cherry_picked_data",
+      "section": "Business Impact",
+      "description_contains": ["pilot program", "sample size", "selection bias", "only positive"]
+    },
+    {
+      "severity": "high",
+      "type": "missing_methodology",
+      "section": "Competitive Advantages",
+      "description_contains": ["47%", "3.2x", "methodology", "sample", "control group"]
+    },
+    {
+      "severity": "high",
+      "type": "uncited_research",
+      "section": "Learning Effectiveness",
+      "description_contains": ["cognitive science", "72%", "5-7 minute", "source", "research"]
+    },
+    {
+      "severity": "medium",
+      "type": "unverified_market_data",
+      "section": "Financial Projections",
+      "description_contains": ["43%", "seeking replacements", "survey", "source", "validate"]
+    }
+  ]
+}
