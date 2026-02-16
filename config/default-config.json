@@ -148,7 +148,7 @@
       "phases": ["context", "market", "strategy", "review", "report"],
       "agent_team": true,
       "review_agents": 5,
-      "debate_rounds": 2,
+      "debate_rounds": 3,
       "description_ko": "표준 비즈니스 리뷰 - 5 에이전트, 2라운드 토론",
       "description_en": "Standard business review - 5 agents, 2-round debate"
     },
@@ -156,7 +156,7 @@
       "phases": ["context", "market", "research", "accuracy", "strategy", "review", "report"],
       "agent_team": true,
       "review_agents": 5,
-      "debate_rounds": 2,
+      "debate_rounds": 3,
       "description_ko": "심층 비즈니스 리뷰 - 5 에이전트, 리서치+정확성 감사",
       "description_en": "Deep business review - 5 agents, research + accuracy audit"
     },
@@ -164,17 +164,19 @@
       "phases": ["context", "market", "research", "accuracy", "strategy", "review", "report"],
       "agent_team": true,
       "review_agents": 5,
-      "debate_rounds": 2,
+      "debate_rounds": 3,
       "description_ko": "종합 비즈니스 리뷰 - 5 에이전트, 전체 토론",
       "description_en": "Comprehensive business review - 5 agents, full debates"
     }
   },
   "business_debate": {
     "enabled": true,
-    "max_rounds": 2,
+    "max_rounds": 3,
     "challenge_threshold": 60,
     "consensus_threshold": 75,
     "require_majority": true,
-    "web_search_enabled": true
+    "web_search_enabled": true,
+    "round2_timeout_seconds": 180,
+    "round3_timeout_seconds": 180
   }
 }

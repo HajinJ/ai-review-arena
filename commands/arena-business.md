@@ -36,11 +36,14 @@ Team Lead (You - this session)
 |   +-- audience-challenger      -> challenges audience fit
 |   +-- accuracy-challenger      -> challenges factual claims
 |   +-- strategy-arbitrator      -> synthesizes content strategy
-+-- Phase B6: Multi-Agent Business Review (5 reviewers + arbitrator, 2-round debate)
++-- Phase B6: Multi-Agent Business Review (5 reviewers + arbitrator, 3-round debate)
 |   +-- Create team (Teammate tool)
 |   +-- Spawn business reviewer teammates (Task tool with team_name)
-|   +-- Coordinate 2-round debate phase
+|   +-- Coordinate 3-round debate phase (independent review, cross-review, defense)
 |   +-- Aggregate findings & generate consensus
++-- Phase B6.5: Apply Findings (review→fix loop for critical/high findings)
+|   +-- Auto-revise content based on consensus findings
+|   +-- Verify fixes address the issues
 +-- Phase B7: Final Report & Cleanup
 |   +-- Generate enriched business review report
 |   +-- Shutdown all teammates
@@ -1569,8 +1572,9 @@ Task(
   2. USE the enriched context to inform your review — check claims against business context, market data, and accuracy audit
   3. Send your findings JSON to the team lead using SendMessage
   4. Mark your task as completed using TaskUpdate
-  5. Stay active for the 2-round debate:
-     Round 2: You will receive other reviewers' findings and provide challenge/support responses"
+  5. Stay active for the 3-round debate:
+     Round 2: You will receive other reviewers' findings and provide challenge/support responses
+     Round 3: You will defend your challenged findings or withdraw/revise them"
 )
 ```
 
@@ -1618,8 +1622,9 @@ Task(
   2. USE the enriched context — especially the business context brief for brand voice and the content strategy for tone guidelines
   3. Send your findings JSON to the team lead using SendMessage
   4. Mark your task as completed using TaskUpdate
-  5. Stay active for the 2-round debate:
-     Round 2: You will receive other reviewers' findings and provide challenge/support responses"
+  5. Stay active for the 3-round debate:
+     Round 2: You will receive other reviewers' findings and provide challenge/support responses
+     Round 3: You will defend your challenged findings or withdraw/revise them"
 )
 ```
 
@@ -1668,8 +1673,9 @@ Task(
   3. Use WebSearch actively to verify competitive claims and find current competitor data
   4. Send your findings JSON to the team lead using SendMessage
   5. Mark your task as completed using TaskUpdate
-  6. Stay active for the 2-round debate:
-     Round 2: You will receive other reviewers' findings and provide challenge/support responses"
+  6. Stay active for the 3-round debate:
+     Round 2: You will receive other reviewers' findings and provide challenge/support responses
+     Round 3: You will defend your challenged findings or withdraw/revise them"
 )
 ```
 
@@ -1717,8 +1723,9 @@ Task(
   2. USE the enriched context — especially the content strategy for structure and tone guidelines, and best practices for writing standards
   3. Send your findings JSON to the team lead using SendMessage
   4. Mark your task as completed using TaskUpdate
-  5. Stay active for the 2-round debate:
-     Round 2: You will receive other reviewers' findings and provide challenge/support responses"
+  5. Stay active for the 3-round debate:
+     Round 2: You will receive other reviewers' findings and provide challenge/support responses
+     Round 3: You will defend your challenged findings or withdraw/revise them"
 )
 ```
 
@@ -1767,8 +1774,9 @@ Task(
   3. Use WebSearch actively to verify data claims against authoritative sources
   4. Send your findings JSON to the team lead using SendMessage
   5. Mark your task as completed using TaskUpdate
-  6. Stay active for the 2-round debate:
-     Round 2: You will receive other reviewers' findings and provide challenge/support responses"
+  6. Stay active for the 3-round debate:
+     Round 2: You will receive other reviewers' findings and provide challenge/support responses
+     Round 3: You will defend your challenged findings or withdraw/revise them"
 )
 ```
 
@@ -1787,7 +1795,7 @@ Task(
   Content Type: {type}
   Target Audience: {audience}
   Active reviewers: domain-accuracy-reviewer, audience-fit-reviewer, competitive-positioning-reviewer, communication-clarity-reviewer, data-evidence-reviewer
-  Cross-review rounds: 2
+  Cross-review rounds: 3
 
   CONTENT STRATEGY (from Phase B5.5):
   {content_strategy_from_phase_b5_5}
@@ -1796,8 +1804,10 @@ Task(
   1. Round 1 findings from all 5 reviewers (forwarded by team lead)
   2. Round 2 cross-review responses from all 5 reviewers (sent directly to you)
   3. A 'ROUND 2 COMPLETE' signal from the team lead
+  4. Round 3 defense responses from reviewers whose findings were challenged
+  5. A 'ROUND 3 COMPLETE' signal from the team lead
 
-  After Round 2 completes, apply the consensus algorithm and send the final consensus JSON to the team lead.
+  After Round 3 completes, apply the consensus algorithm (including defense data) and send the final consensus JSON to the team lead.
   --- END CONTEXT ---"
 )
 ```
@@ -1872,7 +1882,7 @@ Merge and deduplicate findings from all 5 reviewers:
    )
    ```
 
-### Step B6.7: 2-Round Debate
+### Step B6.7: 3-Round Debate
 
 **Round 1**: Independent review (already completed in Steps B6.3-B6.5).
 
@@ -1885,7 +1895,7 @@ Send each reviewer the OTHER four reviewers' findings:
 SendMessage(
   type: "message",
   recipient: "domain-accuracy-reviewer",
-  content: "CROSS-REVIEW -- Round 2 of 2
+  content: "CROSS-REVIEW -- Round 2 of 3
 
   Evaluate findings from the other 4 business reviewers from your ACCURACY expertise perspective.
 
@@ -1920,7 +1930,7 @@ SendMessage(
 SendMessage(
   type: "message",
   recipient: "audience-fit-reviewer",
-  content: "CROSS-REVIEW -- Round 2 of 2
+  content: "CROSS-REVIEW -- Round 2 of 3
 
   Evaluate findings from the other 4 business reviewers from your AUDIENCE FIT expertise perspective.
 
@@ -1955,7 +1965,7 @@ SendMessage(
 SendMessage(
   type: "message",
   recipient: "competitive-positioning-reviewer",
-  content: "CROSS-REVIEW -- Round 2 of 2
+  content: "CROSS-REVIEW -- Round 2 of 3
 
   Evaluate findings from the other 4 business reviewers from your COMPETITIVE POSITIONING expertise perspective.
 
@@ -1991,7 +2001,7 @@ SendMessage(
 SendMessage(
   type: "message",
   recipient: "communication-clarity-reviewer",
-  content: "CROSS-REVIEW -- Round 2 of 2
+  content: "CROSS-REVIEW -- Round 2 of 3
 
   Evaluate findings from the other 4 business reviewers from your COMMUNICATION CLARITY expertise perspective.
 
@@ -2026,7 +2036,7 @@ SendMessage(
 SendMessage(
   type: "message",
   recipient: "data-evidence-reviewer",
-  content: "CROSS-REVIEW -- Round 2 of 2
+  content: "CROSS-REVIEW -- Round 2 of 3
 
   Evaluate findings from the other 4 business reviewers from your DATA & EVIDENCE expertise perspective.
 
@@ -2064,8 +2074,56 @@ SendMessage(
 SendMessage(
   type: "message",
   recipient: "business-debate-arbitrator",
-  content: "ROUND 2 COMPLETE. All cross-review responses received from all 5 reviewers. Synthesize the final consensus from both rounds.",
-  summary: "Round 2 cross-review complete -- synthesize consensus"
+  content: "ROUND 2 COMPLETE. All cross-review responses received from all 5 reviewers. Hold for Round 3 defense responses.",
+  summary: "Round 2 cross-review complete -- preparing Round 3"
+)
+```
+
+**Round 3**: Defense -- original reviewers defend challenged findings or withdraw/revise them.
+
+After Round 2, identify which findings received challenges. For each reviewer that had findings challenged, send them the challenges and ask for a defense:
+
+**Send defense requests to each reviewer whose findings were challenged:**
+```
+SendMessage(
+  type: "message",
+  recipient: "{reviewer-name}",
+  content: "DEFENSE ROUND -- Round 3 of 3
+
+  The following findings from your Round 1 review were CHALLENGED by other reviewers during cross-review.
+
+  CHALLENGES AGAINST YOUR FINDINGS:
+  {list of challenges targeting this reviewer's findings, including:
+   - finding_id
+   - challenger name
+   - challenge reasoning
+   - confidence_adjustment
+   - counter-evidence}
+
+  For EACH challenged finding, respond with ONE of:
+  1. DEFEND -- maintain your finding with additional evidence or stronger reasoning
+  2. REVISE -- adjust severity or confidence based on valid challenger points
+  3. WITHDRAW -- concede the finding was incorrect or overstated
+
+  Send each response to business-debate-arbitrator via SendMessage as JSON:
+  {\"finding_id\":\"<section:title>\", \"action\":\"defend|withdraw|revise\", \"original_severity\":\"<original>\", \"revised_severity\":\"<same or adjusted>\", \"revised_confidence\":0-100, \"defense_reasoning\":\"<why finding should stand, or why revising/withdrawing>\", \"additional_evidence\":\"<new evidence if any>\"}
+
+  When done: send '{reviewer-name} defense round complete' to business-debate-arbitrator.",
+  summary: "Round 3: defend your challenged findings"
+)
+```
+
+**NOTE**: Only send defense requests to reviewers who had at least one finding challenged. Reviewers with zero challenges skip Round 3.
+
+**Wait for all Round 3 responses**: All challenged reviewers send their defend/withdraw/revise responses directly to business-debate-arbitrator via SendMessage.
+
+**Signal Round 3 complete to arbitrator:**
+```
+SendMessage(
+  type: "message",
+  recipient: "business-debate-arbitrator",
+  content: "ROUND 3 COMPLETE. All defense responses received. Synthesize the final consensus from all 3 rounds.",
+  summary: "Round 3 defense complete -- synthesize final consensus"
 )
 ```
 
@@ -2088,8 +2146,87 @@ echo '${CONSENSUS_JSON}' > "${SESSION_DIR}/findings/consensus.json"
 
 **Debate Error Handling:**
 - If a reviewer does not respond to Round 2 within 60 seconds: proceed without their cross-review. Note in report.
-- If business-debate-arbitrator fails: collect whatever challenge/support messages were received. Synthesize consensus manually using the aggregated Round 1 findings with Round 2 adjustments.
-- If no cross-review responses at all: skip debate, use Round 1 aggregated findings as final results.
+- If a reviewer does not respond to Round 3 within 60 seconds: treat their challenged findings as unchanged (implicit defend). Note in report.
+- If business-debate-arbitrator fails: collect whatever challenge/support/defense messages were received. Synthesize consensus manually using the aggregated Round 1 findings with Round 2 and Round 3 adjustments.
+- If no cross-review responses at all: skip debate rounds 2 and 3, use Round 1 aggregated findings as final results.
+
+---
+
+## Phase B6.5: Apply Findings (Review → Fix Loop)
+
+After the debate consensus is reached, automatically apply fixes for critical and high severity findings.
+
+**Trigger condition**: At least 1 accepted finding with severity `critical` or `high` in the consensus.
+
+**If no critical/high findings**: Skip Phase B6.5, proceed directly to Phase B7.
+
+### Step B6.5.1: Identify Actionable Findings
+
+From the consensus results, extract all accepted findings with severity `critical` or `high`:
+
+```
+actionable_findings = consensus.accepted.filter(f =>
+  f.severity == "critical" OR f.severity == "high"
+)
+```
+
+Sort by severity (critical first), then by confidence (descending).
+
+### Step B6.5.2: Auto-Revise Content
+
+For each actionable finding, apply the suggested fix to the content:
+
+```
+FOR each finding IN actionable_findings:
+  1. Locate the section referenced by finding.section
+  2. Apply the finding.suggestion as a content revision
+  3. Track the change: {finding_id, original_text, revised_text, applied_suggestion}
+
+  Revision rules:
+  - ACCURACY findings: correct factual claims, add caveats, remove unverifiable assertions
+  - AUDIENCE-FIT findings: adjust tone, vocabulary, framing for target audience
+  - POSITIONING findings: refine competitive claims, strengthen differentiators, remove unsupported comparisons
+  - CLARITY findings: restructure sentences, fix ambiguous phrasing, improve logical flow
+  - EVIDENCE findings: add citations, qualify unsupported claims, remove or flag unverifiable data
+```
+
+### Step B6.5.3: Verify Fixes
+
+After applying all revisions, do a quick self-verification:
+
+```
+FOR each applied revision:
+  1. Does the revised text address the original finding?
+  2. Does the revision maintain consistency with surrounding content?
+  3. Does the revision preserve the intended message and tone?
+  4. Does the revision not introduce NEW issues?
+
+  IF verification fails for any revision:
+    Revert that specific revision and flag it for manual review
+```
+
+### Step B6.5.4: Display Applied Changes
+
+```markdown
+## Applied Fixes (Phase B6.5)
+
+{N} critical/high findings auto-revised:
+
+| # | Severity | Section | Finding | Status |
+|---|----------|---------|---------|--------|
+| 1 | {severity} | {section} | {title} | Applied / Reverted (manual review needed) |
+| 2 | ... | ... | ... | ... |
+
+### Revision Details
+
+**[{severity}] {title}**
+- Section: {section}
+- Original: "{original_text_snippet}"
+- Revised: "{revised_text_snippet}"
+- Based on: {reviewer attribution}
+```
+
+**NOTE**: Medium and low severity findings are reported but NOT auto-applied. They appear in the final report as recommendations for the user to review.
 
 ---
 
@@ -2201,6 +2338,12 @@ Build the complete business content review report:
 - Challenges: {N}
 - New observations: {N}
 
+### Round 3: Defense
+- Findings challenged: {N}
+- Defended: {N}
+- Revised: {N}
+- Withdrawn: {N}
+
 ### Consensus
 - Findings accepted: {N}
 - Findings rejected: {N}
@@ -2208,6 +2351,11 @@ Build the complete business content review report:
 - Confidence increased: {N}
 - Confidence decreased: {N}
 - Confidence unchanged: {N}
+
+## Applied Fixes (Phase B6.5)
+- Critical/high findings auto-revised: {N}
+- Successfully applied: {N}
+- Reverted (manual review needed): {N}
 
 ---
 

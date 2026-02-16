@@ -34,7 +34,7 @@ You are the CRITICAL agent in the business review pipeline. As an Agent Team tea
 - List of active business reviewer teammates
 - Number of debate rounds
 
-### 2. Teammate Messages (via SendMessage) — 2-Round Debate
+### 2. Teammate Messages (via SendMessage) — 3-Round Debate
 
 **Round 1 data** (in your initial spawn context):
 - Independent review findings from all 5 business reviewers
@@ -52,8 +52,24 @@ From business reviewers (via SendMessage):
 }
 ```
 
+**Round 3: Defense** — original reviewers defend their challenged findings:
+
+From business reviewers (via SendMessage):
+```json
+{
+  "finding_id": "<section:title>",
+  "action": "defend|withdraw|revise",
+  "original_severity": "critical|high|medium|low",
+  "revised_severity": "critical|high|medium|low",
+  "revised_confidence": 0-100,
+  "defense_reasoning": "<why the finding should stand, or why it is being revised/withdrawn>",
+  "additional_evidence": "<new evidence gathered in defense, if any>"
+}
+```
+
 **Round control signals from team lead**:
-- `"ROUND 2 COMPLETE"` — all cross-review responses received, synthesize final consensus
+- `"ROUND 2 COMPLETE"` — all cross-review responses received, hold for Round 3
+- `"ROUND 3 COMPLETE"` — all defense responses received, synthesize final consensus
 
 ## Consensus Algorithm
 
@@ -181,7 +197,7 @@ FOR each finding WHERE reviewer_count == 1:
   ELSE: REJECT (insufficient evidence)
 ```
 
-### Phase 5: Cross-Review Integration
+### Phase 5: Cross-Review Integration (Round 2)
 
 Integrate Round 2 cross-review data:
 
@@ -203,11 +219,63 @@ FOR each finding:
   ELSE:
     cross_review_boost = 0
 
-  finding.confidence = clamp(
+  finding.post_round2_confidence = clamp(
     original_confidence + sum(confidence_adjustments) + cross_review_boost,
     0, 100
   )
 ```
+
+### Phase 5.5: Defense Integration (Round 3)
+
+Integrate Round 3 defense responses from original reviewers:
+
+```
+FOR each finding that was challenged in Round 2:
+  Collect the Round 3 defense response from the original reviewer.
+
+  IF no defense response received (timeout):
+    # Implicit defend -- finding stands at post-Round 2 confidence
+    finding.confidence = finding.post_round2_confidence
+    finding.defense_status = "implicit_defend"
+
+  ELIF action == "defend":
+    # Reviewer maintained their finding with additional reasoning
+    defense_quality = evaluate_defense_strength(defense_reasoning, additional_evidence)
+
+    IF defense_quality == "strong":
+      # Strong defense with new evidence -- recover most of the challenge penalty
+      recovery = abs(cross_review_boost) * 0.7
+      finding.confidence = clamp(finding.post_round2_confidence + recovery, 0, 100)
+    ELIF defense_quality == "moderate":
+      # Reasonable defense but no new evidence -- partial recovery
+      recovery = abs(cross_review_boost) * 0.3
+      finding.confidence = clamp(finding.post_round2_confidence + recovery, 0, 100)
+    ELSE:
+      # Weak defense -- no confidence change from Round 2
+      finding.confidence = finding.post_round2_confidence
+
+    finding.defense_status = "defended"
+    finding.severity = original_severity  # Maintained
+
+  ELIF action == "revise":
+    # Reviewer adjusted their assessment
+    finding.confidence = revised_confidence
+    finding.severity = revised_severity
+    finding.defense_status = "revised"
+    # Add note explaining what changed and why
+
+  ELIF action == "withdraw":
+    # Reviewer conceded the finding was invalid
+    finding.confidence = 0
+    finding.defense_status = "withdrawn"
+    MOVE finding to rejected_findings
+    SET rejection_reason = "Withdrawn by original reviewer: " + defense_reasoning
+```
+
+**Defense strength evaluation criteria:**
+- **Strong**: New evidence cited, specific counter-arguments to challengers, verifiable claims
+- **Moderate**: Reasonable rebuttal but no new evidence, restates original reasoning more clearly
+- **Weak**: Simply repeats original claim, no engagement with challenger arguments
 
 ### Phase 6: Final Consensus Assembly
 
@@ -271,9 +339,17 @@ SendMessage(
         "round2": {
           "responses": [
             {"reviewer": "<name>", "action": "challenge|support", "confidence_adjustment": 0, "reasoning": "..."}
-          ]
+          ],
+          "post_round2_confidence": 0
         },
-        "final_confidence_calculation": "<formula showing how final confidence was derived>"
+        "round3": {
+          "defense_status": "defended|revised|withdrawn|implicit_defend|not_challenged",
+          "defense_action": "defend|revise|withdraw|null",
+          "revised_severity": "<severity or null>",
+          "revised_confidence": 0,
+          "defense_reasoning": "<reasoning or null>"
+        },
+        "final_confidence_calculation": "<formula showing how final confidence was derived across all 3 rounds>"
       }
     }
   ],
@@ -324,6 +400,13 @@ SendMessage(
       "responses_received": 0,
       "supports": 0,
       "challenges": 0
+    },
+    "round3_defense": {
+      "findings_challenged": 0,
+      "defended": 0,
+      "revised": 0,
+      "withdrawn": 0,
+      "implicit_defend": 0
     },
     "confidence_changes": {
       "increased": 0,
