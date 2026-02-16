@@ -1898,6 +1898,165 @@ SendMessage(
 
 ---
 
+## Phase 6.5: Apply Findings — Auto-Fix Loop (standard/deep/comprehensive intensity)
+
+Apply consensus findings that meet strict auto-fix criteria. This phase automatically fixes low-risk, high-confidence issues and verifies fixes via test suite. **NEVER auto-fix critical or high severity findings — those always require human review.**
+
+### Step 6.5.1: Identify Auto-Fixable Findings
+
+Filter consensus findings by ALL of the following criteria:
+
+| Criterion | Requirement |
+|-----------|------------|
+| Severity | `medium` or `low` ONLY (NEVER critical/high) |
+| Confidence | >= 90% post-debate consensus confidence |
+| Agreement | Unanimous or majority (2+ models/reviewers agree) |
+| Scope | Affects <= 10 lines of code |
+| Category | ONLY auto-fixable categories (see below) |
+
+**Auto-fixable categories:**
+
+| Category | Description | Examples |
+|----------|-------------|---------|
+| `naming_convention` | Variable/function rename to match project style | camelCase → snake_case, inconsistent naming |
+| `import_ordering` | Import sort/cleanup | Alphabetize imports, remove duplicates |
+| `unused_code` | Dead code removal | Unused imports, unreachable branches, dead variables |
+| `type_annotation` | Missing type additions | Add return types, parameter types, type narrowing |
+| `simple_null_check` | Adding null/undefined guards | Missing optional chaining, nullish coalescing |
+| `documentation` | Missing JSDoc/docstring | Add function description, parameter docs |
+
+**EXCLUDED from auto-fix (always manual review):**
+
+- Security vulnerabilities (any severity)
+- Logic errors or algorithm bugs
+- Race conditions or concurrency issues
+- Architectural or design issues
+- Performance optimizations
+- Any finding touching > 10 lines
+- Any finding with `disputed` or `conflict-resolved` agreement level
+
+```
+AUTO_FIXABLE = []
+
+FOR each finding in consensus.accepted:
+  IF finding.severity in ["medium", "low"]
+     AND finding.confidence >= 90
+     AND finding.agreement_level in ["unanimous", "majority"]
+     AND finding.category in AUTO_FIX_CATEGORIES
+     AND finding.affected_lines <= 10
+     AND finding.category NOT IN ["security", "logic", "race_condition", "architecture", "performance"]:
+    ADD to AUTO_FIXABLE
+```
+
+Display identified auto-fixable findings to user:
+```
+AUTO-FIX CANDIDATES ({N} findings)
+| # | File:Line | Category | Description | Confidence |
+|---|-----------|----------|-------------|------------|
+| 1 | src/api.ts:45 | naming_convention | Rename `getUserData` → `get_user_data` | 95% |
+| 2 | src/utils.ts:12 | unused_code | Remove unused import `lodash` | 92% |
+
+Proceed with auto-fix? [Yes / Skip auto-fix / Select specific findings]
+```
+
+IF user skips or no auto-fixable findings: proceed directly to Phase 7.
+
+### Step 6.5.2: Apply Fixes
+
+For each auto-fixable finding, apply the fix:
+
+```
+FOR each finding in AUTO_FIXABLE:
+  1. Read the target file with Read tool
+  2. Apply the suggestion using Edit tool
+  3. Track the change:
+     {
+       finding_id: "<id>",
+       file: "<path>",
+       line: <line_number>,
+       category: "<category>",
+       original_code: "<before>",
+       fixed_code: "<after>",
+       status: "applied"
+     }
+```
+
+### Step 6.5.3: Test Verification
+
+After ALL fixes are applied, verify with the project's test suite:
+
+```bash
+# Detect and run appropriate test command
+if [ -f "package.json" ]; then
+  # Check for test script
+  TEST_CMD=$(jq -r '.scripts.test // empty' package.json)
+  if [ -n "$TEST_CMD" ]; then
+    npm test 2>&1 | tail -50
+  fi
+elif [ -f "pytest.ini" ] || [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
+  python -m pytest --tb=short 2>&1 | tail -50
+elif [ -f "go.mod" ]; then
+  go test ./... 2>&1 | tail -50
+elif [ -f "Cargo.toml" ]; then
+  cargo test 2>&1 | tail -50
+fi
+```
+
+**If tests FAIL:**
+```
+# Revert ALL auto-fixes
+git checkout -- .
+
+# Mark all findings as auto-fix-failed
+FOR each applied_fix:
+  applied_fix.status = "auto-fix-failed"
+
+# Log which test failed
+WARN: "Auto-fix verification failed. All fixes reverted. Manual review required."
+WARN: "Failed test: {test_name}"
+WARN: "Possible culprit: {most_recent_fix}"
+```
+
+**If tests PASS:**
+```
+FOR each applied_fix:
+  applied_fix.status = "auto-fix-applied-verified"
+```
+
+**If NO test suite detected:**
+```
+FOR each applied_fix:
+  applied_fix.status = "auto-fix-applied-unverified"
+
+WARN: "No test suite found. Auto-fixes applied but NOT verified. Manual verification recommended."
+```
+
+### Step 6.5.4: Display Applied Fixes
+
+Show the user what was changed:
+
+```
+AUTO-FIX RESULTS
+| # | File:Line | Category | Change | Status |
+|---|-----------|----------|--------|--------|
+| 1 | src/api.ts:45 | naming_convention | `getUserData` → `get_user_data` | verified |
+| 2 | src/utils.ts:12 | unused_code | Removed `import { merge } from 'lodash'` | verified |
+
+Total: {N} fixes applied, {M} verified, {K} failed (reverted)
+```
+
+Store results for Phase 7 report:
+```bash
+echo '${AUTO_FIX_RESULTS_JSON}' > "${SESSION_DIR}/auto-fix-results.json"
+```
+
+**Error Handling:**
+- If Edit tool fails on a specific file: skip that fix, mark as "edit-failed", continue with remaining fixes.
+- If git checkout fails during revert: warn user, list modified files for manual recovery.
+- If test command hangs (>120s): kill process, treat as test failure, revert all fixes.
+
+---
+
 ## Phase 7: Final Report & Cleanup
 
 ### Step 7.1: Generate Report
@@ -2021,6 +2180,22 @@ SendMessage(
 
    | Severity | File | Line | Title | Confidence | Model | Debate |
    |----------|------|------|-------|------------|-------|--------|
+
+   ---
+
+   ## Auto-Fix Results (Phase 6.5)
+
+   {If auto-fix was executed:}
+
+   | # | File:Line | Category | Change | Status |
+   |---|-----------|----------|--------|--------|
+   | 1 | {file}:{line} | {category} | {description of change} | {verified/unverified/failed} |
+
+   **Summary:** {N} fixes applied, {M} verified by test suite, {K} failed (reverted)
+   {If no test suite: "No test suite detected — fixes applied but unverified"}
+
+   {If auto-fix was skipped:}
+   Auto-fix skipped: {reason — no eligible findings / user declined / quick intensity}
 
    ---
 
