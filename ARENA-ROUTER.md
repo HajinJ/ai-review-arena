@@ -1,11 +1,13 @@
-# ARENA-ROUTER.md - AI Review Arena Routing System v2.4
+# ARENA-ROUTER.md - AI Review Arena Routing System v3.0
 
 ## Core Rule
 
-**모든 요청은 Arena 파이프라인을 거친다.** 예외 없음.
-커밋, 설명, 질문이든 코드 구현이든 - 모든 요청은 아래 프로세스를 따른다.
+**Every request goes through the Arena pipeline.** No exceptions.
+Whether it's a commit, explanation, question, code implementation, or business content — every request follows this process.
 
-유일한 예외: `--no-arena` 플래그가 명시된 경우, 또는 사용자가 직접 `/arena`, `/multi-review` 등 슬래시 커맨드를 입력한 경우.
+The only exceptions:
+- `--no-arena` flag is explicitly provided
+- User directly invokes a slash command (`/arena`, `/multi-review`, etc.)
 
 ---
 
@@ -15,295 +17,481 @@
 PLUGIN_DIR = ~/.claude/plugins/ai-review-arena
 ```
 
-모든 커맨드 파일, 에이전트 정의, 설정 파일은 이 디렉토리에 위치한다.
+All command files, agent definitions, and config files are located in this directory.
 
 ---
 
-## Process: 3단계
+## Process: 3 Steps
 
 ```
-모든 요청
+Every Request
   │
-  ├── Step 1: Context Discovery (컨텍스트 수집)
-  │     요청을 이해하기 위해 필요한 외부 정보를 먼저 수집
+  ├── Step 1: Context Discovery
+  │     Gather external information needed to fully understand the request
   │
-  ├── Step 2: Route Selection (라우트 결정)
-  │     수집된 컨텍스트 + 요청 의도로 적절한 라우트 선택
+  ├── Step 2: Route Selection
+  │     Determine the appropriate route(s) based on context + intent
   │
-  └── Step 3: Pipeline Execution (파이프라인 실행)
-        선택된 라우트의 커맨드 파일을 Read tool로 읽고
-        파일에 정의된 파이프라인을 따라 실행
+  └── Step 3: Pipeline Execution
+        Read the command file for the selected route via Read tool
+        and execute the pipeline defined in it
 ```
 
 ---
 
 ## Step 1: Context Discovery
 
-요청을 처리하기 전에, 요청을 완전히 이해하기 위해 필요한 외부 컨텍스트를 먼저 수집한다.
+Before processing a request, gather any external context needed to fully understand it.
 
-### 발견이 필요한 경우
+### When Discovery Is Needed
 
-| 요청 패턴 | 수집 행동 |
-|-----------|-----------|
-| 이슈/티켓 참조 ("이슈 처리해줘", "next issue", "다음 작업") | `gh issue list` → 이슈 선택 → `gh issue view N` → 이슈 내용 파악 |
-| PR 참조 ("PR 리뷰해줘", "PR #42") | `gh pr view N` → PR diff 및 설명 파악 |
-| Figma URL 포함 | Figma MCP로 디자인 정보 수집 (미설치 시 설치 제안) |
-| 파일/디렉토리 참조 ("이 파일", "src/services/") | Read/Glob으로 대상 코드 파악 |
-| 모호한 요청 ("이거 고쳐줘", "이상한데?") | git diff, git status로 최근 변경사항 파악 |
-| 외부 라이브러리/프레임워크 언급 | WebSearch 또는 Context7 MCP로 최신 문서 확인 |
+| Request Pattern | Discovery Action |
+|----------------|-----------------|
+| Issue/ticket reference ("handle the issue", "next issue", "next task") | `gh issue list` → select issue → `gh issue view N` → understand content |
+| PR reference ("review PR", "PR #42") | `gh pr view N` → understand PR diff and description |
+| Figma URL included | Collect design info via Figma MCP (suggest install if missing) |
+| File/directory reference ("this file", "src/services/") | Read/Glob to understand target code |
+| Ambiguous request ("fix this", "something's wrong") | `git diff`, `git status` to understand recent changes |
+| External library/framework mention | WebSearch or Context7 MCP for latest documentation |
+| Business document reference ("business plan", "pitch deck", "proposal", "BMC") | Read docs/ directory, understand existing business documents |
+| Competitor/market analysis request | WebSearch for market data, competitor landscape |
+| Investor/customer communication | Read docs/ for existing IR/marketing materials |
+| Comment/review response request | Understand target comments + existing product description |
 
-### 발견이 불필요한 경우
+### When Discovery Is Not Needed
 
-요청 자체에 충분한 컨텍스트가 포함되어 있으면 즉시 Step 2로 진행:
-- "UserService에 getById 메서드 추가해줘" → 대상과 행동이 명확
-- "로그인 API 구현해줘" → 구현할 기능이 명확
+If the request already contains sufficient context, proceed directly to Step 2:
+- "Add a getById method to UserService" → target and action are clear
+- "Implement login API" → feature to implement is clear
+- "Write a response to this comment: ..." → content is provided inline
 
-### 발견 결과의 활용
+### How Discovery Results Are Used
 
-수집된 컨텍스트는 Step 2의 라우트 결정과 Step 3의 파이프라인 실행에 모두 전달된다.
-예: 이슈 내용이 "Add multiplayer lobby system"이면 → 복합 기능 구현으로 판단 → Route A, intensity deep
+Collected context is passed to both Step 2 (route selection) and Step 3 (pipeline execution).
+Example: If an issue says "Add multiplayer lobby system" → complex feature → Route A, intensity deep
 
 ---
 
 ## Step 2: Route Selection
 
-Claude의 자연어 이해 능력으로 요청의 의도를 판단하여 적절한 라우트를 선택한다.
-언어에 무관하게 동작한다 (한국어, 영어, 일본어, 프랑스어 등).
+Use natural language understanding to determine the request's intent and select the appropriate route(s).
+Works regardless of language (Korean, English, Japanese, French, etc.).
 
 ### Available Routes
 
-#### Route A: 기능 구현
+#### Code Routes (A-F)
 
-**의도**: 새로운 기능을 만들거나, 기존 시스템에 새 기능을 추가하는 작업.
+##### Route A: Feature Implementation
 
-- 새 기능 개발, 피처 구현
-- 설계부터 구현까지 필요한 복합 작업
-- 이슈/티켓 기반 구현 작업 (Context Discovery 이후)
-- Figma 디자인 기반 구현
+**Intent**: Build new features or add functionality to existing systems.
 
-#### Route B: 사전 조사
+- New feature development, feature implementation
+- Complex tasks requiring design through implementation
+- Issue/ticket-based implementation work (after Context Discovery)
+- Figma design-based implementation
 
-**의도**: 구현 전에 방법론, 베스트 프랙티스, 기술 비교를 조사하는 작업.
+##### Route B: Pre-Implementation Research
 
-- 구현 방법 조사, 기술 비교
-- 베스트 프랙티스/가이드라인 확인
-- 아키텍처 결정을 위한 선행 연구
-- "어떻게 하면 좋을까?" 류의 탐색적 질문
+**Intent**: Investigate methodologies, best practices, or technology comparisons before coding.
 
-#### Route C: 스택 분석
+- Implementation method research, technology comparison
+- Best practices/guideline verification
+- Preliminary research for architectural decisions
+- Exploratory questions ("what's the best way to...")
 
-**의도**: 프로젝트의 기술 스택, 프레임워크, 의존성을 파악하는 작업.
+##### Route C: Stack Analysis
 
-- 프로젝트 기술 구성 분석
-- 사용 중인 프레임워크/라이브러리 식별
-- 기술 스택 기반 권장사항
+**Intent**: Understand the project's technology stack, frameworks, and dependencies.
 
-#### Route D: 코드 리뷰
+- Project technology composition analysis
+- Framework/library identification
+- Stack-based recommendations
 
-**의도**: 이미 존재하는 코드를 검토하고 문제를 찾는 작업.
+##### Route D: Code Review
 
-- 코드 품질/보안/성능 리뷰
-- PR 리뷰
-- 취약점 스캔, 버그 탐지
-- 변경사항 검토
+**Intent**: Review existing code and find problems.
 
-#### Route E: 리팩토링/개선
+- Code quality/security/performance review
+- PR review
+- Vulnerability scanning, bug detection
+- Change review
 
-**의도**: 기존 코드의 구조, 품질, 성능을 개선하는 작업.
+##### Route E: Refactoring/Improvement
 
-- 리팩토링, 코드 정리
-- 성능 최적화
-- 구조 개선, 중복 제거
-- 기술 부채 해소
+**Intent**: Improve existing code structure, quality, or performance.
 
-#### Route F: 간단한 변경
+- Refactoring, code cleanup
+- Performance optimization
+- Structural improvement, deduplication
+- Technical debt resolution
 
-**의도**: 범위가 작고 명확한 코드 수정.
+##### Route F: Simple Change
 
-- 파라미터 추가/제거, 이름 변경
-- 타입 변경, import 수정
-- 단일 메서드 추가
-- 단순 버그 수정
-- 커밋, 코드 설명 등 간단한 작업
+**Intent**: Small, well-defined code modifications.
 
-### 라우트 결정 원칙
+- Parameter addition/removal, renaming
+- Type changes, import fixes
+- Single method addition
+- Simple bug fixes
+- Commits, code explanations, and other trivial tasks
 
-1. **의도가 명확하면** 해당 라우트로 직행
-2. **의도가 복합적이면** 더 포괄적인 라우트 선택 (F보다 A가 더 포괄적)
-3. **의도를 모르겠으면** Route A로 — 전체 파이프라인이 알아서 처리
-4. **Context Discovery에서 이슈/PR을 읽은 경우** 이슈 내용의 의도에 따라 라우트 결정
+#### Business Routes (G-I)
+
+##### Route G: Business Content Creation
+
+**Intent**: Write or revise business documents, content, and proposals.
+
+- Business plans, BMC (Business Model Canvas)
+- Proposals, pitch decks, IR materials
+- Product descriptions, service brochures
+- Marketing copy, press releases
+- Case studies, whitepapers
+
+##### Route H: Business Analysis/Strategy
+
+**Intent**: Market analysis, competitive analysis, strategy formulation, and analytical business tasks.
+
+- Market research, competitor analysis
+- SWOT analysis, Porter's Five Forces
+- Financial analysis, KPI design
+- Growth strategy, market entry strategy
+- Business feasibility review
+
+##### Route I: Communication
+
+**Intent**: External communication and stakeholder correspondence.
+
+- Investor Q&A, IR responses
+- Customer support messages, comment/review responses
+- Partnership proposals
+- Emails, presentation scripts
+- Hackathon/demo day presentation materials
+
+### Multi-Route Requests
+
+Some requests span both code and business domains, or require sequential execution of multiple routes.
+
+#### Detection
+
+A request is multi-route when it contains **two or more distinct intents** that map to different pipelines:
+- "Write a business plan and build a landing page based on it" → Route G then Route A
+- "Analyze the market and implement a pricing strategy in code" → Route H then Route A
+- "Review this PR and also draft a release announcement" → Route D then Route G
+
+#### Execution Strategy
+
+When a multi-route request is detected:
+
+1. **Decompose** the request into ordered sub-tasks, each mapped to a single route
+2. **Execute sequentially** — later routes may depend on earlier results
+3. **Pass context forward** — output from Route N becomes input context for Route N+1
+
+```
+Multi-Route Request: "Write a business plan and build a landing page"
+
+Sub-task 1: Route G (Business Content)
+  → arena-business.md --type content
+  → OUTPUT: completed business plan
+
+Sub-task 2: Route A (Feature Implementation)
+  → arena.md
+  → INPUT CONTEXT: business plan from Sub-task 1
+  → Build landing page reflecting the business plan content
+```
+
+#### Ambiguous Cases
+
+| Request | Resolution |
+|---------|-----------|
+| "Update the README" | Route F (code-adjacent, simple change) |
+| "Write API documentation" | Route F (code-adjacent, documentation) |
+| "Write a product description for the website" | Route G (business content) |
+| "Explain this code" | Route F (simple task) |
+| "Analyze our codebase architecture" | Route C or Route E (code analysis) |
+
+### Route Selection Principles
+
+1. **Clear intent** → go directly to that route
+2. **Complex intent** → choose the more comprehensive route (A over F, G over I)
+3. **Code tasks** → Route A-F; **Business tasks** → Route G-I
+4. **Unknown code intent** → default to Route A; **Unknown business intent** → default to Route G
+5. **Context Discovery revealed issue/PR** → route based on the issue content's intent
+6. **Multi-route detected** → decompose and execute sequentially with context forwarding
 
 ---
 
 ## Step 3: Pipeline Execution
 
-### 실행 방법 (필수 - 반드시 이 순서를 따른다)
+### Execution Method (Mandatory — follow this order exactly)
 
-1. **커맨드 파일 로드**: 아래 매핑 테이블에서 선택된 라우트의 커맨드 파일 경로를 확인하고, **Read tool로 해당 파일을 읽는다.**
-2. **파이프라인 실행**: 읽은 커맨드 파일에 정의된 Phase 순서, Agent Team 구성, 실행 절차를 **정확히** 따라 실행한다.
-3. **인자 전달**: Step 1에서 수집한 컨텍스트와 Step 2에서 추출한 인자(intensity, focus, figma URL 등)를 파이프라인 컨텍스트로 전달한다.
+1. **Load command file**: Check the mapping table below for the selected route's command file path, and **read it using the Read tool.**
+2. **Execute pipeline**: Follow the Phase sequence, Agent Team composition, and execution procedures defined in the command file **exactly**.
+3. **Pass arguments**: Forward the context collected in Step 1 and arguments extracted in Step 2 (intensity, focus, figma URL, etc.) as pipeline context.
 
-**절대 슬래시 커맨드(`/arena`, `/multi-review` 등)로 호출하지 않는다. 반드시 Read tool로 커맨드 파일을 직접 읽고, 파일 내용의 파이프라인을 따라 실행한다.**
+**Never invoke via slash commands (`/arena`, `/multi-review`, etc.). Always read the command file directly with the Read tool and follow the pipeline defined in the file.**
 
-### 커맨드 파일 매핑
+### Command File Mapping
 
-| Route | 커맨드 파일 | 전달할 인자 |
-|-------|------------|------------|
-| A: 기능 구현 | `${PLUGIN_DIR}/commands/arena.md` | `--intensity` (자동 결정) |
-| B: 사전 조사 | `${PLUGIN_DIR}/commands/arena-research.md` | 조사 주제 |
-| C: 스택 분석 | `${PLUGIN_DIR}/commands/arena-stack.md` | |
-| D: 코드 리뷰 | `${PLUGIN_DIR}/commands/multi-review.md` | `--focus`, `--pr` |
-| E: 리팩토링 | `${PLUGIN_DIR}/commands/arena.md` | `--phase codebase,review` |
-| F: 간단한 변경 | `${PLUGIN_DIR}/commands/arena.md` | `--intensity quick` |
+| Route | Command File | Arguments |
+|-------|-------------|-----------|
+| A: Feature Implementation | `${PLUGIN_DIR}/commands/arena.md` | `--intensity` (auto-decided) |
+| B: Pre-Implementation Research | `${PLUGIN_DIR}/commands/arena-research.md` | research topic |
+| C: Stack Analysis | `${PLUGIN_DIR}/commands/arena-stack.md` | |
+| D: Code Review | `${PLUGIN_DIR}/commands/multi-review.md` | `--focus`, `--pr` |
+| E: Refactoring | `${PLUGIN_DIR}/commands/arena.md` | `--phase codebase,review` |
+| F: Simple Change | `${PLUGIN_DIR}/commands/arena.md` | `--intensity quick` |
+| G: Business Content | `${PLUGIN_DIR}/commands/arena-business.md` | `--type content` |
+| H: Business Analysis | `${PLUGIN_DIR}/commands/arena-business.md` | `--type strategy` |
+| I: Communication | `${PLUGIN_DIR}/commands/arena-business.md` | `--type communication` |
 
-### Intensity 결정
+### Intensity Decision
 
-Intensity는 Phase 0.1에서 **Agent Teams 찬반 토론**으로 결정된다. Claude 혼자 판단하지 않는다.
+Intensity is determined by **Agent Teams adversarial debate** in Phase 0.1. Claude does not decide alone.
 
-#### Phase 0.1: Intensity Decision (필수)
+#### Phase 0.1: Intensity Decision (Mandatory)
 
-모든 요청에서 Phase 0 직후에 실행. 3-4개 Claude 에이전트가 적절한 intensity를 토론한다:
+Runs immediately after Phase 0 for every request. 3-4 Claude agents debate the appropriate intensity:
 
-- **intensity-advocate**: 더 높은 intensity를 주장. 최악의 시나리오, 보안 리스크, 복잡도 고려.
-- **efficiency-advocate**: 더 낮은 intensity를 주장. 실용성, 비용, 범위 고려.
-- **risk-assessor**: 프로덕션 영향도, 보안 민감도, 버그 복잡도를 평가.
-- **intensity-arbitrator**: 양측 논거를 평가하고 최종 intensity 결정.
+- **intensity-advocate**: Argues for higher intensity. Considers worst-case scenarios, security/accuracy risks, complexity.
+- **efficiency-advocate**: Argues for lower intensity. Considers practicality, cost, scope constraints.
+- **risk-assessor**: Evaluates production impact, security sensitivity, audience exposure, brand risk.
+- **intensity-arbitrator**: Weighs both sides and makes the final intensity decision.
 
-토론은 합의에 도달할 때까지 진행. 사용자가 `--intensity`를 명시한 경우 토론을 스킵한다.
+Debate continues until consensus is reached. Skipped if user explicitly specifies `--intensity`.
 
-#### Intensity별 Phase 범위
+#### Code Pipeline: Intensity Phase Scope
 
-| Intensity | Phase 범위 | Decision Debates | Review Agents |
-|-----------|-----------|------------------|---------------|
-| `quick` | 0 → 0.1 → 0.5 | intensity만 | 없음 (Claude 단독) |
-| `standard` | 0 → 0.1 → 0.5 → 1(cached) → 5.5 → 6 → 7 | intensity + 구현전략 | 3-5 agents |
-| `deep` | 0 → 0.1 → 0.5 → 1 → 2 → 3 → 5.5 → 6 → 7 | intensity + 리서치방향 + 컴플라이언스범위 + 구현전략 | 5-7 agents |
-| `comprehensive` | 0 → 0.1 → 0.5 → 1 → 2 → 3 → 4 → 5 → 5.5 → 6 → 7 | 전체 (4개 디베이트) | 7-10 agents |
+| Intensity | Phases | Decision Debates | Review Agents |
+|-----------|--------|------------------|---------------|
+| `quick` | 0 → 0.1 → 0.5 | intensity only | none (Claude solo) |
+| `standard` | 0 → 0.1 → 0.5 → 1(cached) → 5.5 → 6 → 7 | intensity + implementation strategy | 3-5 agents |
+| `deep` | 0 → 0.1 → 0.5 → 1 → 2 → 3 → 5.5 → 6 → 7 | intensity + research direction + compliance scope + strategy | 5-7 agents |
+| `comprehensive` | 0 → 0.1 → 0.5 → 1 → 2 → 3 → 4 → 5 → 5.5 → 6 → 7 | all 4 debates | 7-10 agents |
 
-#### Decision Debate 적용 범위
+#### Business Pipeline: Intensity Phase Scope
 
-| Decision Debate | 목적 | 적용 Intensity |
-|----------------|------|---------------|
-| Phase 0.1: Intensity Decision | 파이프라인 강도 결정 | 전체 (필수) |
-| Phase 2 내 Research Direction Debate | 무엇을 조사할지 방향 결정 | deep, comprehensive |
-| Phase 3 내 Compliance Scope Debate | 어떤 컴플라이언스 규칙이 적용되는지 범위 결정 | deep, comprehensive |
-| Phase 5.5: Strategy Decision | 구현 전 설계/접근법 토론 | standard, deep, comprehensive |
-| Phase 6.10: Code Review Debate | 코드 리뷰 찬반 토론 (기존) | standard, deep, comprehensive |
+| Intensity | Phases | Decision Debates | Review Agents |
+|-----------|--------|------------------|---------------|
+| `quick` | B0 → B0.1 → B0.5 | intensity only | none (Claude solo) |
+| `standard` | B0 → B0.1 → B0.5 → B1 → B5.5 → B6 → B6.5 → B7 | intensity + content strategy | 5 agents |
+| `deep` | B0 → B0.1 → B0.5 → B1 → B2(+debate) → B3(+debate) → B5.5 → B6 → B6.5 → B7 | intensity + research + accuracy scope + strategy | 5 agents |
+| `comprehensive` | all phases with full debates | all debates | 5 agents |
+
+#### Decision Debates Overview
+
+| Decision Debate | Purpose | Applies To |
+|----------------|---------|------------|
+| Phase 0.1 / B0.1: Intensity Decision | Determine pipeline intensity | all (mandatory) |
+| Phase 2 / B2: Research Direction Debate | Determine what to research | deep, comprehensive |
+| Phase 3 / B3: Compliance/Accuracy Scope | Determine rule/verification scope | deep, comprehensive |
+| Phase 5.5 / B5.5: Strategy Decision | Design/content approach debate | standard, deep, comprehensive |
+| Phase 6.10 / B6.7: Review Debate | Code review / business review cross-examination | standard, deep, comprehensive |
 
 ---
 
 ## Argument Extraction
 
-라우트 결정 후, 요청에서 다음을 추출하여 파이프라인 컨텍스트로 전달:
+After route selection, extract the following from the request and pass as pipeline context:
 
-| 추출 대상 | 전달 방식 |
-|-----------|-----------|
+| Target | Passed As |
+|--------|-----------|
 | Figma URL (`figma.com/...`) | `--figma <url>` |
-| PR 번호 | `--pr <number>` |
-| 포커스 영역 (보안, 성능, 아키텍처) | `--focus <area>` |
-| 대상 파일/디렉토리 경로 | 파이프라인 컨텍스트 |
-| 인터랙티브 요청 | `--interactive` |
-| 캐시 무시 요청 | `--skip-cache` |
-| 명시적 intensity 지정 | `--intensity <level>` |
+| PR number | `--pr <number>` |
+| Focus area (security, performance, architecture) | `--focus <area>` |
+| Target file/directory paths | pipeline context |
+| Interactive request | `--interactive` |
+| Skip cache request | `--skip-cache` |
+| Explicit intensity | `--intensity <level>` |
+| Business type (content, strategy, communication) | `--type <type>` |
+| Target audience (investor, customer, partner, internal) | `--audience <audience>` |
+| Tone (professional, casual, persuasive, technical) | `--tone <tone>` |
 
 ---
 
 ## MCP Dependency Detection
 
-요청 처리 시 필요한 MCP 서버가 감지되면:
+When an MCP server is needed to process the request:
 
-1. **ToolSearch로 설치 여부 확인**
-2. **설치됨** → 해당 MCP 활용
-3. **미설치** → 사용자에게 설치 제안 (AskUserQuestion)
-   - 설치하고 계속
-   - 해당 기능 없이 계속
-   - 취소
+1. **Check installation via ToolSearch**
+2. **Installed** → use the MCP
+3. **Not installed** → suggest installation to user (AskUserQuestion)
+   - Install and continue
+   - Continue without the feature
+   - Cancel
 
-감지 패턴:
+Detection patterns:
 - Figma URL → Figma MCP
-- 테스트/E2E/브라우저 작업 → Playwright MCP
-- Notion 참조 → Notion MCP
+- Test/E2E/browser tasks → Playwright MCP
+- Notion references → Notion MCP
 
 ---
 
 ## Examples
 
-### 이슈 기반 작업
+### Issue-Based Work
 ```
-요청: "내 git 이슈에 있는거 다음 순서 처리해줘"
+Request: "Handle the next issue from my git issues"
 
-Step 1: gh issue list → 이슈 목록 확인 → 다음 이슈 선택 → gh issue view N → 내용 파악
-Step 2: 이슈 내용이 "Add lobby system" → Route A (기능 구현)
-Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
-        → Phase 0 실행 → Phase 0.1 Intensity Debate
-          intensity-advocate: "멀티플레이어는 네트워크+보안+동시성 복합 문제. comprehensive 필요"
-          efficiency-advocate: "로비만이면 deep이면 충분"
-          risk-assessor: "게임 서비스라 보안+컴플라이언스 중요"
-          intensity-arbitrator: "deep 결정. 로비 자체는 comprehensive까지는 불필요"
-        → deep intensity로 후속 Phase 실행
-```
-
-### 데드락 버그 수정
-```
-요청: "프로덕션에서 데드락 발생하는데 고쳐줘"
-
-Step 1: git diff, 관련 코드 파악
-Step 2: 버그 수정 → Route A (기능 구현, 복합 작업이므로)
-Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
-        → Phase 0 실행 → Phase 0.1 Intensity Debate
-          intensity-advocate: "데드락은 동시성 버그. 잘못 고치면 새 레이스 컨디션 발생. deep 필요"
-          efficiency-advocate: "알려진 패턴이면 standard로 충분"
-          risk-assessor: "프로덕션 장애. 서비스 중단 리스크. deep 이상 권장"
-          intensity-arbitrator: "deep 결정. 프로덕션 리스크 + 동시성 복잡도"
-        → deep intensity로 후속 Phase 실행
+Step 1: gh issue list → check issue list → select next → gh issue view N → understand content
+Step 2: Issue content says "Add lobby system" → Route A (Feature Implementation)
+Step 3: Read ${PLUGIN_DIR}/commands/arena.md
+        → Phase 0 → Phase 0.1 Intensity Debate
+          intensity-advocate: "Multiplayer involves networking + security + concurrency. comprehensive needed"
+          efficiency-advocate: "Lobby alone is manageable. deep is sufficient"
+          risk-assessor: "Game service requires security + compliance attention"
+          intensity-arbitrator: "deep. Lobby itself doesn't warrant comprehensive"
+        → Execute subsequent phases at deep intensity
 ```
 
-### 간단한 수정
+### Production Deadlock Fix
 ```
-요청: "rename this function to calculateScore"
+Request: "Fix a deadlock happening in production"
 
-Step 1: 컨텍스트 충분 → 발견 불필요
-Step 2: 단순 변경 → Route F (간단한 변경)
-Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
-        → Phase 0 실행 → Phase 0.1 Intensity Debate
-          intensity-advocate: "이름 변경이 다른 파일에 영향 줄 수 있다"
-          efficiency-advocate: "단순 rename이다. quick으로 충분"
-          intensity-arbitrator: "quick 결정. 단일 요소 변경"
-        → quick intensity로 Phase 0.5만 실행 (Claude 단독)
-```
-
-### 인증 시스템 구현
-```
-요청: "OAuth 로그인 시스템 구현해줘"
-
-Step 1: 컨텍스트 충분
-Step 2: 기능 구현 → Route A
-Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
-        → Phase 0 실행 → Phase 0.1 Intensity Debate
-          intensity-advocate: "인증은 한 번 뚫리면 전체 시스템 위험. comprehensive 필요"
-          efficiency-advocate: "OAuth는 표준 프로토콜. deep이면 충분"
-          risk-assessor: "인증은 보안 최우선. 모델 벤치마킹으로 최고의 보안 리뷰어 필요"
-          intensity-arbitrator: "comprehensive 결정. 보안 최우선 + Phase 4 벤치마킹 필요"
-        → comprehensive intensity로 전체 Phase 실행
+Step 1: git diff, identify related code
+Step 2: Bug fix → Route A (complex, cross-module work)
+Step 3: Read ${PLUGIN_DIR}/commands/arena.md
+        → Phase 0 → Phase 0.1 Intensity Debate
+          intensity-advocate: "Deadlock is a concurrency bug. Wrong fix creates new race conditions. deep needed"
+          efficiency-advocate: "Known patterns may apply. standard is sufficient"
+          risk-assessor: "Production outage. Service disruption risk. deep or above recommended"
+          intensity-arbitrator: "deep. Production risk + concurrency complexity"
+        → Execute at deep intensity
 ```
 
-### 코드 리뷰
+### Simple Rename
 ```
-요청: "PR 42번 보안 위주로 봐줘"
+Request: "Rename this function to calculateScore"
 
-Step 1: gh pr view 42 → PR diff 파악
-Step 2: 코드 리뷰 → Route D (코드 리뷰)
-Step 3: Read tool로 ${PLUGIN_DIR}/commands/multi-review.md 읽기
-        → --pr 42 --focus security 로 리뷰 파이프라인 실행
+Step 1: Context sufficient → no discovery needed
+Step 2: Simple change → Route F
+Step 3: Read ${PLUGIN_DIR}/commands/arena.md
+        → Phase 0 → Phase 0.1 Intensity Debate
+          intensity-advocate: "Renaming might affect other files"
+          efficiency-advocate: "Simple rename. quick is sufficient"
+          intensity-arbitrator: "quick. Single element change"
+        → Execute Phase 0.5 only (Claude solo)
 ```
 
-### 리팩토링
+### OAuth Implementation
 ```
-요청: "이 서비스 코드 정리 좀 해줘"
+Request: "Implement OAuth login system"
 
-Step 1: 대상 파일/디렉토리 파악
-Step 2: 코드 개선 → Route E (리팩토링)
-Step 3: Read tool로 ${PLUGIN_DIR}/commands/arena.md 읽기
-        → Phase 0 실행 → Phase 0.1 Intensity Debate → intensity 결정
-        → --phase codebase,review 로 파이프라인 실행
+Step 1: Context sufficient
+Step 2: Feature implementation → Route A
+Step 3: Read ${PLUGIN_DIR}/commands/arena.md
+        → Phase 0 → Phase 0.1 Intensity Debate
+          intensity-advocate: "Authentication breach compromises entire system. comprehensive needed"
+          efficiency-advocate: "OAuth is a standard protocol. deep is sufficient"
+          risk-assessor: "Auth is security-critical. Model benchmarking needed for best security reviewer"
+          intensity-arbitrator: "comprehensive. Security-first + Phase 4 benchmarking required"
+        → Execute all phases at comprehensive intensity
+```
+
+### Code Review
+```
+Request: "Review PR 42 with focus on security"
+
+Step 1: gh pr view 42 → understand PR diff
+Step 2: Code review → Route D
+Step 3: Read ${PLUGIN_DIR}/commands/multi-review.md
+        → Execute review pipeline with --pr 42 --focus security
+```
+
+### Refactoring
+```
+Request: "Clean up this service code"
+
+Step 1: Identify target files/directory
+Step 2: Code improvement → Route E
+Step 3: Read ${PLUGIN_DIR}/commands/arena.md
+        → Phase 0 → Phase 0.1 Intensity Debate → decide intensity
+        → Execute with --phase codebase,review
+```
+
+### Business Plan Writing
+```
+Request: "Write a business plan for TradeFlow AI"
+
+Step 1: Read docs/ directory for existing business docs (business plan, post-MVP direction, etc.)
+Step 2: Business content creation → Route G
+Step 3: Read ${PLUGIN_DIR}/commands/arena-business.md
+        → Phase B0 → Phase B0.1 Intensity Debate
+          intensity-advocate: "Business plan is core to fundraising. External exposure + accuracy critical. deep needed"
+          efficiency-advocate: "Existing documents provide strong foundation. standard is sufficient"
+          risk-assessor: "Investor-facing. High brand/trust risk. Accuracy matters"
+          intensity-arbitrator: "deep. External exposure + strategic importance"
+        → Execute at deep intensity
+```
+
+### Investor Q&A Response
+```
+Request: "An investor asked about our TAM. Draft a response"
+
+Step 1: Gather context — existing business docs, market data
+Step 2: Communication → Route I
+Step 3: Read ${PLUGIN_DIR}/commands/arena-business.md
+        → --type communication --audience investor
+        → Phase B0.1 Intensity Debate → standard decided
+        → Execute at standard intensity
+```
+
+### Hackathon Comment Replies
+```
+Request: "Write replies to these hackathon project comments"
+
+Step 1: Understand comment content + product description
+Step 2: Communication → Route I
+Step 3: Read ${PLUGIN_DIR}/commands/arena-business.md
+        → --type communication --audience general
+        → Phase B0.1 Intensity Debate
+          intensity-advocate: "External image impact. standard or above needed"
+          efficiency-advocate: "Comment replies are short and low-stakes. quick is sufficient"
+          intensity-arbitrator: "quick. Small scope, low risk"
+        → Execute Phase B0.5 only (Claude solo)
+```
+
+### Market Analysis
+```
+Request: "Analyze the customs automation market"
+
+Step 1: WebSearch for market data
+Step 2: Business analysis → Route H
+Step 3: Read ${PLUGIN_DIR}/commands/arena-business.md
+        → --type strategy
+        → Phase B0.1 Intensity Debate → deep decided (data accuracy is critical for market analysis)
+        → Execute at deep intensity (includes market research + accuracy audit)
+```
+
+### Multi-Route: Business Plan + Landing Page
+```
+Request: "Write a business plan and then build a landing page based on it"
+
+Step 1: Read docs/ directory for existing business docs
+Step 2: Multi-route detected → Route G (business plan) then Route A (landing page)
+Step 3:
+  Sub-task 1: Read ${PLUGIN_DIR}/commands/arena-business.md
+    → --type content
+    → Phase B0.1 → deep → Execute full business pipeline
+    → OUTPUT: completed business plan
+
+  Sub-task 2: Read ${PLUGIN_DIR}/commands/arena.md
+    → INPUT CONTEXT: business plan from Sub-task 1
+    → Phase 0.1 → standard → Build landing page reflecting business plan
+```
+
+### Multi-Route: PR Review + Release Notes
+```
+Request: "Review PR #15 and draft release notes for the changes"
+
+Step 1: gh pr view 15 → understand changes
+Step 2: Multi-route detected → Route D (PR review) then Route G (release notes)
+Step 3:
+  Sub-task 1: Read ${PLUGIN_DIR}/commands/multi-review.md
+    → --pr 15 → Execute code review pipeline
+    → OUTPUT: review findings + change summary
+
+  Sub-task 2: Read ${PLUGIN_DIR}/commands/arena-business.md
+    → --type content --audience general
+    → INPUT CONTEXT: PR changes + review findings from Sub-task 1
+    → Write release notes based on actual changes
 ```
