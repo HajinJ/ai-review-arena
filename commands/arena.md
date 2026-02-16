@@ -745,6 +745,80 @@ Now execute the main research steps using the debate-determined agenda:
 
 ---
 
+## Phase 2.9: Intensity Checkpoint (Bidirectional)
+
+**Applies to**: deep and comprehensive intensity (skip for quick and standard — not enough data to re-evaluate).
+
+**Purpose**: After research completes, re-evaluate whether the decided intensity is still appropriate. The task may be simpler OR more complex than initially assessed.
+
+**Evaluation:**
+
+```
+COLLECT research_findings FROM Phase 2
+
+downgrade_score = 0
+upgrade_score = 0
+
+# Evidence for DOWNGRADE:
+IF research found simple, well-documented solution:       downgrade_score += 3
+IF no complex patterns or edge cases discovered:          downgrade_score += 2
+IF standard library/framework handles most concerns:      downgrade_score += 2
+IF total affected files <= 3:                             downgrade_score += 1
+
+# Evidence for UPGRADE:
+IF research revealed security vulnerabilities or CVE-related patterns: upgrade_score += 3
+IF regulatory/compliance requirements discovered (HIPAA, PCI-DSS, SOX): upgrade_score += 3
+IF complex concurrency, distributed systems, or state management:      upgrade_score += 2
+IF affected files > 15 or cross-cutting concerns spanning modules:     upgrade_score += 2
+
+# Decision:
+IF downgrade_score >= 5 AND downgrade_score > upgrade_score + 2:
+  recommendation = "DOWNGRADE"
+ELIF upgrade_score >= 5 AND upgrade_score > downgrade_score + 2:
+  recommendation = "UPGRADE"
+ELSE:
+  recommendation = "NO CHANGE"
+```
+
+**If DOWNGRADE recommended:**
+```
+Display to user:
+"Research suggests this task is simpler than initially assessed.
+ Current intensity: {current}
+ Recommended: {lower_intensity}
+ Estimated savings: ~${savings} and ~{minutes} min
+ Reason: {top_downgrade_evidence}
+ [Downgrade / Keep current]"
+
+IF user accepts downgrade:
+  Update INTENSITY variable
+  Recalculate phase list for new intensity
+  LOG: "Intensity adjusted: {old} → {new} at Phase 2.9 (downgrade)"
+```
+
+**If UPGRADE recommended:**
+```
+Display to user:
+"Research reveals higher complexity than initially assessed.
+ Current intensity: {current}
+ Recommended: {higher_intensity}
+ Additional estimated cost: ~${delta_cost}
+ Reason: {top_upgrade_evidence}
+ [Upgrade / Keep current]"
+
+IF user accepts upgrade:
+  Update INTENSITY variable
+  Recalculate phase list for new intensity
+  LOG: "Intensity adjusted: {old} → {new} at Phase 2.9 (upgrade)"
+```
+
+**Non-interactive mode (`--non-interactive`):**
+- Auto-downgrade if downgrade_score >= 7 (strong evidence)
+- Auto-upgrade if upgrade_score >= 7 (strong evidence)
+- Otherwise: no change
+
+---
+
 ## Phase 3: Compliance Detection
 
 Identify applicable compliance guidelines based on feature keywords and detected platform.
@@ -2326,6 +2400,40 @@ Teammate(operation: "cleanup")
 
 Use `/multi-review-status --last` to view this report again.
 ```
+
+### Step 7.5: Feedback Collection (Optional)
+
+**Applies when**: `config.feedback.enabled == true` AND `--interactive` mode.
+
+After displaying the report, prompt the user for feedback on the top findings:
+
+```
+REVIEW QUALITY FEEDBACK (optional — helps improve future reviews)
+
+Top findings from this review:
+1. [{severity}] {title} (by {model}, {confidence}%)
+2. [{severity}] {title} (by {model}, {confidence}%)
+3. [{severity}] {title} (by {model}, {confidence}%)
+4. [{severity}] {title} (by {model}, {confidence}%)
+5. [{severity}] {title} (by {model}, {confidence}%)
+
+For each finding, rate: useful / not useful / false positive
+Or: skip (no feedback this session)
+```
+
+Record feedback via the tracker script:
+```bash
+FOR each rated finding:
+  bash "${SCRIPTS_DIR}/feedback-tracker.sh" record \
+    "${SESSION_ID}" \
+    "${FINDING_ID}" \
+    "${VERDICT}" \
+    --model "${MODEL}" \
+    --category "${CATEGORY}" \
+    --severity "${SEVERITY}"
+```
+
+If user skips: proceed to cleanup without recording.
 
 ---
 

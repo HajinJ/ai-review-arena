@@ -178,25 +178,64 @@ A request is multi-route when it contains **two or more distinct intents** that 
 - "Analyze the market and implement a pricing strategy in code" → Route H then Route A
 - "Review this PR and also draft a release announcement" → Route D then Route G
 
-#### Execution Strategy
+#### Context Forwarding Interface
 
-When a multi-route request is detected:
+Each pipeline produces a **context output** that can be forwarded to the next pipeline:
 
-1. **Decompose** the request into ordered sub-tasks, each mapped to a single route
-2. **Execute sequentially** — later routes may depend on earlier results
-3. **Pass context forward** — output from Route N becomes input context for Route N+1
+| Source Route | Context Output | Available Fields |
+|-------------|---------------|-----------------|
+| G (Business Content) | `business_content_output` | content_text, quality_scorecard, key_themes, audience, tone |
+| H (Business Strategy) | `strategy_output` | analysis_summary, recommendations, market_data, competitive_landscape |
+| I (Communication) | `communication_output` | draft_text, tone_analysis, audience_fit_score |
+| A (Feature Impl) | `implementation_output` | files_changed, test_results, architecture_decisions |
+| D (Code Review) | `review_output` | findings_summary, severity_counts, quality_score |
+
+#### Forwarding Rules
+
+1. Context is passed as an additional `PRIOR_ROUTE_CONTEXT` variable
+2. The receiving pipeline reads it in Phase 0/B0 alongside other context
+3. Context is INFORMATIONAL — the receiving pipeline decides how to use it
+4. Tiered token limits by field type:
+
+| Field Type | Limit | Examples |
+|-----------|-------|---------|
+| summary_fields | 2,000 tokens | quality_scorecard, key_themes, severity_counts |
+| content_text | 15,000 tokens | Full document if needed by next route |
+| metadata | 1,000 tokens | audience, tone, audience_fit_score |
+| **Total hard limit** | **20,000 tokens** | |
+
+Overflow behavior:
+- IF any field exceeds its limit: auto-summarize before forwarding
+- IF total exceeds hard limit: drop content_text, keep summaries only
+
+#### Execution Order
+
+1. Parse all intents from user request
+2. Order by dependency: business routes before code routes
+3. Execute sequentially
+4. After each route completes, extract context output
+5. Pass to next route as `PRIOR_ROUTE_CONTEXT`
+
+#### Example
 
 ```
-Multi-Route Request: "Write a business plan and build a landing page"
+Request: "Write a pitch deck and build a landing page based on it"
 
 Sub-task 1: Route G (Business Content)
-  → arena-business.md --type content
-  → OUTPUT: completed business plan
+  Input: "Write a pitch deck"
+  Output: business_content_output = {
+    content_text: "<full pitch deck>",
+    quality_scorecard: {accuracy: 88, audience_fit: 92, ...},
+    key_themes: ["AI-powered trade compliance", "reduce costs by 60%"],
+    audience: "investor",
+    tone: "persuasive"
+  }
 
 Sub-task 2: Route A (Feature Implementation)
-  → arena.md
-  → INPUT CONTEXT: business plan from Sub-task 1
-  → Build landing page reflecting the business plan content
+  Input: "Build a landing page"
+  PRIOR_ROUTE_CONTEXT: business_content_output from Sub-task 1
+  → Codebase analysis uses key_themes for content
+  → Implementation uses tone and audience for design decisions
 ```
 
 #### Ambiguous Cases
@@ -265,10 +304,11 @@ Debate continues until consensus is reached. Skipped if user explicitly specifie
 |-----------|--------|------------------|---------------|
 | `quick` | 0 → 0.1 → 0.2 → 0.5 | intensity only | none (Claude solo) |
 | `standard` | 0 → 0.1 → 0.2 → 0.5 → 1(cached) → 5.5 → 6 → 6.5 → 7 | intensity + implementation strategy | 3-5 agents |
-| `deep` | 0 → 0.1 → 0.2 → 0.5 → 1 → 2 → 3 → 5.5 → 6 → 6.5 → 7 | intensity + research direction + compliance scope + strategy | 5-7 agents |
-| `comprehensive` | 0 → 0.1 → 0.2 → 0.5 → 1 → 2 → 3 → 4 → 5 → 5.5 → 6 → 6.5 → 7 | all 4 debates | 7-10 agents |
+| `deep` | 0 → 0.1 → 0.2 → 0.5 → 1 → 2 → **2.9** → 3 → 5.5 → 6 → 6.5 → 7 | intensity + research direction + compliance scope + strategy | 5-7 agents |
+| `comprehensive` | 0 → 0.1 → 0.2 → 0.5 → 1 → 2 → **2.9** → 3 → 4 → 5 → 5.5 → 6 → 6.5 → 7 | all 4 debates | 7-10 agents |
 
 Phase 0.2 = Cost & Time Estimation (user can cancel or adjust intensity before execution begins).
+Phase 2.9 = Intensity Checkpoint — bidirectional adjustment (upgrade/downgrade) based on research findings.
 Phase 6.5 = Auto-Fix Loop (applies safe, high-confidence findings with test verification).
 
 #### Business Pipeline: Intensity Phase Scope
@@ -277,10 +317,11 @@ Phase 6.5 = Auto-Fix Loop (applies safe, high-confidence findings with test veri
 |-----------|--------|------------------|---------------|
 | `quick` | B0 → B0.1 → B0.2 → B0.5 | intensity only | none (Claude solo) |
 | `standard` | B0 → B0.1 → B0.2 → B0.5 → B1 → B5.5 → B6 → B6.5 → B7 | intensity + content strategy | 5 agents + external CLIs (cross-review) |
-| `deep` | B0 → B0.1 → B0.2 → B0.5 → B1 → B2(+debate) → B3(+debate) → B5.5 → B6 → B6.5 → B7 | intensity + research + accuracy scope + strategy | 5 agents + external CLIs (cross-review) |
-| `comprehensive` | B0 → B0.1 → B0.2 → B0.5 → B1 → B2 → B3 → B4 → B5.5 → B6 → B6.5 → B7 | all debates | 5 agents + external CLIs (benchmark-driven role) |
+| `deep` | B0 → B0.1 → B0.2 → B0.5 → B1 → B2(+debate) → **B2.9** → B3(+debate) → B5.5 → B6 → B6.5 → B7 | intensity + research + accuracy scope + strategy | 5 agents + external CLIs (cross-review) |
+| `comprehensive` | B0 → B0.1 → B0.2 → B0.5 → B1 → B2 → **B2.9** → B3 → B4 → B5.5 → B6 → B6.5 → B7 | all debates | 5 agents + external CLIs (benchmark-driven role) |
 
 Phase B0.2 = Cost & Time Estimation (user can cancel or adjust intensity before execution begins).
+Phase B2.9 = Intensity Checkpoint — bidirectional adjustment based on market/research findings.
 Phase B4 = Business Model Benchmarking (comprehensive only — determines external CLI role assignment).
 
 #### Decision Debates Overview

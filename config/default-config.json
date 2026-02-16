@@ -233,5 +233,30 @@
       "gemini_input": 0.00125,
       "gemini_output": 0.005
     }
+  },
+  "intensity_checkpoints": {
+    "enabled": true,
+    "check_after_phases": ["research", "compliance"],
+    "allow_upgrade": true,
+    "allow_downgrade": true,
+    "auto_adjust_threshold": 7,
+    "notify_user": true
+  },
+  "feedback": {
+    "enabled": true,
+    "collect_interactive": true,
+    "storage_dir": "cache/feedback",
+    "report_period_days": 30,
+    "use_for_routing": false
+  },
+  "context_forwarding": {
+    "enabled": true,
+    "max_tokens": {
+      "summary_fields": 2000,
+      "content_text": 15000,
+      "metadata": 1000,
+      "total_hard_limit": 20000
+    },
+    "summarize_if_exceeds": true
   }
 }

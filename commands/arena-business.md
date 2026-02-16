@@ -1096,6 +1096,68 @@ Now execute the main research steps using the debate-determined agenda:
 
 ---
 
+## Phase B2.9: Intensity Checkpoint (Bidirectional)
+
+**Applies to**: deep and comprehensive intensity (skip for quick and standard).
+
+**Purpose**: After market research and best practices research complete, re-evaluate whether the decided intensity is still appropriate.
+
+**Evaluation:**
+
+```
+COLLECT research_findings FROM Phase B1 + B2
+
+downgrade_score = 0
+upgrade_score = 0
+
+# Evidence for DOWNGRADE:
+IF research found straightforward content format:             downgrade_score += 3
+IF target audience is well-understood and standard:           downgrade_score += 2
+IF no complex compliance requirements:                        downgrade_score += 2
+IF content is short-form (< 2000 words):                      downgrade_score += 1
+
+# Evidence for UPGRADE:
+IF content involves regulated industry claims (financial, medical, legal): upgrade_score += 3
+IF multiple competing products with aggressive positioning to fact-check:  upgrade_score += 3
+IF content targets high-stakes audience (board, investors, regulators):    upgrade_score += 2
+IF discovered brand consistency issues across multiple documents:          upgrade_score += 2
+IF content makes quantitative claims needing verification (>5 data points): upgrade_score += 1
+
+# Decision:
+IF downgrade_score >= 5 AND downgrade_score > upgrade_score + 2:
+  recommendation = "DOWNGRADE"
+ELIF upgrade_score >= 5 AND upgrade_score > downgrade_score + 2:
+  recommendation = "UPGRADE"
+ELSE:
+  recommendation = "NO CHANGE"
+```
+
+**If DOWNGRADE recommended:**
+```
+Display to user:
+"Research suggests this content is simpler than initially assessed.
+ Current intensity: {current}
+ Recommended: {lower_intensity}
+ Estimated savings: ~${savings} and ~{minutes} min
+ Reason: {top_downgrade_evidence}
+ [Downgrade / Keep current]"
+```
+
+**If UPGRADE recommended:**
+```
+Display to user:
+"Research reveals higher complexity than initially assessed.
+ Current intensity: {current}
+ Recommended: {higher_intensity}
+ Additional estimated cost: ~${delta_cost}
+ Reason: {top_upgrade_evidence}
+ [Upgrade / Keep current]"
+```
+
+**Non-interactive mode:** Auto-adjust only if score >= 7 (strong evidence).
+
+---
+
 ## Phase B3: Accuracy & Consistency Audit (deep/comprehensive intensity only)
 
 Cross-reference all claims in the business content against project documentation and external data. Requires deep or comprehensive intensity.
@@ -2751,6 +2813,38 @@ Teammate(operation: "cleanup")
 - Best Practices: ${SESSION_DIR}/research/best-practices-brief.md
 - Accuracy Audit: ${SESSION_DIR}/research/accuracy-audit.md
 - Consensus: ${SESSION_DIR}/findings/consensus.json
+```
+
+### Step B7.5: Feedback Collection (Optional)
+
+**Applies when**: `config.feedback.enabled == true` AND `--interactive` mode.
+
+After displaying the report, prompt the user for feedback on the top findings:
+
+```
+BUSINESS REVIEW QUALITY FEEDBACK (optional — helps improve future reviews)
+
+Top findings from this review:
+1. [{severity}] {title} (by {reviewer}, {confidence}%)
+2. [{severity}] {title} (by {reviewer}, {confidence}%)
+3. [{severity}] {title} (by {reviewer}, {confidence}%)
+4. [{severity}] {title} (by {reviewer}, {confidence}%)
+5. [{severity}] {title} (by {reviewer}, {confidence}%)
+
+For each finding, rate: useful / not useful / false positive
+Or: skip (no feedback this session)
+```
+
+Record feedback:
+```bash
+FOR each rated finding:
+  bash "${SCRIPTS_DIR}/feedback-tracker.sh" record \
+    "${SESSION_ID}" \
+    "${FINDING_ID}" \
+    "${VERDICT}" \
+    --model "${MODEL}" \
+    --category "${CATEGORY}" \
+    --severity "${SEVERITY}"
 ```
 
 ---
