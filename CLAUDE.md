@@ -1,32 +1,35 @@
-# AI Review Arena v2.0 - Development Rules
+# AI Review Arena v3.1.0 - Development Rules
 
 ## Project Structure
-- `.claude-plugin/` - Plugin manifest (v2.0.0)
+- `.claude-plugin/` - Plugin manifest (v3.1.0)
 - `hooks/` - PostToolUse hook for auto-review
-- `commands/` - Slash commands
+- `commands/` - Slash commands (7 files)
+  - `arena` - Full lifecycle orchestrator (research → compliance → benchmark → review → auto-fix)
+  - `arena-business` - Business content lifecycle orchestrator
+  - `arena-research` - Standalone pre-implementation research
+  - `arena-stack` - Project stack detection + best practices
   - `multi-review` - Multi-AI adversarial code review
   - `multi-review-config` - Review config management
   - `multi-review-status` - Review status dashboard
-  - `arena` - Full lifecycle orchestrator (research → compliance → benchmark → review)
-  - `arena-research` - Standalone pre-implementation research
-  - `arena-stack` - Project stack detection + best practices
-- `agents/` - Claude agent definitions
-  - Review agents: security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer
-  - Debate: debate-arbitrator
+- `agents/` - Claude agent definitions (16 agents)
+  - Code review: security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer, scale-advisor
+  - Business review: domain-accuracy-reviewer, audience-fit-reviewer, competitive-positioning-reviewer, communication-clarity-reviewer, data-evidence-reviewer
+  - Debate: debate-arbitrator, business-debate-arbitrator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-  - Scale: scale-advisor
-- `scripts/` - Shell scripts
+- `scripts/` - Shell scripts (21 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
+  - Business: codex-business-review.sh, gemini-business-review.sh
   - Review: aggregate-findings.sh, run-debate.sh, generate-report.sh, cost-estimator.sh
-  - Arena: detect-stack.sh, cache-manager.sh, benchmark-models.sh, search-best-practices.sh, search-guidelines.sh
+  - Arena: detect-stack.sh, cache-manager.sh, benchmark-models.sh, benchmark-business-models.sh, search-best-practices.sh, search-guidelines.sh
+  - Feedback: feedback-tracker.sh
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
-  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing)
-  - review-prompts/ - Role-specific review prompts (7 files)
+  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding)
+  - review-prompts/ - Role-specific review prompts (9 files)
   - compliance-rules.json - Feature→guideline mapping
   - tech-queries.json - Technology→search query mapping (31 technologies)
-  - benchmarks/ - Model benchmark test cases (4 files)
+  - benchmarks/ - Model benchmark test cases (16 files: 4 code + 12 business)
 - `cache/` - Runtime knowledge cache (gitignored, TTL-managed)
 
 ## Coding Rules

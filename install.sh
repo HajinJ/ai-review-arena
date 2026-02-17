@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI Review Arena v2.1 - Installer (macOS / Linux / WSL)
+# AI Review Arena v3.1.0 - Installer (macOS / Linux / WSL)
 set -e
 
 CLAUDE_DIR="$HOME/.claude"
@@ -14,7 +14,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN}  AI Review Arena v2.1 - Installer${NC}"
+echo -e "${CYAN}  AI Review Arena v3.1.0 - Installer${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -117,7 +117,8 @@ echo '    - "리팩토링해줘"             → Codebase analysis + review'
 echo '    - "파라미터 빼줘"            → Quick codebase-aware change'
 echo ""
 echo "  Commands:"
-echo "    /arena              Full lifecycle orchestrator"
+echo "    /arena              Full lifecycle orchestrator (code)"
+echo "    /arena-business     Business content lifecycle orchestrator"
 echo "    /arena-research     Pre-implementation research"
 echo "    /arena-stack        Project stack detection"
 echo "    /multi-review       Multi-AI code review"
