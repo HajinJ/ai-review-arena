@@ -1,16 +1,21 @@
 # AI Review Arena
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that makes AI models argue with each other about your code before any of it ships.
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that makes AI models argue with each other about your code **and business content** before any of it ships.
 
 ## The Problem
 
 You ask an AI to review your code. It finds 12 issues. But how many are real? Single-model reviews produce false positives that waste your time and real vulnerabilities that slip through because one model has blind spots. You have no way to know which findings to trust.
 
+The same problem applies to business content. A pitch deck with wrong market numbers or overclaimed product capabilities can kill a fundraising round. A single reviewer won't catch everything.
+
 ## What Arena Does
 
-Arena makes Claude, OpenAI Codex, and Google Gemini **independently review your code, then cross-examine each other's findings in a 3-round adversarial debate**. Models challenge each other, defend their positions, or concede when they're wrong. What survives is a set of findings validated by multiple AI perspectives, each with a confidence score you can actually trust.
+Arena makes Claude, OpenAI Codex, and Google Gemini **independently review your code or business content, then cross-examine each other's findings in a 3-round adversarial debate**. Models challenge each other, defend their positions, or concede when they're wrong. What survives is a set of findings validated by multiple AI perspectives, each with a confidence score you can actually trust.
 
-It also handles the full development lifecycle: analyzing your codebase conventions before writing code, researching best practices, checking compliance requirements, defining verifiable success criteria, and ensuring implementations stay precisely scoped.
+**Two pipelines, one system:**
+
+- **Code Pipeline** (Routes A-F): Analyzes your codebase conventions, researches best practices, checks compliance, benchmarks models, debates implementation strategy, reviews code with 7-10 specialized agents, auto-fixes safe findings, and verifies with your test suite.
+- **Business Pipeline** (Routes G-I): Extracts business context from your docs, researches market data, audits accuracy of claims, benchmarks models on business content, debates content strategy, reviews with 5 specialized agents + external CLIs, and auto-revises content.
 
 Arena activates automatically. You don't invoke it. Just use Claude Code normally, and the pipeline runs behind the scenes.
 
@@ -41,7 +46,7 @@ That's it. Every Claude Code session now runs through Arena automatically.
 | [OpenAI Codex CLI](https://github.com/openai/codex) | Optional | Second AI perspective |
 | [Google Gemini CLI](https://github.com/google-gemini/gemini-cli) | Optional | Third AI perspective |
 
-Without Codex or Gemini, Arena runs the full pipeline with Claude agents only.
+Without Codex or Gemini, Arena runs the full pipeline with Claude agents only. The fallback framework ensures graceful degradation at every level.
 
 ### Uninstall
 
@@ -59,11 +64,14 @@ Arena intercepts every request and decides what to do with it. No slash commands
 
 | What you type | What Arena does |
 |---|---|
-| "implement login API" | Full pipeline: research, compliance, implement, 3-round review |
+| "implement login API" | Full code pipeline: research, compliance, implement, 3-round review, auto-fix |
 | "fix the production deadlock" | Agents debate severity, run deep analysis with cross-examination |
 | "rename this variable" | Quick codebase scan for conventions, makes the change |
 | "review PR #42 for security" | Multi-AI adversarial review focused on security |
 | "how should I implement caching?" | Pre-implementation research with best practices |
+| "write a business plan" | Full business pipeline: market research, accuracy audit, 5-agent review |
+| "draft an investor pitch deck" | Business pipeline with deep accuracy + audience fit review |
+| "respond to this investor question" | Communication pipeline, quick or standard intensity |
 
 ### The pipeline decides its own intensity
 
@@ -83,18 +91,24 @@ intensity-arbitrator: "Deep. Production risk outweighs speed."
 
 The arbitrator picks one of four levels:
 
-| Level | What runs | When |
+| Level | Code Pipeline | Business Pipeline |
 |-------|-----------|------|
-| **quick** | Codebase scan, Claude solo | Renames, typo fixes, trivial changes |
-| **standard** | + stack detection, strategy debate, code review, 3-round cross-exam | Standard features, CRUD, typical bug fixes |
-| **deep** | + pre-implementation research, compliance check | Production bugs, security-sensitive code, complex logic |
-| **comprehensive** | + model benchmarking, Figma analysis, all 5 debates | Auth systems, payment flows, anything where failure is catastrophic |
+| **quick** | Codebase scan, Claude solo | Business context scan, Claude solo |
+| **standard** | + stack detection, strategy debate, review, 3-round cross-exam, auto-fix | + market research, strategy debate, 5-agent review + external CLIs (cross-review), auto-revise |
+| **deep** | + research, compliance, intensity checkpoint | + best practices research, accuracy audit, intensity checkpoint |
+| **comprehensive** | + model benchmarking, Figma analysis, all debates | + business model benchmarking, benchmark-driven external CLI roles |
+
+**Intensity can change mid-pipeline.** After research completes (Phase 2.9 / B2.9), Arena re-evaluates whether the decided intensity is still appropriate. If research reveals hidden complexity, it recommends upgrading. If the task turns out simpler, it recommends downgrading. Both directions are supported.
+
+### Cost estimation before execution
+
+After intensity is decided, Arena estimates cost and time before proceeding (Phase 0.2 / B0.2). You see the breakdown and can proceed, adjust intensity, or cancel. Below `$5.00` (configurable), it auto-proceeds.
 
 ---
 
 ## The 3-Round Cross-Examination
 
-This is the core of Arena. Three AI model families don't just review your code independently. They **fight about it**.
+This is the core of Arena. Three AI model families don't just review independently. They **fight about it**.
 
 ### Round 1: Independent Review
 
@@ -114,6 +128,8 @@ Claude Agent Team          Codex CLI            Gemini CLI
   findings-claude.json    findings-codex.json   findings-gemini.json
 ```
 
+For business reviews, the same structure applies with 5 domain-specific reviewers (accuracy, audience, positioning, clarity, evidence) plus external CLIs. At `comprehensive` intensity, benchmark scores determine whether external models serve as Round 1 primary reviewers or Round 2 cross-reviewers.
+
 ### Round 2: Cross-Examination
 
 Each model reads the other two models' findings and attacks or supports them:
@@ -122,7 +138,7 @@ Each model reads the other two models' findings and attacks or supports them:
 - **Gemini** reads Claude + Codex findings, same judgment
 - **Claude reviewers** read Codex + Gemini findings, same judgment
 
-Each judgment includes a `confidence_adjustment` (-30 to +30) and cited evidence from the code. Models can also flag **new observations** the others missed.
+Each judgment includes a `confidence_adjustment` (-30 to +30) and cited evidence. Models can also flag **new observations** the others missed.
 
 ### Round 3: Defense
 
@@ -131,6 +147,8 @@ Challenges from Round 2 are routed back to the model that made the original find
 - **DEFEND** — "I stand by this. Here's additional evidence you missed."
 - **CONCEDE** — "You're right, this was a false positive." (Finding withdrawn)
 - **MODIFY** — "The issue is real but I had the severity wrong." (Adjusted)
+
+External models that participated only as Round 2 cross-reviewers receive `implicit_defend` — their findings are maintained at current confidence since they can't be called again for defense.
 
 ### Consensus
 
@@ -152,7 +170,50 @@ Every finding in the final report includes a `cross_examination_trail` showing e
 
 **Concession is a strong signal.** When a model reviews evidence against its own finding and says "you're right, I was wrong," that's more reliable than any confidence score. It means the model genuinely processed the counter-evidence rather than stubbornly defending a position.
 
-**Stateless CLIs can still debate.** Codex and Gemini are CLI tools, not conversational agents. Arena achieves multi-round debate by piping accumulated context through multiple CLI invocations. Round 2 input includes Round 1 findings from other models. Round 3 input includes Round 2 challenges. The Team Lead orchestrates the data flow.
+**Stateless CLIs can still debate.** Codex and Gemini are CLI tools, not conversational agents. Arena achieves multi-round debate by piping accumulated context through multiple CLI invocations. Round 2 input includes Round 1 findings from other models. Round 3 input includes Round 2 challenges. The Team Lead orchestrates the data flow. Business review scripts support dual-mode (`--mode round1` for independent review, `--mode round2` for cross-review) with category-specific prompts.
+
+---
+
+## Auto-Fix Loop (Phase 6.5)
+
+After the 3-round debate reaches consensus, Arena can automatically fix safe, high-confidence findings.
+
+### Code Pipeline
+
+Strict criteria — only fixes that meet ALL of:
+
+| Criterion | Requirement |
+|-----------|------------|
+| Severity | `medium` or `low` only (never critical/high) |
+| Confidence | >= 90% post-debate |
+| Agreement | Unanimous or majority |
+| Scope | <= 10 lines of code |
+| Category | Only: naming, imports, unused code, types, null checks, docs |
+
+Security vulnerabilities, logic errors, race conditions, architecture, and performance issues are **never** auto-fixed.
+
+After applying fixes, Arena runs your test suite (auto-detected: `npm test`, `pytest`, `go test`, `cargo test`). If tests fail, **all fixes are reverted** via `git checkout -- .` and marked as "auto-fix-failed, manual review required."
+
+### Business Pipeline
+
+Business auto-fix is more aggressive: it revises content based on consensus findings (including critical/high severity), updates overclaimed capabilities, and fixes tone/audience mismatches.
+
+---
+
+## Business Model Benchmarking
+
+At `comprehensive` intensity, Arena benchmarks Claude, Codex, and Gemini on **12 planted-error business documents** (3 per category) to determine which model is best at catching each type of issue:
+
+| Category | Test Cases | Planted Errors |
+|----------|-----------|----------------|
+| **accuracy** | pitch deck, business plan, investor update | Wrong market size, inflated growth, misquoted data |
+| **audience** | pitch deck, blog post, internal memo | Wrong tone, missing metrics, leaked terms |
+| **positioning** | competitor analysis, landing page, sales deck | False competitor claims, unsubstantiated "best in class" |
+| **evidence** | business plan, market report, case study | Uncited stats, methodology flaws, survivorship bias |
+
+Each model's findings are scored using **F1** (precision x recall), averaged across 3 tests per category. The highest-scoring model for each category becomes the **Round 1 primary reviewer** for that category. Lower-scoring models participate as Round 2 cross-reviewers.
+
+At `standard` and `deep` intensity (no benchmarking data), external models always participate as Round 2 cross-reviewers.
 
 ---
 
@@ -169,9 +230,9 @@ Agent debate solves this because agents can **reason about novel scenarios**. Th
 Inspired by [Karpathy's Goal-Driven Execution principle](https://github.com/forrestchang/andrej-karpathy-skills). Before implementation starts, the strategy debate produces **concrete, testable success criteria**:
 
 ```
-1. API returns 200 for valid input     → verify: curl with sample payload
-2. Invalid tokens return 401           → verify: curl with expired token
-3. Rate limiting at 100 req/min        → verify: load test with k6
+1. API returns 200 for valid input     -> verify: curl with sample payload
+2. Invalid tokens return 401           -> verify: curl with expired token
+3. Rate limiting at 100 req/min        -> verify: load test with k6
 ```
 
 After implementation, Phase 7 runs each verification and reports PASS/FAIL. No ambiguity about whether the task is done.
@@ -180,10 +241,10 @@ After implementation, Phase 7 runs each verification and reports PASS/FAIL. No a
 
 Also from Karpathy (Surgical Changes). AI implementations tend to sprawl. You ask for a login endpoint and get reformatted imports, renamed variables, an abstraction layer nobody asked for, and a config option for a feature that doesn't exist yet. The scope-reviewer agent compares the actual diff against the strategy and flags:
 
-- **SCOPE_VIOLATION** — files changed that weren't in the plan
-- **DRIVE_BY_REFACTOR** — unrelated renames or reformatting
-- **GOLD_PLATING** — features or abstractions nobody requested
-- **UNNECESSARY_CHANGE** — cosmetic edits outside the task scope
+- **SCOPE_VIOLATION** -- files changed that weren't in the plan
+- **DRIVE_BY_REFACTOR** -- unrelated renames or reformatting
+- **GOLD_PLATING** -- features or abstractions nobody requested
+- **UNNECESSARY_CHANGE** -- cosmetic edits outside the task scope
 
 If everything is in scope, the verdict is `CLEAN`.
 
@@ -191,26 +252,91 @@ If everything is in scope, the verdict is `CLEAN`.
 
 Before writing any code, Arena scans your project for naming conventions, directory patterns, import styles, error handling approaches, and existing utilities. Generated code matches what's already there. No `camelCase` in a `snake_case` project. No reinventing a utility that already exists in `src/utils/`.
 
+### Why fallback exists at every level
+
+External CLIs can timeout. Agent Teams can fail to spawn. Research queries can return nothing. Arena handles all of this with a structured fallback framework (6 levels for code, 5 for business) that degrades gracefully. If Codex times out, Claude handles it alone. If Agent Teams fail, Task subagents run without debate. If everything fails, Claude does an inline analysis. The final report always shows which fallback level was active and what was skipped.
+
 ---
 
 ## Pipeline Phases
 
+### Code Pipeline
+
 ```
 Phase 0     Argument parsing + MCP dependency detection
-Phase 0.1   Intensity Decision          ★ agents debate how thorough to be
+Phase 0.1   Intensity Decision          * agents debate how thorough to be
+Phase 0.2   Cost & Time Estimation        user can cancel or adjust before execution
 Phase 0.5   Codebase Analysis             scan conventions, reusable code, structure
 Phase 1     Stack Detection               framework, language, dependencies (cached 7 days)
-Phase 2     Pre-Implementation Research  ★ agents debate what to investigate (deep+)
-Phase 3     Compliance Check             ★ agents debate which rules apply (deep+)
-Phase 4     Model Benchmarking            score each AI per category (comprehensive only, cached 14 days)
+Phase 2     Pre-Implementation Research  * agents debate what to investigate (deep+)
+Phase 2.9   Intensity Checkpoint          bidirectional: upgrade or downgrade based on findings
+Phase 3     Compliance Check             * agents debate which rules apply (deep+)
+Phase 4     Model Benchmarking            score each AI per category (comprehensive, cached 14 days)
 Phase 5     Figma Design Analysis         if Figma MCP is available
-Phase 5.5   Implementation Strategy      ★ agents debate approach + define success criteria
-Phase 6     Implementation + Code Review + Scope Review
-Phase 6.10  3-Round Cross-Examination     Round 1 → Round 2 → Round 3 → Consensus
-Phase 7     Final Report                  success criteria PASS/FAIL, scope verdict, cost breakdown
+Phase 5.5   Implementation Strategy      * agents debate approach + define success criteria
+Phase 6     Implementation + Code Review + 3-Round Cross-Examination
+Phase 6.5   Auto-Fix Loop                 fix safe findings, verify with tests, revert on failure
+Phase 7     Final Report + Feedback        success criteria PASS/FAIL, scope verdict, cost breakdown
 ```
 
-Five decision points (★) use adversarial debate instead of static rules.
+Seven decision points (*) use adversarial debate instead of static rules.
+
+### Business Pipeline
+
+```
+Phase B0     Argument parsing + MCP dependency detection
+Phase B0.1   Intensity Decision           * agents debate (audience exposure, brand risk, accuracy)
+Phase B0.2   Cost & Time Estimation         user can cancel or adjust before execution
+Phase B0.5   Business Context Analysis      extract from docs: product, value props, brand voice
+Phase B1     Market/Industry Context        WebSearch for market data, competitors, trends
+Phase B2     Best Practices Research       * agents debate research direction (deep+)
+Phase B2.9   Intensity Checkpoint           bidirectional based on market/research findings
+Phase B3     Accuracy & Consistency Audit  * agents debate verification scope (deep+)
+Phase B4     Business Model Benchmarking    12 planted-error test cases, F1 scoring (comprehensive)
+Phase B5.5   Content Strategy Debate       * agents debate messaging, audience fit, factual accuracy
+Phase B6     5-Agent Review + External CLIs + 3-Round Cross-Examination
+Phase B6.5   Apply Findings                 auto-revise content based on consensus
+Phase B7     Final Report + Feedback        quality scorecard, model attribution, cost breakdown
+```
+
+---
+
+## Routes
+
+Arena classifies your intent into one of nine routes:
+
+### Code Routes (A-F)
+
+| Route | When | Pipeline |
+|-------|------|----------|
+| **A: Feature Build** | New functionality, complex tasks | Full code pipeline with all applicable phases |
+| **B: Research** | "How should I..." questions | Pre-implementation investigation |
+| **C: Stack Analysis** | Understanding project tech | Framework/dependency detection |
+| **D: Code Review** | Reviewing existing code or PRs | Multi-AI adversarial review |
+| **E: Refactoring** | Improving existing code structure | Codebase analysis + code review |
+| **F: Simple Change** | Small, obvious modifications | Quick intensity, Claude solo |
+
+### Business Routes (G-I)
+
+| Route | When | Pipeline |
+|-------|------|----------|
+| **G: Business Content** | Business plans, pitch decks, proposals, marketing copy | Full business pipeline |
+| **H: Business Analysis** | Market research, competitive analysis, SWOT, strategy | Business pipeline with strategy emphasis |
+| **I: Communication** | Investor Q&A, customer emails, presentation scripts | Business pipeline with audience/tone emphasis |
+
+### Multi-Route Requests
+
+Requests that span both pipelines are decomposed and run sequentially with **context forwarding**:
+
+```
+"Write a pitch deck and build a landing page based on it"
+
+  Route G (business plan) -> Route A (landing page)
+                          ^
+                          |
+              context forwarding: key_themes, tone, audience
+              (tiered limits: 2K summary, 15K content, 1K metadata, 20K total)
+```
 
 ---
 
@@ -271,7 +397,8 @@ Typically unnecessary since the router handles everything, but available for dir
 
 | Command | Description |
 |---------|-------------|
-| `/arena` | Full lifecycle pipeline |
+| `/arena` | Full code lifecycle pipeline |
+| `/arena-business` | Full business lifecycle pipeline |
 | `/arena-research` | Pre-implementation research only |
 | `/arena-stack` | Technology stack detection |
 | `/multi-review` | Multi-AI code review only |
@@ -280,18 +407,48 @@ Typically unnecessary since the router handles everything, but available for dir
 
 ---
 
-## Routes
+## Fallback Framework
 
-Arena classifies your intent into one of six routes:
+Arena never crashes the pipeline. If something fails, it degrades gracefully:
 
-| Route | When | Pipeline |
-|-------|------|----------|
-| **Feature Build** | New functionality, complex tasks | Full pipeline with all applicable phases |
-| **Research** | "How should I..." questions | Pre-implementation investigation |
-| **Stack Analysis** | Understanding project tech | Framework/dependency detection |
-| **Code Review** | Reviewing existing code or PRs | Multi-AI adversarial review |
-| **Refactoring** | Improving existing code structure | Codebase analysis + code review |
-| **Simple Change** | Small, obvious modifications | Quick intensity, Claude solo |
+### Code Pipeline (6 levels)
+
+| Level | Trigger | Action |
+|-------|---------|--------|
+| 0 | None | Full operation |
+| 1 | Benchmark failure | Use default role assignments |
+| 2 | Research failure | Skip context enrichment |
+| 3 | Agent Teams failure | Use Task subagents (no debate) |
+| 4 | External CLI failure | Claude-only review |
+| 5 | All failure | Inline Claude solo analysis |
+
+### Business Pipeline (5 levels)
+
+| Level | Trigger | Action |
+|-------|---------|--------|
+| 0 | None | Full operation |
+| 1 | Research failure | Skip market context |
+| 1.5 | Benchmark failure | Use default role assignments |
+| 2 | Agent Teams failure | Use Task subagents (no debate) |
+| 2.5 | External CLI failure | Claude-only review |
+| 3 | All failure | Claude solo inline analysis |
+
+The final report always shows which fallback level was active and what was skipped.
+
+---
+
+## Feedback Loop
+
+After each review session, Arena optionally collects feedback on findings (useful / not useful / false positive). Feedback is stored in JSONL format and used to generate per-model, per-category accuracy reports:
+
+```
+Model Quality Report (last 30 days):
+| Model  | Useful | Not Useful | False Positive | Accuracy |
+|--------|--------|------------|----------------|----------|
+| Claude | 45     | 8          | 3              | 80.4%    |
+| Codex  | 38     | 12         | 5              | 69.1%    |
+| Gemini | 41     | 10         | 4              | 74.5%    |
+```
 
 ---
 
@@ -301,10 +458,10 @@ The installer adds `@ARENA-ROUTER.md` to `~/.claude/CLAUDE.md`. Claude Code load
 
 ```
 ~/.claude/CLAUDE.md
-  └── @ARENA-ROUTER.md       ← loaded into every session
-        ├── Context Discovery   gather git, GitHub, Figma context
-        ├── Route Selection     intent-based classification
-        └── Pipeline Execution  load and execute command .md files
+  +-- @ARENA-ROUTER.md       <- loaded into every session
+        +-- Context Discovery   gather git, GitHub, Figma context
+        +-- Route Selection     intent-based classification (9 routes)
+        +-- Pipeline Execution  load and execute command .md files
 ```
 
 The router reads command files using the Read tool, not slash commands. This prevents infinite recursion.
@@ -317,57 +474,78 @@ When a request requires an MCP server (Figma, Playwright, Notion) that isn't ins
 
 ```
 ai-review-arena/
-├── ARENA-ROUTER.md             # Always-on routing logic
-├── CLAUDE.md                   # Plugin development rules
-├── install.sh / install.ps1    # Installers
-├── uninstall.sh                # Uninstaller
-│
-├── commands/                   # Pipeline definitions (6 commands)
-│   ├── arena.md                # Main pipeline (~2100 lines)
-│   ├── arena-research.md       # Research pipeline
-│   ├── arena-stack.md          # Stack detection
-│   ├── multi-review.md         # Code review pipeline
-│   ├── multi-review-config.md  # Config management
-│   └── multi-review-status.md  # Status dashboard
-│
-├── agents/                     # Agent role definitions (10 agents)
-│   ├── security-reviewer.md    # OWASP, auth, injection, data exposure
-│   ├── bug-detector.md         # Logic errors, null handling, edge cases
-│   ├── architecture-reviewer.md # SOLID, patterns, coupling
-│   ├── performance-reviewer.md # Complexity, memory, I/O
-│   ├── test-coverage-reviewer.md # Missing tests, test quality
-│   ├── scale-advisor.md        # Concurrency, load, bottlenecks
-│   ├── scope-reviewer.md       # Surgical change enforcement
-│   ├── debate-arbitrator.md    # 3-round consensus synthesis
-│   ├── research-coordinator.md # Pre-implementation research
-│   ├── design-analyzer.md      # Figma design extraction
-│   └── compliance-checker.md   # OWASP, WCAG, GDPR compliance
-│
-├── scripts/                    # Shell scripts (17 scripts)
-│   ├── codex-review.sh         # Codex Round 1 review
-│   ├── gemini-review.sh        # Gemini Round 1 review
-│   ├── codex-cross-examine.sh  # Codex Round 2 & 3
-│   ├── gemini-cross-examine.sh # Gemini Round 2 & 3
-│   ├── orchestrate-review.sh   # Review orchestration
-│   ├── aggregate-findings.sh   # Finding aggregation
-│   ├── run-debate.sh           # Debate execution
-│   ├── generate-report.sh      # Report generation
-│   ├── detect-stack.sh         # Stack detection
-│   ├── benchmark-models.sh     # Model benchmarking
-│   ├── search-best-practices.sh # Best practice search
-│   ├── search-guidelines.sh    # Compliance guideline search
-│   ├── cache-manager.sh        # Cache management
-│   ├── cost-estimator.sh       # Token cost estimation
-│   └── utils.sh                # Shared utilities
-│
-├── config/
-│   ├── default-config.json     # All default settings
-│   ├── compliance-rules.json   # Feature-to-guideline mapping
-│   ├── tech-queries.json       # Tech-to-search-query mapping (31 technologies)
-│   ├── review-prompts/         # Structured prompts (9 templates)
-│   └── benchmarks/             # Model benchmark test cases (4 categories)
-│
-└── cache/                      # Runtime cache (gitignored)
++-- ARENA-ROUTER.md              # Always-on routing logic (9 routes, context forwarding)
++-- CLAUDE.md                    # Plugin development rules
++-- install.sh / install.ps1     # Installers
++-- uninstall.sh                 # Uninstaller
+|
++-- commands/                    # Pipeline definitions (7 commands)
+|   +-- arena.md                 # Code pipeline (~2500 lines)
+|   +-- arena-business.md        # Business pipeline (~2900 lines)
+|   +-- arena-research.md        # Research pipeline
+|   +-- arena-stack.md           # Stack detection
+|   +-- multi-review.md          # Code review pipeline
+|   +-- multi-review-config.md   # Config management
+|   +-- multi-review-status.md   # Status dashboard
+|
++-- agents/                      # Agent role definitions (16 agents)
+|   +-- security-reviewer.md     # OWASP, auth, injection, data exposure
+|   +-- bug-detector.md          # Logic errors, null handling, edge cases
+|   +-- architecture-reviewer.md # SOLID, patterns, coupling
+|   +-- performance-reviewer.md  # Complexity, memory, I/O
+|   +-- test-coverage-reviewer.md # Missing tests, test quality
+|   +-- scale-advisor.md         # Concurrency, load, bottlenecks
+|   +-- debate-arbitrator.md     # Code review 3-round consensus
+|   +-- research-coordinator.md  # Pre-implementation research
+|   +-- design-analyzer.md       # Figma design extraction
+|   +-- compliance-checker.md    # OWASP, WCAG, GDPR compliance
+|   +-- domain-accuracy-reviewer.md        # Business: factual accuracy
+|   +-- audience-fit-reviewer.md           # Business: audience match
+|   +-- competitive-positioning-reviewer.md # Business: market positioning
+|   +-- communication-clarity-reviewer.md  # Business: writing quality
+|   +-- data-evidence-reviewer.md          # Business: data/evidence quality
+|   +-- business-debate-arbitrator.md      # Business: 3-round consensus + external model handling
+|
++-- scripts/                     # Shell scripts (21 scripts)
+|   +-- codex-review.sh          # Codex Round 1 code review
+|   +-- gemini-review.sh         # Gemini Round 1 code review
+|   +-- codex-cross-examine.sh   # Codex Round 2 & 3 (code)
+|   +-- gemini-cross-examine.sh  # Gemini Round 2 & 3 (code)
+|   +-- codex-business-review.sh # Codex business review (dual-mode: round1/round2)
+|   +-- gemini-business-review.sh # Gemini business review (dual-mode: round1/round2)
+|   +-- benchmark-models.sh      # Code model benchmarking
+|   +-- benchmark-business-models.sh # Business model benchmarking (12 test cases, F1)
+|   +-- feedback-tracker.sh      # Review quality feedback recording + reporting
+|   +-- orchestrate-review.sh    # Review orchestration
+|   +-- aggregate-findings.sh    # Finding aggregation
+|   +-- run-debate.sh            # Debate execution
+|   +-- generate-report.sh       # Report generation
+|   +-- detect-stack.sh          # Stack detection
+|   +-- search-best-practices.sh # Best practice search
+|   +-- search-guidelines.sh     # Compliance guideline search
+|   +-- cache-manager.sh         # Cache management
+|   +-- cost-estimator.sh        # Token cost estimation
+|   +-- utils.sh                 # Shared utilities
+|   +-- setup-arena.sh           # Arena setup
+|   +-- setup.sh                 # General setup
+|
++-- config/
+|   +-- default-config.json      # All default settings (code + business + fallback + cost)
+|   +-- compliance-rules.json    # Feature-to-guideline mapping
+|   +-- tech-queries.json        # Tech-to-search-query mapping (31 technologies)
+|   +-- review-prompts/          # Structured prompts (9 templates)
+|   +-- benchmarks/              # Model benchmark test cases
+|       +-- security-test-01.json          # Code: security
+|       +-- bugs-test-01.json              # Code: bugs
+|       +-- architecture-test-01.json      # Code: architecture
+|       +-- performance-test-01.json       # Code: performance
+|       +-- business-accuracy-test-{01,02,03}.json    # Business: accuracy (3 tests)
+|       +-- business-audience-test-{01,02,03}.json    # Business: audience (3 tests)
+|       +-- business-positioning-test-{01,02,03}.json # Business: positioning (3 tests)
+|       +-- business-evidence-test-{01,02,03}.json    # Business: evidence (3 tests)
+|
++-- cache/                       # Runtime cache (gitignored)
+    +-- feedback/                # Feedback JSONL storage
 ```
 
 ---
@@ -385,6 +563,28 @@ ai-review-arena/
 ---
 
 ## Changelog
+
+### v3.1.0
+
+- **Business Pipeline** with Codex/Gemini external CLI integration
+  - Dual-mode scripts: `codex-business-review.sh` and `gemini-business-review.sh` (`--mode round1` for primary review, `--mode round2` for cross-review)
+  - Intensity-dependent roles: cross-reviewer at standard/deep, benchmark-driven primary at comprehensive
+- **Business Model Benchmarking** (Phase B4): 12 planted-error test cases (3 per category), F1 scoring, benchmark-driven role assignment
+- **Fallback Framework**: Structured 6-level (code) / 5-level (business) graceful degradation with state tracking and report integration
+- **Cost & Time Estimation** (Phase 0.2 / B0.2): Pre-execution cost breakdown with proceed/adjust/cancel
+- **Code Auto-Fix Loop** (Phase 6.5): Auto-fixes safe, high-confidence findings with test verification and full revert on failure
+- **Intensity Checkpoints** (Phase 2.9 / B2.9): Bidirectional mid-pipeline adjustment (upgrade or downgrade) based on research findings
+- **Feedback Loop**: JSONL-based feedback tracking with per-model/per-category accuracy reports (`feedback-tracker.sh`)
+- **Context Forwarding**: Multi-route requests pass context between pipelines with tiered token limits (20K total hard limit)
+- Updated `business-debate-arbitrator.md` with external model handling (equal weight, implicit_defend, confidence normalization)
+
+### v2.7.0
+
+- **Business Content Lifecycle Orchestrator** (`arena-business.md`)
+  - Routes G (content), H (strategy), I (communication)
+  - 5 business reviewer agents + business-debate-arbitrator
+  - Phases B0-B7: context extraction, market research, best practices, accuracy audit, strategy debate, review, report
+- Updated ARENA-ROUTER.md with 9 routes (A-F code, G-I business)
 
 ### v2.6.0
 
