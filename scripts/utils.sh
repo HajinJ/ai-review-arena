@@ -11,7 +11,9 @@
 #   project_hash                   - deterministic hash from path
 #   find_project_root              - git root or pwd
 #   cache_base_dir                 - per-project cache directory
-#   load_config                    - find config with precedence
+#   load_config                    - find and merge configs (default → global → project)
+#   load_config_file               - find single highest-priority config file
+#   merge_configs                  - deep merge multiple JSON config files
 #   get_config_value               - jq wrapper for config values
 #   get_current_year               - current year string
 #   format_timestamp               - human readable from epoch
@@ -60,7 +62,7 @@ ensure_jq() {
 
 project_hash() {
   local path="${1:?Usage: project_hash <path>}"
-  echo -n "$path" | shasum -a 256 | cut -c1-12
+  echo -n "$path" | shasum -a 256 | cut -c1-20
 }
 
 find_project_root() {
@@ -82,22 +84,102 @@ cache_base_dir() {
 # Configuration
 # =============================================================================
 
+merge_configs() {
+  # Deep-merge multiple JSON config files using jq.
+  # Usage: merge_configs file1 [file2] [file3]
+  # Later files override earlier ones (deep merge).
+  local files=()
+  local f
+  for f in "$@"; do
+    if [ -f "$f" ]; then
+      files+=("$f")
+    fi
+  done
+
+  if [ ${#files[@]} -eq 0 ]; then
+    echo "{}"
+    return 1
+  fi
+
+  if [ ${#files[@]} -eq 1 ]; then
+    cat "${files[0]}"
+    return 0
+  fi
+
+  # jq -s deep merge: .[0] * .[1] * .[2] ...
+  local merge_expr=".[0]"
+  local i=1
+  while [ "$i" -lt "${#files[@]}" ]; do
+    merge_expr="${merge_expr} * .[$i]"
+    i=$((i + 1))
+  done
+
+  jq -s "$merge_expr" "${files[@]}" 2>/dev/null || cat "${files[0]}"
+}
+
 load_config() {
+  # Returns path to a merged config temp file.
+  # Merge order: default → global → project (later overrides earlier).
+  # Caller should use the output path directly.
   local project_root="${1:-}"
 
-  # 1. Project-level config
+  local default_config="${UTILS_PLUGIN_DIR}/config/default-config.json"
+  local global_config="$HOME/.claude/.ai-review-arena.json"
+  local project_config=""
+  if [ -n "$project_root" ]; then
+    project_config="$project_root/.ai-review-arena.json"
+  fi
+
+  local configs_to_merge=()
+
+  # 1. Default config (base)
+  if [ -f "$default_config" ]; then
+    configs_to_merge+=("$default_config")
+  fi
+
+  # 2. Global user config (overrides default)
+  if [ -f "$global_config" ]; then
+    configs_to_merge+=("$global_config")
+  fi
+
+  # 3. Project config (overrides global)
+  if [ -n "$project_config" ] && [ -f "$project_config" ]; then
+    configs_to_merge+=("$project_config")
+  fi
+
+  if [ ${#configs_to_merge[@]} -eq 0 ]; then
+    return 1
+  fi
+
+  # If only default config exists, return it directly (no merge needed)
+  if [ ${#configs_to_merge[@]} -eq 1 ]; then
+    echo "${configs_to_merge[0]}"
+    return 0
+  fi
+
+  # Merge into a temp file for the session
+  local merged_tmp
+  merged_tmp=$(mktemp /tmp/arena-config-merged.XXXXXXXXXX.json)
+  merge_configs "${configs_to_merge[@]}" > "$merged_tmp"
+  echo "$merged_tmp"
+  return 0
+}
+
+load_config_file() {
+  # Legacy: returns the single highest-priority config file path (no merge).
+  # Use load_config() for merged config instead.
+  local project_root="${1:-}"
+
   if [ -n "$project_root" ] && [ -f "$project_root/.ai-review-arena.json" ]; then
     echo "$project_root/.ai-review-arena.json"
     return 0
   fi
 
-  # 2. Global user config
   if [ -f "$HOME/.claude/.ai-review-arena.json" ]; then
     echo "$HOME/.claude/.ai-review-arena.json"
     return 0
   fi
 
-  # 3. Default config bundled with plugin
   if [ -f "${UTILS_PLUGIN_DIR}/config/default-config.json" ]; then
     echo "${UTILS_PLUGIN_DIR}/config/default-config.json"
     return 0

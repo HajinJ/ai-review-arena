@@ -185,7 +185,7 @@ Establish project context, load configuration, and prepare the session environme
     Detect if the user's request requires MCP servers that may not be installed.
 
     a. **Figma MCP Detection**:
-       - Check if request contains: figma.com URL, "피그마", "디자인", "Figma" keywords
+       - Check if request contains: figma.com URL, "figma", "design" keywords
        - If detected:
          ```
          ToolSearch(query: "figma")
@@ -193,21 +193,21 @@ Establish project context, load configuration, and prepare the session environme
        - If Figma MCP not found in results:
          ```
          Display:
-         "⚠️ Figma MCP 서버가 설치되어 있지 않습니다.
-          Figma 디자인 분석(Phase 5)을 위해 설치하시겠습니까?
+         "⚠️ Figma MCP server is not installed.
+          Would you like to install it for Figma design analysis (Phase 5)?
 
-          설치 방법:
+          Installation:
           claude mcp add figma -- npx -y figma-developer-mcp --figma-api-key=YOUR_KEY
 
-          [설치하고 계속] [Figma 없이 계속] [취소]"
+          [Install and continue] [Continue without Figma] [Cancel]"
          ```
          Use AskUserQuestion to get user's choice:
-         - **설치**: Execute installation via Bash, verify with ToolSearch, then proceed
-         - **건너뛰기**: Set `skip_figma=true`, skip Phase 5
-         - **취소**: Abort arena execution
+         - **Install**: Execute installation via Bash, verify with ToolSearch, then proceed
+         - **Skip**: Set `skip_figma=true`, skip Phase 5
+         - **Cancel**: Abort arena execution
 
     b. **Playwright MCP Detection**:
-       - Check if request contains: "테스트", "E2E", "브라우저", "test", "e2e", "browser"
+       - Check if request contains: "test", "E2E", "browser", "playwright"
        - If detected:
          ```
          ToolSearch(query: "playwright")
@@ -215,7 +215,7 @@ Establish project context, load configuration, and prepare the session environme
        - If not found: Inform user and suggest installation, continue without it
 
     c. **Notion MCP Detection**:
-       - Check if request contains: "노션", "Notion"
+       - Check if request contains: "Notion", "notion"
        - If detected:
          ```
          ToolSearch(query: "notion")
@@ -234,6 +234,9 @@ Establish project context, load configuration, and prepare the session environme
 ---
 
 ## Phase 0.1: Intensity Decision (Agent Teams Debate)
+
+> **Shared Phase**: Full definition at `${PLUGIN_DIR}/shared-phases/intensity-decision.md`
+> Set variables: `PIPELINE_TYPE=code`, `TEAM_PREFIX=intensity-decision`
 
 **MANDATORY for all requests.** Determine the appropriate intensity level through adversarial debate among Claude agents. Skip only if user explicitly specified `--intensity`.
 
@@ -412,6 +415,9 @@ Establish project context, load configuration, and prepare the session environme
 ---
 
 ## Phase 0.2: Cost & Time Estimation
+
+> **Shared Phase**: Full definition at `${PLUGIN_DIR}/shared-phases/cost-estimation.md`
+> Uses `cost-estimator.sh --intensity ${INTENSITY} --pipeline code --lines ${TOTAL_INPUT_LINES}`
 
 Based on the decided intensity, estimate costs and time before proceeding. This phase runs immediately after intensity decision for ALL intensity levels.
 
@@ -1269,6 +1275,8 @@ Only execute this phase if `--figma <url>` was provided.
 ---
 
 ## Phase 6: Agent Team Review
+
+> **Feedback Routing**: If `feedback.use_for_routing` is true, read `${PLUGIN_DIR}/shared-phases/feedback-routing.md` and apply feedback-based model-category role assignments before spawning reviewers.
 
 This phase follows the same pattern as multi-review.md but with ENRICHED context from Phases 1-5. Reviewer teammates receive stack detection results, relevant best practices, compliance requirements, and scale considerations in addition to the code.
 
@@ -2377,7 +2385,7 @@ SendMessage(type: "shutdown_request", recipient: "research-coordinator", content
 Only send shutdown to teammates that were actually spawned in this session.
 Wait for all shutdown confirmations before cleanup.
 
-### Step 7.3: Cleanup Team
+### Step 7.3: Cleanup Team & Sessions
 
 After ALL teammates have confirmed shutdown:
 
@@ -2385,7 +2393,12 @@ After ALL teammates have confirmed shutdown:
 Teammate(operation: "cleanup")
 ```
 
-**IMPORTANT:** Cleanup will fail if active teammates still exist. Always shutdown all teammates first.
+Clean up stale session directories from previous runs:
+```bash
+bash "${SCRIPTS_DIR}/cache-manager.sh" cleanup-sessions --max-age 24
+```
+
+**IMPORTANT:** Team cleanup will fail if active teammates still exist. Always shutdown all teammates first.
 
 ### Step 7.4: Display Session Reference
 

@@ -1,7 +1,7 @@
-# AI Review Arena v3.1.0 - Development Rules
+# AI Review Arena v3.2.0 - Development Rules
 
 ## Project Structure
-- `.claude-plugin/` - Plugin manifest (v3.1.0)
+- `.claude-plugin/` - Plugin manifest (v3.2.0)
 - `hooks/` - PostToolUse hook for auto-review
 - `commands/` - Slash commands (7 files)
   - `arena` - Full lifecycle orchestrator (research → compliance → benchmark → review → auto-fix)
@@ -30,6 +30,10 @@
   - compliance-rules.json - Feature→guideline mapping
   - tech-queries.json - Technology→search query mapping (31 technologies)
   - benchmarks/ - Model benchmark test cases (16 files: 4 code + 12 business)
+- `shared-phases/` - Common phase definitions shared by code and business pipelines
+  - `intensity-decision.md` - Phase 0.1/B0.1: Agent Teams intensity debate (shared template)
+  - `cost-estimation.md` - Phase 0.2/B0.2: Cost & time estimation using cost-estimator.sh
+  - `feedback-routing.md` - Feedback-based model-category role assignment for Phase 6/B6
 - `cache/` - Runtime knowledge cache (gitignored, TTL-managed)
 
 ## Coding Rules
@@ -42,6 +46,8 @@
 - JSON output must be valid and parseable by jq
 - Support both Korean and English output via config `output.language`
 - Cache operations use `cache-manager.sh` interface exclusively
+- Config loading uses `load_config()` from utils.sh (deep merges default → global → project)
+- Shared phases in `shared-phases/` should be referenced by both arena.md and arena-business.md
 
 ## Configuration
 - Project config: `.ai-review-arena.json` in project root
@@ -49,6 +55,8 @@
 - Default config: `config/default-config.json`
 - Environment variables override config file values
 - Prefix: `MULTI_REVIEW_` (review), `ARENA_` (lifecycle)
+- Config merge: `load_config()` deep-merges default → global → project via jq
+- Routing strategy: `feedback_benchmark` (60% feedback + 40% benchmark by default)
 
 ## Testing
 - Test with intentionally buggy code to verify detection

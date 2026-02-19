@@ -564,6 +564,23 @@ ai-review-arena/
 
 ## Changelog
 
+### v3.2.0
+
+- **Commit/PR Safety Protocol**: Mandatory review gate + user confirmation before `git commit` or `gh pr create`
+  - Commits: diff review for secrets, debug code, unintended files → AskUserQuestion confirmation
+  - PRs: full Route D code review at standard+ intensity → review findings summary → AskUserQuestion confirmation
+- **Phase 0.1-Pre: Quick Intensity Pre-Filter**: Rule-based pre-filter skips 4-agent intensity debate for obvious quick cases (rename, explanation, test execution), saving ~$0.50+ and ~30s per trivial request
+- **Core Rule Enforcement**: Explicit exempt/non-exempt lists replace vague "every request" rule — code explanations, commits, debugging all MUST route through pipeline
+- **Config 3-Level Deep Merge**: `load_config()` now properly merges default → global → project configs via `jq -s` deep merge (previously only returned first found file)
+- **Phase-Based Cost Estimation**: Rewrote `cost-estimator.sh` with per-phase token/cost tables, `--intensity`/`--pipeline`/`--lines`/`--json` params, scales by agent count and input size
+- **Shared Phases**: Extracted common phase definitions (`shared-phases/`) for intensity debate, cost estimation, and feedback routing — shared by code and business pipelines
+- **Feedback-Based Routing**: `feedback-tracker.sh recommend` computes combined score (60% feedback accuracy + 40% benchmark F1) for model-category role assignment in Phase 6/B6
+- **Benchmark Negation Detection**: `keyword_match_positive()` prevents false positives from negated mentions ("no evidence of SQL injection" no longer counts as finding SQL injection)
+- **Benchmark Multi-Format Support**: `check_ground_truth()` handles array-of-objects, single-object, and flat-array ground truth formats
+- **Cache Session Cleanup**: `cache-manager.sh cleanup-sessions` removes stale `/tmp/ai-review-arena*` directories and merged config temp files
+- **Hash Collision Resistance**: `project_hash()` extended from 48-bit (12 chars) to 80-bit (20 chars)
+- **i18n Cleanup**: All prompts, examples, and metadata in routing/command files converted to English; Korean retained only in intentional i18n output templates
+
 ### v3.1.0
 
 - **Business Pipeline** with Codex/Gemini external CLI integration

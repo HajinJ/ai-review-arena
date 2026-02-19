@@ -1,7 +1,7 @@
 {
   "name": "ai-review-arena",
-  "version": "3.1.0",
-  "description": "Full AI development and business lifecycle orchestrator - Always-On routing, codebase analysis, MCP detection, multi-AI adversarial code/business review with external CLI models (Codex/Gemini), business model benchmarking, 3-round multi-agent debate, auto-fix loop, fallback framework, and cost estimation",
+  "version": "3.2.0",
+  "description": "Full AI development and business lifecycle orchestrator - Always-On routing, codebase analysis, MCP detection, multi-AI adversarial code/business review with external CLI models (Codex/Gemini), business model benchmarking, 3-round multi-agent debate, auto-fix loop, fallback framework, cost estimation, commit/PR safety gate, and feedback-based routing",
   "author": {
     "name": "HajinJ",
     "url": "https://github.com/HajinJ"

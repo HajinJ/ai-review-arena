@@ -1,5 +1,5 @@
 {
-  "description": "AI Review Arena - Multi-AI 자동 코드 리뷰 hook",
+  "description": "AI Review Arena - Multi-AI automated code review hook",
   "hooks": {
     "PostToolUse": [
       {

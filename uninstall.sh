@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI Review Arena v3.1.0 - Uninstaller
+# AI Review Arena v3.2.0 - Uninstaller
 set -e
 
 CLAUDE_DIR="$HOME/.claude"

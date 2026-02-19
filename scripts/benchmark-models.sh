@@ -87,14 +87,116 @@ if [ ${#BENCHMARK_FILES[@]} -eq 0 ]; then
   exit 0
 fi
 
-# --- Helper: check ground truth match ---
-# Returns number of matched keywords out of total
+# --- Negation patterns for context-aware keyword matching ---
+NEGATION_PATTERNS="not a|no .* found|no .* detected|no .* issue|not vulnerable|false positive|doesn.t have|isn.t|is not|are not|was not|were not|cannot find|could not find|don.t see|didn.t find|absence of|without any|free from|no evidence of|does not contain|not present"
+
+# --- Helper: context-aware keyword match ---
+# Checks if keyword appears in a positive (affirming) context, not negated.
+# Returns 0 if keyword is positively present, 1 if absent or negated.
+keyword_match_positive() {
+  local response="$1"
+  local keyword="$2"
+
+  # First check if keyword exists at all
+  if ! echo "$response" | grep -qi "$keyword" 2>/dev/null; then
+    return 1
+  fi
+
+  # Extract lines containing the keyword
+  local matching_lines
+  matching_lines=$(echo "$response" | grep -i "$keyword" 2>/dev/null || echo "")
+
+  # Check if ALL matching lines are negated
+  local positive_found=false
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    # Check if the line contains negation near the keyword
+    local is_negated=false
+    if echo "$line" | grep -qiE "(${NEGATION_PATTERNS}).*${keyword}" 2>/dev/null; then
+      is_negated=true
+    fi
+    if [ "$is_negated" = "false" ]; then
+      positive_found=true
+      break
+    fi
+  done <<< "$matching_lines"
+
+  if [ "$positive_found" = "true" ]; then
+    return 0
+  fi
+  return 1
+}
+
+# --- Helper: check ground truth match against a single finding ---
+# Supports both array-of-objects ground_truth and flat description_contains.
+# Returns: "matched total" counts.
 check_ground_truth() {
   local response="$1"
-  local description_contains_json="$2"
+  local ground_truth_json="$2"
+
+  # Detect ground_truth format:
+  # 1. Array of objects with description_contains (e.g., security-test-01.json)
+  # 2. Single object with description_contains
+  # 3. Flat array of strings
+
+  local gt_type
+  gt_type=$(echo "$ground_truth_json" | jq -r 'type' 2>/dev/null || echo "null")
+
+  local all_keywords="[]"
+
+  if [ "$gt_type" = "array" ]; then
+    # Check if array of objects (each with description_contains) or flat strings
+    local first_type
+    first_type=$(echo "$ground_truth_json" | jq -r '.[0] | type' 2>/dev/null || echo "null")
+
+    if [ "$first_type" = "object" ]; then
+      # Array of finding objects: merge all description_contains + check severity/type fields
+      all_keywords=$(echo "$ground_truth_json" | jq '[.[] | .description_contains // [] | .[]] | unique' 2>/dev/null || echo "[]")
+
+      # Also try structured matching: check if response mentions severity+type
+      local struct_matched=0
+      local struct_total
+      struct_total=$(echo "$ground_truth_json" | jq 'length' 2>/dev/null || echo "0")
+
+      local si=0
+      while [ "$si" -lt "$struct_total" ]; do
+        local sev type_val
+        sev=$(echo "$ground_truth_json" | jq -r ".[$si].severity // empty" 2>/dev/null)
+        type_val=$(echo "$ground_truth_json" | jq -r ".[$si].type // empty" 2>/dev/null)
+
+        # A finding is "structurally matched" if the response mentions both severity and type
+        local sev_found=false type_found=false
+        if [ -n "$sev" ] && keyword_match_positive "$response" "$sev"; then
+          sev_found=true
+        fi
+        if [ -n "$type_val" ]; then
+          # Convert underscores to spaces for matching (e.g., sql_injection -> sql injection)
+          local type_readable
+          type_readable=$(echo "$type_val" | tr '_' ' ')
+          if keyword_match_positive "$response" "$type_val" || keyword_match_positive "$response" "$type_readable"; then
+            type_found=true
+          fi
+        fi
+
+        if [ "$sev_found" = "true" ] && [ "$type_found" = "true" ]; then
+          struct_matched=$((struct_matched + 1))
+        fi
+        si=$((si + 1))
+      done
+
+      # Use the better of keyword matching or structural matching
+      # Structural matching counts per-finding, keyword matching counts per-keyword
+    else
+      # Flat array of strings
+      all_keywords="$ground_truth_json"
+    fi
+  elif [ "$gt_type" = "object" ]; then
+    # Single object with description_contains
+    all_keywords=$(echo "$ground_truth_json" | jq '.description_contains // []' 2>/dev/null || echo "[]")
+  fi
 
   local total
-  total=$(echo "$description_contains_json" | jq 'length' 2>/dev/null || echo "0")
+  total=$(echo "$all_keywords" | jq 'length' 2>/dev/null || echo "0")
   if [ "$total" -eq 0 ]; then
     echo "0 0"
     return
@@ -104,8 +206,8 @@ check_ground_truth() {
   local i=0
   while [ "$i" -lt "$total" ]; do
     local keyword
-    keyword=$(echo "$description_contains_json" | jq -r ".[$i]" 2>/dev/null)
-    if echo "$response" | grep -qi "$keyword" 2>/dev/null; then
+    keyword=$(echo "$all_keywords" | jq -r ".[$i]" 2>/dev/null)
+    if keyword_match_positive "$response" "$keyword"; then
       matched=$((matched + 1))
     fi
     i=$((i + 1))
@@ -131,8 +233,8 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
   BENCH_CATEGORY=$(basename "$benchmark_file" .json)
   log_info "Benchmarking category: $BENCH_CATEGORY"
 
-  # Read test cases
-  TEST_CASES=$(jq '.test_cases // []' "$benchmark_file" 2>/dev/null || echo "[]")
+  # Read test cases: support both {test_cases: [...]} and single-object format
+  TEST_CASES=$(jq 'if .test_cases then .test_cases elif type == "array" then . else [.] end' "$benchmark_file" 2>/dev/null || echo "[]")
   TEST_COUNT=$(echo "$TEST_CASES" | jq 'length' 2>/dev/null || echo "0")
 
   if [ "$TEST_COUNT" -eq 0 ]; then
@@ -144,8 +246,8 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
   while [ "$tc_idx" -lt "$TEST_COUNT" ]; do
     TEST_CASE=$(echo "$TEST_CASES" | jq ".[$tc_idx]" 2>/dev/null)
     CODE=$(echo "$TEST_CASE" | jq -r '.code // ""' 2>/dev/null)
-    GROUND_TRUTH=$(echo "$TEST_CASE" | jq '.ground_truth // {}' 2>/dev/null)
-    DESCRIPTION_CONTAINS=$(echo "$GROUND_TRUTH" | jq '.description_contains // []' 2>/dev/null)
+    # ground_truth can be array of finding objects or single object
+    GROUND_TRUTH=$(echo "$TEST_CASE" | jq '.ground_truth // []' 2>/dev/null)
     TEST_FILE=$(echo "$TEST_CASE" | jq -r '.file // "benchmark_test.tmp"' 2>/dev/null)
     TEST_ROLE=$(echo "$TEST_CASE" | jq -r '.role // "bugs"' 2>/dev/null)
 
@@ -159,7 +261,7 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
       CODEX_RESPONSE=$(echo "$CODE" | "$SCRIPT_DIR/codex-review.sh" "$TEST_FILE" "${CONFIG_FILE:-/dev/null}" "$TEST_ROLE" 2>/dev/null || echo "{}")
       CODEX_TEXT=$(echo "$CODEX_RESPONSE" | jq -r 'tostring' 2>/dev/null || echo "")
 
-      read -r matched total <<< "$(check_ground_truth "$CODEX_TEXT" "$DESCRIPTION_CONTAINS")"
+      read -r matched total <<< "$(check_ground_truth "$CODEX_TEXT" "$GROUND_TRUTH")"
 
       # Update results for codex
       RESULTS=$(echo "$RESULTS" | jq \
@@ -181,7 +283,7 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
       GEMINI_RESPONSE=$(echo "$CODE" | "$SCRIPT_DIR/gemini-review.sh" "$TEST_FILE" "${CONFIG_FILE:-/dev/null}" "$TEST_ROLE" 2>/dev/null || echo "{}")
       GEMINI_TEXT=$(echo "$GEMINI_RESPONSE" | jq -r 'tostring' 2>/dev/null || echo "")
 
-      read -r matched total <<< "$(check_ground_truth "$GEMINI_TEXT" "$DESCRIPTION_CONTAINS")"
+      read -r matched total <<< "$(check_ground_truth "$GEMINI_TEXT" "$GROUND_TRUTH")"
 
       RESULTS=$(echo "$RESULTS" | jq \
         --arg model "gemini" \

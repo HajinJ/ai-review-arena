@@ -1,13 +1,38 @@
-# ARENA-ROUTER.md - AI Review Arena Routing System v3.0
+# ARENA-ROUTER.md - AI Review Arena Routing System v3.2
 
 ## Core Rule
 
-**Every request goes through the Arena pipeline.** No exceptions.
-Whether it's a commit, explanation, question, code implementation, or business content — every request follows this process.
+**Every request goes through the Arena pipeline by default.** The pipeline runs unless the request matches one of the explicit exemptions below.
 
-The only exceptions:
-- `--no-arena` flag is explicitly provided
-- User directly invokes a slash command (`/arena`, `/multi-review`, etc.)
+Code explanations, questions about code behavior, commit messages, simple renames — ALL of these go through the pipeline. Route F handles simple tasks with `quick` intensity (no Agent Team overhead).
+
+### Exempt Requests (NO pipeline — respond directly)
+
+The following are the ONLY cases where you skip the pipeline entirely:
+
+1. `--no-arena` flag is explicitly provided
+2. User directly invokes a slash command (`/arena`, `/multi-review`, etc.)
+3. **Meta questions about the Arena plugin itself** (e.g., "How does Arena work?", "Change Review Arena settings")
+4. **Pure conversational exchanges** with no task intent (e.g., greetings like "Hello", "Thanks", acknowledgments like "Got it")
+5. **Claude Code CLI usage questions** (e.g., "/help", "How do I configure MCP?")
+
+### NOT Exempt (MUST go through pipeline)
+
+These might seem like simple questions, but they MUST be routed:
+
+| Request | Why it MUST route | Route |
+|---------|-------------------|-------|
+| "What does this code do?" | Code explanation requires codebase analysis | F (quick) |
+| "Explain this function" | Same — needs context from Phase 0.5 | F (quick) |
+| "Commit this" | Commit needs diff review + user confirmation | F → Commit Safety Gate |
+| "Create a PR" | PR requires code review + user confirmation | D → PR Safety Gate |
+| "Why is this erroring?" | Debugging requires code context | F or A |
+| "Run the tests" | Test execution benefits from stack detection | F (quick) |
+| "Update the README" | Documentation change | F (quick) |
+| "Refactor this code" | Refactoring | E |
+| "Analyze the market" | Business analysis | H |
+
+**When in doubt: route it.** The intensity debate (Phase 0.1) will decide `quick` for simple tasks, keeping overhead minimal.
 
 ---
 
@@ -283,26 +308,113 @@ Sub-task 2: Route A (Feature Implementation)
 | H: Business Analysis | `${PLUGIN_DIR}/commands/arena-business.md` | `--type strategy` |
 | I: Communication | `${PLUGIN_DIR}/commands/arena-business.md` | `--type communication` |
 
+### Commit/PR Safety Protocol
+
+Commits and PRs affect shared state (repository history, team visibility). They require a **mandatory review step** and **explicit user confirmation** before execution.
+
+#### Commit Request
+
+When the user requests a commit ("commit this", "commit changes", etc.):
+
+1. **Route**: F (Simple Change) with `quick` intensity
+2. **Pipeline**: Phase 0 → 0.1-Pre → 0.5 (codebase analysis)
+3. **Commit Safety Gate** (mandatory, runs after Phase 0.5):
+   a. Run `git diff --staged` (or `git diff` if nothing staged) to review all changes
+   b. Analyze changes for:
+      - Accidental inclusion of secrets/credentials (`.env`, API keys, tokens)
+      - Unintended file additions (build artifacts, node_modules, large binaries)
+      - Incomplete changes (debug code, TODO markers, commented-out blocks)
+   c. Present change summary to user:
+      ```
+      ## Commit Review
+      - Files: {count} files changed (+{additions}/-{deletions})
+      - Summary: {brief description of changes}
+      - Warnings: {any issues found, or "None"}
+      ```
+   d. **Require user confirmation** via AskUserQuestion:
+      - [Commit] — proceed with commit
+      - [Edit message] — let user modify the commit message
+      - [Cancel] — abort commit
+
+**The commit MUST NOT execute without explicit user approval.**
+
+#### PR Request
+
+When the user requests a PR ("create a PR", "open a pull request", etc.):
+
+1. **Route**: D (Code Review) at `standard` intensity minimum
+2. **Pipeline**: Full Route D pipeline (multi-AI code review)
+3. **PR Safety Gate** (mandatory, runs after review pipeline completes):
+   a. Present review findings summary:
+      ```
+      ## PR Review Summary
+      - Critical issues: {count}
+      - Warnings: {count}
+      - Quality score: {score}/100
+      - Changes: {commit count} commits, {file count} files
+      ```
+   b. If critical issues found (severity: critical/high):
+      - Recommend fixing before creating PR
+      - List specific issues to address
+   c. **Require user confirmation** via AskUserQuestion:
+      - [Create PR] — proceed with PR creation
+      - [Fix issues first] — address review findings before creating PR
+      - [Create PR anyway] — create despite warnings (user accepts risk)
+      - [Cancel] — abort PR creation
+
+**The PR MUST NOT be created without explicit user approval.**
+
+---
+
 ### Intensity Decision
 
-Intensity is determined by **Agent Teams adversarial debate** in Phase 0.1. Claude does not decide alone.
+Intensity is determined in two stages: a **fast pre-filter** for obvious cases, then an **Agent Teams debate** for everything else.
 
-#### Phase 0.1: Intensity Decision (Mandatory)
+#### Phase 0.1-Pre: Quick Intensity Pre-Filter (Rule-Based)
 
-Runs immediately after Phase 0 for every request. 3-4 Claude agents debate the appropriate intensity:
+Before spawning any agents, apply these rules to skip the debate for obvious cases. This saves ~$0.50+ and ~30 seconds per trivial request.
+
+**Auto-assign `quick` (skip debate) when ALL of these are true:**
+- Route is F (Simple Change)
+- AND the request matches one of these patterns:
+  - Single file rename, typo fix, import fix
+  - Code explanation ("what does this do", "explain this function")
+  - README/docs minor edit
+  - Single function/method addition with clear specification
+  - Variable/type rename across files
+  - Test execution ("run tests", "run the test suite")
+
+**Note**: Commits and PRs are NOT eligible for auto-quick. They always go through the Commit/PR Safety Protocol regardless of apparent simplicity.
+
+**Auto-assign `standard` (skip debate) when:**
+- Route is D (Code Review) with `--pr` flag and diff < 500 lines
+- Route is E (Refactoring) with single file target
+
+**Always require debate for:**
+- Route A (Feature Implementation) — complexity is hard to judge
+- Route B (Pre-Implementation Research)
+- Route C (Stack Analysis)
+- Routes G, H, I (all Business routes)
+- Any request touching authentication, payment, security, or user data
+- Any request involving multiple modules/services
+- Any request from an issue/ticket (issue content may reveal hidden complexity)
+
+#### Phase 0.1: Intensity Decision (Agent Teams Debate)
+
+Runs when the pre-filter does not resolve intensity. 3-4 Claude agents debate the appropriate intensity:
 
 - **intensity-advocate**: Argues for higher intensity. Considers worst-case scenarios, security/accuracy risks, complexity.
 - **efficiency-advocate**: Argues for lower intensity. Considers practicality, cost, scope constraints.
 - **risk-assessor**: Evaluates production impact, security sensitivity, audience exposure, brand risk.
 - **intensity-arbitrator**: Weighs both sides and makes the final intensity decision.
 
-Debate continues until consensus is reached. Skipped if user explicitly specifies `--intensity`.
+Debate continues until consensus is reached. Skipped if user explicitly specifies `--intensity` or if Phase 0.1-Pre already resolved it.
 
 #### Code Pipeline: Intensity Phase Scope
 
 | Intensity | Phases | Decision Debates | Review Agents |
 |-----------|--------|------------------|---------------|
-| `quick` | 0 → 0.1 → 0.2 → 0.5 | intensity only | none (Claude solo) |
+| `quick` | 0 → 0.1-Pre → 0.5 | pre-filter (no debate) | none (Claude solo) |
 | `standard` | 0 → 0.1 → 0.2 → 0.5 → 1(cached) → 5.5 → 6 → 6.5 → 7 | intensity + implementation strategy | 3-5 agents |
 | `deep` | 0 → 0.1 → 0.2 → 0.5 → 1 → 2 → **2.9** → 3 → 5.5 → 6 → 6.5 → 7 | intensity + research direction + compliance scope + strategy | 5-7 agents |
 | `comprehensive` | 0 → 0.1 → 0.2 → 0.5 → 1 → 2 → **2.9** → 3 → 4 → 5 → 5.5 → 6 → 6.5 → 7 | all 4 debates | 7-10 agents |
@@ -315,7 +427,7 @@ Phase 6.5 = Auto-Fix Loop (applies safe, high-confidence findings with test veri
 
 | Intensity | Phases | Decision Debates | Review Agents |
 |-----------|--------|------------------|---------------|
-| `quick` | B0 → B0.1 → B0.2 → B0.5 | intensity only | none (Claude solo) |
+| `quick` | B0 → B0.1-Pre → B0.5 | pre-filter (no debate) | none (Claude solo) |
 | `standard` | B0 → B0.1 → B0.2 → B0.5 → B1 → B5.5 → B6 → B6.5 → B7 | intensity + content strategy | 5 agents + external CLIs (cross-review) |
 | `deep` | B0 → B0.1 → B0.2 → B0.5 → B1 → B2(+debate) → **B2.9** → B3(+debate) → B5.5 → B6 → B6.5 → B7 | intensity + research + accuracy scope + strategy | 5 agents + external CLIs (cross-review) |
 | `comprehensive` | B0 → B0.1 → B0.2 → B0.5 → B1 → B2 → **B2.9** → B3 → B4 → B5.5 → B6 → B6.5 → B7 | all debates | 5 agents + external CLIs (benchmark-driven role) |
@@ -412,11 +524,49 @@ Request: "Rename this function to calculateScore"
 Step 1: Context sufficient → no discovery needed
 Step 2: Simple change → Route F
 Step 3: Read ${PLUGIN_DIR}/commands/arena.md
-        → Phase 0 → Phase 0.1 Intensity Debate
-          intensity-advocate: "Renaming might affect other files"
-          efficiency-advocate: "Simple rename. quick is sufficient"
-          intensity-arbitrator: "quick. Single element change"
+        → Phase 0 → Phase 0.1-Pre: Single file rename → auto-quick (skip debate)
         → Execute Phase 0.5 only (Claude solo)
+```
+
+### Code Explanation
+```
+Request: "What does this code do?"
+
+Step 1: Context Discovery → Read/Glob target file
+Step 2: Code explanation → Route F
+Step 3: Read ${PLUGIN_DIR}/commands/arena.md
+        → Phase 0 → Phase 0.1-Pre: Code explanation → auto-quick (skip debate)
+        → Execute Phase 0.5 (codebase analysis for context) → Claude explains
+```
+
+### Commit
+```
+Request: "Commit these changes"
+
+Step 1: Context Discovery → git diff, git status
+Step 2: Commit request → Route F (quick) → triggers Commit Safety Protocol
+Step 3: Read ${PLUGIN_DIR}/commands/arena.md
+        → Phase 0 → 0.1-Pre → Phase 0.5 (analyze changes)
+        → Commit Safety Gate:
+          - Review staged diff
+          - Check for secrets, debug code, unintended files
+          - Present summary to user
+          - AskUserQuestion: [Commit] [Edit message] [Cancel]
+        → User approves → execute git commit
+```
+
+### Create PR
+```
+Request: "Create a PR for this feature"
+
+Step 1: Context Discovery → git diff main...HEAD, git log
+Step 2: PR request → Route D (Code Review) → triggers PR Safety Protocol
+Step 3: Read ${PLUGIN_DIR}/commands/multi-review.md
+        → Execute review pipeline at standard intensity
+        → PR Safety Gate:
+          - Present review findings (critical: 0, warnings: 2, score: 87/100)
+          - AskUserQuestion: [Create PR] [Fix issues first] [Create anyway] [Cancel]
+        → User approves → execute gh pr create
 ```
 
 ### OAuth Implementation

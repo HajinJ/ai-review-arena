@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI Review Arena v3.1.0 - Installer (macOS / Linux / WSL)
+# AI Review Arena v3.2.0 - Installer (macOS / Linux / WSL)
 set -e
 
 CLAUDE_DIR="$HOME/.claude"
@@ -14,7 +14,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN}  AI Review Arena v3.1.0 - Installer${NC}"
+echo -e "${CYAN}  AI Review Arena v3.2.0 - Installer${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -111,10 +111,10 @@ echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "  Usage:"
 echo "    Open any project with Claude Code and type naturally:"
-echo '    - "로그인 기능 구현해줘"     → Full lifecycle orchestration'
-echo '    - "코드 리뷰해줘"            → Multi-AI code review'
-echo '    - "리팩토링해줘"             → Codebase analysis + review'
-echo '    - "파라미터 빼줘"            → Quick codebase-aware change'
+echo '    - "Implement login feature"    → Full lifecycle orchestration'
+echo '    - "Review this code"          → Multi-AI code review'
+echo '    - "Refactor this service"     → Codebase analysis + review'
+echo '    - "Remove this parameter"     → Quick codebase-aware change'
 echo ""
 echo "  Commands:"
 echo "    /arena              Full lifecycle orchestrator (code)"

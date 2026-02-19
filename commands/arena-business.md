@@ -233,6 +233,9 @@ Establish business context, load configuration, and prepare the session environm
 
 ## Phase B0.1: Intensity Decision (Agent Teams Debate)
 
+> **Shared Phase**: Full definition at `${PLUGIN_DIR}/shared-phases/intensity-decision.md`
+> Set variables: `PIPELINE_TYPE=business`, `TEAM_PREFIX=biz-intensity-decision`
+
 **MANDATORY for all requests.** Determine the appropriate intensity level through adversarial debate among Claude agents. Skip only if user explicitly specified `--intensity`.
 
 **Purpose**: Prevent both under-processing (missing accuracy issues in investor materials) and over-processing (running full pipeline for an internal note). No single Claude instance can reliably judge business content complexity alone.
@@ -449,6 +452,9 @@ Establish business context, load configuration, and prepare the session environm
 ---
 
 ## Phase B0.2: Cost & Time Estimation
+
+> **Shared Phase**: Full definition at `${PLUGIN_DIR}/shared-phases/cost-estimation.md`
+> Uses `cost-estimator.sh --intensity ${INTENSITY} --pipeline business`
 
 Based on the decided intensity, estimate costs and time before proceeding. This phase runs immediately after intensity decision for ALL intensity levels.
 
@@ -1724,6 +1730,8 @@ Now execute the main accuracy audit using the debate-determined scope:
 
 ## Phase B6: Multi-Agent Business Review (standard/deep/comprehensive intensity)
 
+> **Feedback Routing**: If `feedback.use_for_routing` is true, read `${PLUGIN_DIR}/shared-phases/feedback-routing.md` and apply feedback-based model-category role assignments before spawning reviewers.
+
 This phase deploys 5 specialized business reviewer teammates plus a debate arbitrator, with optional external CLI models (Codex, Gemini), to perform a comprehensive multi-perspective review of the business content. Each reviewer examines the content from their domain expertise, then they cross-review each other's findings in a structured 3-round debate. External models participate as either Round 1 primary reviewers (if benchmark-assigned at comprehensive intensity) or Round 2 cross-reviewers (default at standard/deep).
 
 ### Step B6.1: Create Agent Team
@@ -2792,7 +2800,7 @@ SendMessage(type: "shutdown_request", recipient: "business-debate-arbitrator", c
 Only send shutdown to teammates that were actually spawned in this session.
 Wait for all shutdown confirmations before cleanup.
 
-### Step B7.3: Cleanup Team
+### Step B7.3: Cleanup Team & Sessions
 
 After ALL teammates have confirmed shutdown:
 
@@ -2800,7 +2808,12 @@ After ALL teammates have confirmed shutdown:
 Teammate(operation: "cleanup")
 ```
 
-**IMPORTANT:** Cleanup will fail if active teammates still exist. Always shutdown all teammates first.
+Clean up stale session directories from previous runs:
+```bash
+bash "${SCRIPTS_DIR}/cache-manager.sh" cleanup-sessions --max-age 24
+```
+
+**IMPORTANT:** Team cleanup will fail if active teammates still exist. Always shutdown all teammates first.
 
 ### Step B7.4: Display Session Reference
 

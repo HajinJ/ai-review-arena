@@ -301,6 +301,68 @@ cmd_hash() {
   project_hash "$project_root"
 }
 
+cmd_cleanup_sessions() {
+  # Clean up stale session directories from /tmp.
+  # Usage: cache-manager.sh cleanup-sessions [--max-age <hours>]
+  local max_age_hours=24
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --max-age) max_age_hours="${2:?--max-age requires a value in hours}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  local removed=0
+  local now_epoch
+  now_epoch=$(date +%s)
+  local max_age_seconds=$((max_age_hours * 3600))
+
+  # Clean /tmp/ai-review-arena* directories
+  for session_dir in /tmp/ai-review-arena*/; do
+    [ -d "$session_dir" ] || continue
+
+    # Get directory modification time
+    local dir_mtime
+    if stat -f %m "$session_dir" &>/dev/null 2>&1; then
+      # macOS / BSD
+      dir_mtime=$(stat -f %m "$session_dir" 2>/dev/null || echo "0")
+    else
+      # GNU/Linux
+      dir_mtime=$(stat -c %Y "$session_dir" 2>/dev/null || echo "0")
+    fi
+
+    local age=$((now_epoch - dir_mtime))
+
+    if [ "$age" -gt "$max_age_seconds" ]; then
+      rm -rf "$session_dir" 2>/dev/null
+      removed=$((removed + 1))
+    fi
+  done
+
+  # Also clean /tmp/arena-config-merged.* temp files
+  for tmp_config in /tmp/arena-config-merged.*.json; do
+    [ -f "$tmp_config" ] || continue
+
+    local file_mtime
+    if stat -f %m "$tmp_config" &>/dev/null 2>&1; then
+      file_mtime=$(stat -f %m "$tmp_config" 2>/dev/null || echo "0")
+    else
+      file_mtime=$(stat -c %Y "$tmp_config" 2>/dev/null || echo "0")
+    fi
+
+    local age=$((now_epoch - file_mtime))
+
+    if [ "$age" -gt "$max_age_seconds" ]; then
+      rm -f "$tmp_config" 2>/dev/null
+      removed=$((removed + 1))
+    fi
+  done
+
+  log_info "Session cleanup complete: removed $removed items"
+  return 0
+}
+
 # =============================================================================
 # Main Dispatch
 # =============================================================================
@@ -308,19 +370,20 @@ cmd_hash() {
 COMMAND="${1:-}"
 
 if [ -z "$COMMAND" ]; then
-  log_error "Usage: cache-manager.sh <read|write|check|list|cleanup|hash> ..."
+  log_error "Usage: cache-manager.sh <read|write|check|list|cleanup|cleanup-sessions|hash> ..."
   exit 0
 fi
 
 shift 1
 
 case "$COMMAND" in
-  read)    cmd_read "$@" ;;
-  write)   cmd_write "$@" ;;
-  check)   cmd_check "$@" ;;
-  list)    cmd_list "$@" ;;
-  cleanup) cmd_cleanup "$@" ;;
-  hash)    cmd_hash "$@" ;;
+  read)             cmd_read "$@" ;;
+  write)            cmd_write "$@" ;;
+  check)            cmd_check "$@" ;;
+  list)             cmd_list "$@" ;;
+  cleanup)          cmd_cleanup "$@" ;;
+  cleanup-sessions) cmd_cleanup_sessions "$@" ;;
+  hash)             cmd_hash "$@" ;;
   *)
     log_error "Unknown command: $COMMAND"
     exit 0

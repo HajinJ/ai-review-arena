@@ -124,8 +124,11 @@
   },
   "routing": {
     "enabled": true,
-    "strategy": "benchmark",
-    "fallback": "default"
+    "strategy": "feedback_benchmark",
+    "fallback": "default",
+    "feedback_weight": 0.6,
+    "benchmark_weight": 0.4,
+    "min_feedback_samples": 5
   },
   "business": {
     "enabled": true,
@@ -247,7 +250,9 @@
     "collect_interactive": true,
     "storage_dir": "cache/feedback",
     "report_period_days": 30,
-    "use_for_routing": false
+    "use_for_routing": true,
+    "min_samples_for_routing": 5,
+    "routing_refresh_interval_hours": 24
   },
   "context_forwarding": {
     "enabled": true,

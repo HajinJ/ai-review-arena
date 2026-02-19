@@ -7,6 +7,7 @@
 #                        [--model <model>] [--category <cat>] [--severity <sev>]
 #   feedback-tracker.sh report [--model <model>] [--category <cat>] [--days <N>]
 #   feedback-tracker.sh stats
+#   feedback-tracker.sh recommend [--days <N>] [--min-samples <N>]
 #
 # Storage:
 #   ~/.claude/plugins/ai-review-arena/cache/feedback/feedback-log.jsonl
@@ -254,6 +255,145 @@ cmd_stats() {
   ' "$FEEDBACK_LOG"
 }
 
+cmd_recommend() {
+  # Analyze accumulated feedback to recommend model-category role assignments.
+  # Combines feedback accuracy with benchmark scores (if available) for routing.
+  local filter_days="$DEFAULT_REPORT_DAYS"
+  local min_samples=5
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --days) filter_days="${2:?--days requires a value}"; shift 2 ;;
+      --min-samples) min_samples="${2:?--min-samples requires a value}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  ensure_feedback_log
+
+  if [ ! -s "$FEEDBACK_LOG" ]; then
+    jq -n '{"status":"insufficient_data","message":"No feedback data available","recommendations":{}}'
+    exit 0
+  fi
+
+  local cutoff_epoch
+  cutoff_epoch=$(( $(date +%s) - (filter_days * 86400) ))
+
+  local cutoff_ts
+  if date -u -r 0 +%Y-%m-%dT%H:%M:%SZ &>/dev/null 2>&1; then
+    cutoff_ts=$(date -u -r "$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "1970-01-01T00:00:00Z")
+  else
+    cutoff_ts=$(date -u -d "@$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "1970-01-01T00:00:00Z")
+  fi
+
+  # Load benchmark scores if available
+  local benchmark_scores="{}"
+  local project_root
+  project_root=$(find_project_root)
+  local benchmark_cache
+  benchmark_cache=$(cache_base_dir "$project_root")/benchmarks/model-scores
+  if [ -f "$benchmark_cache" ]; then
+    benchmark_scores=$(jq '.scores // {}' "$benchmark_cache" 2>/dev/null || echo "{}")
+  fi
+
+  # Compute per-model-category accuracy from feedback, then combine with benchmarks
+  jq -s \
+    --arg cutoff "$cutoff_ts" \
+    --argjson min_samples "$min_samples" \
+    --argjson days "$filter_days" \
+    --argjson bench "$benchmark_scores" \
+    '
+    # Filter by date range
+    [ .[] | select(.timestamp >= $cutoff) ] |
+
+    # Only records with both model and category
+    [ .[] | select(.model != "" and .category != "") ] |
+
+    . as $data |
+
+    # Get unique models and categories
+    ([ $data[].model ] | unique) as $models |
+    ([ $data[].category ] | unique) as $categories |
+
+    # Compute per-model-category scores
+    [
+      $models[] as $m |
+      $categories[] as $c |
+      ([ $data[] | select(.model == $m and .category == $c) ]) as $subset |
+      {
+        model: $m,
+        category: $c,
+        total_feedback: ($subset | length),
+        useful: ([ $subset[] | select(.verdict == "useful") ] | length),
+        false_positive: ([ $subset[] | select(.verdict == "false_positive") ] | length),
+        feedback_accuracy: (
+          if ($subset | length) >= $min_samples then
+            ([ $subset[] | select(.verdict == "useful") ] | length) / ($subset | length) * 100
+            | . * 10 | round | . / 10
+          else null end
+        ),
+        feedback_fp_rate: (
+          if ($subset | length) >= $min_samples then
+            ([ $subset[] | select(.verdict == "false_positive") ] | length) / ($subset | length) * 100
+            | . * 10 | round | . / 10
+          else null end
+        ),
+        benchmark_f1: (
+          $bench[$m] // [] |
+          if type == "array" then
+            [ .[] | select(.category == $c) | .f1 ] | if length > 0 then .[0] else null end
+          else null end
+        )
+      }
+    ] |
+
+    # Compute combined score: 60% feedback accuracy + 40% benchmark F1
+    # If insufficient feedback data, fall back to benchmark only
+    map(
+      . +
+      {
+        combined_score: (
+          if .feedback_accuracy != null and .benchmark_f1 != null then
+            (.feedback_accuracy * 0.6 + .benchmark_f1 * 0.4) | . * 10 | round | . / 10
+          elif .feedback_accuracy != null then
+            .feedback_accuracy
+          elif .benchmark_f1 != null then
+            .benchmark_f1
+          else null end
+        ),
+        data_source: (
+          if .feedback_accuracy != null and .benchmark_f1 != null then "feedback+benchmark"
+          elif .feedback_accuracy != null then "feedback_only"
+          elif .benchmark_f1 != null then "benchmark_only"
+          else "insufficient_data" end
+        )
+      }
+    ) |
+
+    # Group by category and pick best model per category
+    group_by(.category) |
+    map(
+      sort_by(-.combined_score // 0) |
+      {
+        category: .[0].category,
+        recommended_model: ([ .[] | select(.combined_score != null) ] | if length > 0 then .[0].model else null end),
+        rankings: [ .[] | select(.combined_score != null) | {model, combined_score, feedback_accuracy, benchmark_f1, data_source, total_feedback} ]
+      }
+    ) |
+
+    {
+      period_days: $days,
+      min_samples: $min_samples,
+      recommendations: (map({(.category): .}) | add // {}),
+      routing_config: (
+        map(select(.recommended_model != null)) |
+        map({(.category): .recommended_model}) |
+        add // {}
+      )
+    }
+    ' "$FEEDBACK_LOG"
+}
+
 # =============================================================================
 # Main Dispatch
 # =============================================================================
@@ -261,16 +401,17 @@ cmd_stats() {
 COMMAND="${1:-}"
 
 if [ -z "$COMMAND" ]; then
-  log_error "Usage: feedback-tracker.sh <record|report|stats> ..."
+  log_error "Usage: feedback-tracker.sh <record|report|stats|recommend> ..."
   exit 0
 fi
 
 shift 1
 
 case "$COMMAND" in
-  record) cmd_record "$@" ;;
-  report) cmd_report "$@" ;;
-  stats)  cmd_stats "$@" ;;
+  record)    cmd_record "$@" ;;
+  report)    cmd_report "$@" ;;
+  stats)     cmd_stats "$@" ;;
+  recommend) cmd_recommend "$@" ;;
   *)
     log_error "Unknown command: $COMMAND"
     exit 0
