@@ -50,10 +50,16 @@ fi
 
 # --- Read config ---
 TIMEOUT=120
+CODEX_MODEL="gpt-5.3-codex-spark"
 if [ -f "$CONFIG_FILE" ]; then
   cfg_timeout=$(jq -r '.timeout // empty' "$CONFIG_FILE" 2>/dev/null || true)
   if [ -n "$cfg_timeout" ]; then
     TIMEOUT="$cfg_timeout"
+  fi
+
+  cfg_model=$(jq -r '.codex.model_variant // .models.codex.model_variant // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  if [ -n "$cfg_model" ]; then
+    CODEX_MODEL="$cfg_model"
   fi
 fi
 
@@ -83,7 +89,7 @@ RAW_OUTPUT=""
 REVIEW_ERROR=""
 
 RAW_OUTPUT=$(
-  timeout "${TIMEOUT}s" codex exec --full-auto "$FULL_PROMPT" 2>/dev/null
+  timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" "$FULL_PROMPT" 2>/dev/null
 ) || {
   exit_code=$?
   if [ "$exit_code" -eq 124 ]; then

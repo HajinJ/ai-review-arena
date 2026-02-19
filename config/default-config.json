@@ -10,14 +10,15 @@
       "enabled": true,
       "roles": ["bugs", "performance"],
       "command": "codex exec --full-auto",
-      "timeout_seconds": 120
+      "timeout_seconds": 120,
+      "model_variant": "gpt-5.3-codex-spark"
     },
     "gemini": {
       "enabled": true,
       "roles": ["architecture", "testing"],
       "command": "gemini",
       "timeout_seconds": 120,
-      "model_variant": "gemini-2.5-pro"
+      "model_variant": "gemini-3-pro-preview"
     }
   },
   "review": {

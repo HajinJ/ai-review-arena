@@ -159,10 +159,12 @@ CHALLENGE_EOF
 
   local result=""
   if [ "$challenger" = "codex" ]; then
-    result=$(echo "$challenge_prompt" | timeout "${TIMEOUT}s" codex exec --full-auto 2>/dev/null) || true
+    local codex_model
+    codex_model=$(jq -r '.models.codex.model_variant // "gpt-5.3-codex-spark"' "$CONFIG_FILE" 2>/dev/null)
+    result=$(echo "$challenge_prompt" | timeout "${TIMEOUT}s" codex exec --full-auto -m "$codex_model" 2>/dev/null) || true
   elif [ "$challenger" = "gemini" ]; then
     local model_variant
-    model_variant=$(jq -r '.models.gemini.model_variant // "gemini-2.5-pro"' "$CONFIG_FILE" 2>/dev/null)
+    model_variant=$(jq -r '.models.gemini.model_variant // "gemini-3-pro-preview"' "$CONFIG_FILE" 2>/dev/null)
     result=$(timeout "${TIMEOUT}s" gemini --model "$model_variant" "$challenge_prompt" 2>/dev/null) || true
   fi
 

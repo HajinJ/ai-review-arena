@@ -77,9 +77,10 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-# --- Read config for timeouts ---
+# --- Read config for timeouts and model ---
 TIMEOUT_ROUND1=120
 TIMEOUT_ROUND2=180
+CODEX_MODEL="gpt-5.3-codex-spark"
 
 if [ -f "$CONFIG_FILE" ]; then
   cfg_timeout_r1=$(jq -r '.fallback.external_cli_timeout_seconds // empty' "$CONFIG_FILE" 2>/dev/null || true)
@@ -90,6 +91,11 @@ if [ -f "$CONFIG_FILE" ]; then
   fi
   if [ -n "$cfg_timeout_r2" ]; then
     TIMEOUT_ROUND2="$cfg_timeout_r2"
+  fi
+
+  cfg_model=$(jq -r '.codex.model_variant // .models.codex.model_variant // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  if [ -n "$cfg_model" ]; then
+    CODEX_MODEL="$cfg_model"
   fi
 fi
 
@@ -220,7 +226,7 @@ RAW_OUTPUT=""
 REVIEW_ERROR=""
 
 RAW_OUTPUT=$(
-  timeout "${TIMEOUT}s" codex exec --full-auto "$FULL_PROMPT" 2>/dev/null
+  timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" "$FULL_PROMPT" 2>/dev/null
 ) || {
   exit_code=$?
   if [ "$exit_code" -eq 124 ]; then

@@ -84,7 +84,7 @@ fi
 
 # --- Read config ---
 TIMEOUT=120
-MODEL_VARIANT="gemini-2.5-pro"
+MODEL_VARIANT="gemini-3-pro-preview"
 
 if [ -f "$CONFIG_FILE" ]; then
   # Read timeout based on mode

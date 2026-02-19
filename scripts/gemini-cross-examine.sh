@@ -53,7 +53,7 @@ fi
 
 # --- Read config ---
 TIMEOUT=180
-MODEL_VARIANT="gemini-2.5-pro"
+MODEL_VARIANT="gemini-3-pro-preview"
 if [ -f "$CONFIG_FILE" ]; then
   if [ "$ROUND" = "cross-examine" ]; then
     cfg_timeout=$(jq -r '.debate.round2_timeout_seconds // empty' "$CONFIG_FILE" 2>/dev/null || true)
