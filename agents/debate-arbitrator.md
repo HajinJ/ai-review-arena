@@ -581,14 +581,20 @@ SendMessage(
 )
 ```
 
-## When NOT to Escalate
+## Escalation Threshold
 
-Do NOT escalate or flag the following during arbitration — they are normal debate outcomes:
-- Disagreements between reviewers on low-severity findings (let the majority rule)
-- Style preference differences that do not affect functionality or security
-- Findings withdrawn by their original reporter during debate (accepted concession)
-- Duplicate findings from multiple reviewers (merge, do not flag as conflict)
-- Confidence adjustments within +/-10 that do not change the severity category
+A debate outcome requires escalation ONLY when it meets ALL of these criteria:
+- **High severity**: The disagreement involves critical or high-severity findings
+- **Unresolved**: Neither reviewer has conceded or provided sufficient counter-evidence
+- **Actionable impact**: The resolution would change the final recommendation
+
+### Normal Debate Outcomes
+These are expected parts of healthy adversarial review — they indicate the process working correctly:
+- Reviewer disagreements on low-severity findings resolved by majority → healthy debate
+- Style preference differences without functional/security impact → subjective, not escalation-worthy
+- Findings withdrawn by original reporter during debate → accepted concession
+- Duplicate findings from multiple reviewers → merge into single finding
+- Confidence adjustments within +/-10 not changing severity category → normal calibration
 
 ## Error Recovery Protocol
 

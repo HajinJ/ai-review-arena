@@ -206,6 +206,10 @@ Return a JSON object with this structure:
 ${INPUT_CONTENT}
 
 Return only valid JSON. No markdown formatting.
+
+---
+[CORE INSTRUCTION REPEAT]
+Review the business content above for ${CATEGORY} issues. Return findings as structured JSON with fields: severity (critical|high|medium|low), confidence (0.0-1.0), section, title, category, description, and suggestion. Output must be valid JSON only.
 PROMPT_EOF
 )
 
@@ -245,6 +249,10 @@ Return a JSON object with this structure:
 }
 
 Return only valid JSON. No markdown formatting.
+
+---
+[CORE INSTRUCTION REPEAT]
+Cross-review the findings above. For each finding, provide action (challenge|support), confidence_adjustment (-0.3 to +0.3), and reasoning. Return structured JSON with a responses array. Output must be valid JSON only.
 PROMPT_EOF
 )
 

@@ -63,12 +63,16 @@
 - Context density: role-based filtering with per-agent token budgets (8000 tokens default)
 - Memory tiers: 4-tier architecture (working/short-term 7d/long-term 90d/permanent)
 - Pipeline evaluation: precision/recall/F1 metrics with LLM-as-Judge and position bias mitigation
+- Cost estimation: prompt cache discount support (`cost_estimation.prompt_cache_discount`)
+- Stale review detection: git-hash-based invalidation (Code Factory pattern) in aggregate-findings.sh
 
 ## Agent Design
-- All 16 agents have three hardened sections before `## Rules`: `## When NOT to Report/Escalate/Research` + `## Error Recovery Protocol`
-- "When NOT to Report" reduces false positives by listing domain-specific acceptable patterns
+- All 16 agents have three hardened sections before `## Rules`: `## Reporting Threshold` (or `Escalation Threshold`/`Research Threshold`) + `## Error Recovery Protocol`
+- Reporting Threshold uses **positive framing** ("report ONLY when criteria met") to avoid the "pink elephant effect" (arxiv 2602.11988: negative instructions increase agent focus on excluded patterns)
+- Each threshold lists **recognized patterns** (secure patterns, accepted conventions, genre norms) as confirmation of mitigation, not as prohibitions
 - "Error Recovery Protocol" ensures graceful degradation (retry, partial submit, team lead notification)
 - Context density config (`context_density.role_filters`) provides per-role include patterns for focused agent context
+- External CLI prompts use **duplicate prompt technique** (arxiv 2512.14982) for improved accuracy in non-reasoning mode
 
 ## Testing
 - Test with intentionally buggy code to verify detection

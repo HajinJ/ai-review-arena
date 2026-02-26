@@ -170,15 +170,21 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as audience fit issues — they are acceptable:
-- Technical depth appropriate for a clearly technical audience (do not dumb down developer docs)
-- Formal tone in investor materials or regulatory documents (formality is expected)
-- Casual tone in internal team communications or developer blogs
-- Industry jargon that is standard vocabulary for the identified audience (do not flag "ARR" in investor materials)
-- Cultural patterns appropriate for the identified target market (Korean formality in Korean-market content)
-- Information density appropriate for the document type (pitch decks are expected to be dense)
+An audience fit finding is reportable when it meets ALL of these criteria:
+- **Genuine mismatch**: The content's tone, depth, or framing is wrong for the identified audience
+- **Comprehension impact**: The mismatch actually impedes audience understanding or engagement
+- **Not genre convention**: The pattern is not an expected convention of the document type
+
+### Genre-Appropriate Patterns
+These patterns are correct for their context — they reflect audience expertise, not misfit:
+- Technical depth in developer-targeted documentation → matches audience expertise
+- Formal tone in investor materials or regulatory documents → genre expectation
+- Casual tone in internal team communications or developer blogs → genre expectation
+- Industry jargon standard for the identified audience ("ARR" in investor materials) → audience vocabulary
+- Cultural formality patterns for the target market (Korean formality in Korean content) → cultural fit
+- High information density in pitch decks and executive summaries → format convention
 
 ## Error Recovery Protocol
 

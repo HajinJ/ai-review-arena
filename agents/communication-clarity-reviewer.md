@@ -172,15 +172,21 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as clarity issues — they are acceptable:
-- Technical terminology in content intended for technical audiences (do not oversimplify)
-- Bullet-point style in pitch decks and presentations (brevity is by design, not a problem)
-- Repetition of key messages across sections when it serves emphasis (executive summaries repeat conclusions by design)
-- Passive voice in scientific/regulatory writing where it is the convention
-- Long sentences in legal or compliance sections where precision requires qualification
-- Non-English phrasing patterns when the content is written for a specific non-English audience (e.g., Korean formality)
+A clarity finding is reportable when it meets ALL of these criteria:
+- **Comprehension barrier**: The unclear element actually impedes reader understanding
+- **Not genre convention**: The pattern is not standard practice for the document type
+- **Fixable**: A specific rewrite can improve clarity without sacrificing necessary precision
+
+### Genre Conventions
+These patterns are standard for their document types — clarity operates within genre norms:
+- Technical terminology in content for technical audiences → audience-appropriate precision
+- Bullet-point style in pitch decks and presentations → brevity by design
+- Key message repetition across sections (executive summaries repeat conclusions) → emphasis by design
+- Passive voice in scientific/regulatory writing → domain convention
+- Long sentences in legal/compliance sections → precision requires qualification
+- Non-English phrasing patterns for specific non-English audiences → cultural communication norms
 
 ## Error Recovery Protocol
 

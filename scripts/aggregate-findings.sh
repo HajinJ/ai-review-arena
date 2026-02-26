@@ -22,6 +22,19 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
+# --- Stale review detection (Code Factory pattern) ---
+# If code changed since review started, mark findings as potentially stale
+STALE_REVIEW=false
+REVIEW_HASH_FILE="${SESSION_DIR}/.review_commit_hash"
+if [ -f "$REVIEW_HASH_FILE" ]; then
+  REVIEW_HASH=$(cat "$REVIEW_HASH_FILE" 2>/dev/null || true)
+  CURRENT_HASH=$(git rev-parse HEAD 2>/dev/null || true)
+  if [ -n "$REVIEW_HASH" ] && [ -n "$CURRENT_HASH" ] && [ "$REVIEW_HASH" != "$CURRENT_HASH" ]; then
+    STALE_REVIEW=true
+    echo "[arena:warn] Review may be stale: code changed since review started (review: ${REVIEW_HASH:0:8}, current: ${CURRENT_HASH:0:8})" >&2
+  fi
+fi
+
 # --- Read config ---
 CONFIDENCE_THRESHOLD=40
 LINE_PROXIMITY=3
@@ -191,6 +204,11 @@ AGGREGATED=$(echo "$MERGED_FINDINGS" | jq --argjson proximity "$LINE_PROXIMITY" 
 if [ -z "$AGGREGATED" ] || [ "$AGGREGATED" = "[]" ] || [ "$AGGREGATED" = "null" ]; then
   echo "LGTM"
   exit 0
+fi
+
+# --- Mark stale findings ---
+if [ "$STALE_REVIEW" = "true" ]; then
+  AGGREGATED=$(echo "$AGGREGATED" | jq 'map(. + {stale: true, stale_warning: "Code changed after review — re-verify before acting on this finding"})')
 fi
 
 echo "$AGGREGATED"

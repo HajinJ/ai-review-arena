@@ -137,6 +137,8 @@ if [ "$LANG" = "ko" ]; then
   L_MANUAL_REVIEW="수동 검토가 필요합니다"
   L_FOR="찬성"
   L_AGAINST="반대"
+  L_STALE="STALE"
+  L_STALE_WARNING="리뷰 이후 코드가 변경됨 — findings 재검증 필요"
 else
   L_TITLE="## AI Review Arena Report"
   L_MODELS="Models"
@@ -160,6 +162,8 @@ else
   L_MANUAL_REVIEW="Manual review required"
   L_FOR="For"
   L_AGAINST="Against"
+  L_STALE="STALE"
+  L_STALE_WARNING="Code changed after review — re-verify findings"
 fi
 
 # =============================================================================
@@ -169,6 +173,14 @@ fi
 # Header
 echo "$L_TITLE"
 echo ""
+
+# Stale review warning banner
+HAS_STALE=$(echo "$ALL_FINDINGS" | jq '[.[] | select(.stale == true)] | length' 2>/dev/null || echo "0")
+if [ "$HAS_STALE" -gt 0 ]; then
+  echo "> **${L_STALE}**: ${L_STALE_WARNING}"
+  echo ""
+fi
+
 echo "${L_MODELS}: ${MODELS_USED} | ${L_INTENSITY}: ${INTENSITY} | ${L_FOCUS}: ${FOCUS_AREAS:-all}"
 echo "${L_FILES}: ${FILE_COUNT} | ${L_FINDINGS}: ${ACCEPTED_COUNT} ${L_ACCEPTED}, ${REJECTED_COUNT} ${L_REJECTED}, ${DISPUTED_COUNT} ${L_DISPUTED}"
 echo ""

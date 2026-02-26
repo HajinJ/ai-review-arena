@@ -22,6 +22,9 @@ PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 # --- Ensure session directory ---
 mkdir -p "$SESSION_DIR"
 
+# --- Store commit hash for stale review detection (Code Factory pattern) ---
+git rev-parse HEAD > "${SESSION_DIR}/.review_commit_hash" 2>/dev/null || true
+
 # =============================================================================
 # Config Loading
 # =============================================================================

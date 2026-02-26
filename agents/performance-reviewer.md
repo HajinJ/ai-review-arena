@@ -189,16 +189,22 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as performance issues — they have negligible real-world impact:
-- Code in cold paths: application startup, one-time initialization, migration scripts, CLI argument parsing
-- Micro-optimizations with < 1ms impact in non-hot paths (e.g., `for` vs `forEach` in setup code)
-- Test code performance (test execution speed is not a production concern)
-- O(n) operations over collections guaranteed to be small by business domain (e.g., user roles list, enum values)
-- String concatenation outside loops or with < 10 iterations
-- Object spread/clone in non-hot paths where readability outweighs the allocation cost
-- Framework-recommended patterns that are internally optimized (e.g., React.memo where React already batches renders)
+A performance finding is reportable when it meets ALL of these criteria:
+- **Hot path**: The code executes frequently in production (request handling, rendering loops, data processing)
+- **Measurable**: The impact is estimable at > 1ms per invocation or > 1% resource increase at expected load
+- **Production code**: The performance concern exists in deployed code paths
+
+### Negligible-Impact Contexts
+These contexts have inherently bounded performance characteristics — optimize only if profiling data demands it:
+- Application startup, one-time initialization, migration scripts → cold path (runs once)
+- CLI argument parsing, config loading → cold path (runs once per session)
+- Test execution code → test-time only, not production
+- O(n) over business-domain-bounded collections (user roles, enum values, < 100 items) → bounded input
+- String concatenation outside loops or with < 10 iterations → negligible allocation
+- Object spread/clone in non-hot paths → readability over micro-optimization
+- Framework-recommended patterns (React.memo, useMemo guidelines) → internally optimized
 
 ## Error Recovery Protocol
 

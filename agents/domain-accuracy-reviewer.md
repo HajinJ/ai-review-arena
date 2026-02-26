@@ -166,15 +166,21 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as accuracy issues — they are acceptable in context:
-- Forward-looking statements clearly labeled as roadmap, plans, or vision (not presented as current capabilities)
-- Approximate numbers with explicit qualifiers ("approximately", "roughly", "estimated")
-- Industry-standard terminology even if technically simplified (e.g., "AI-powered" for ML-based features)
-- Claims that are verifiable through project documentation you have access to (verify before flagging)
-- Aspirational mission/vision statements that are clearly framed as goals, not achievements
-- Standard marketing superlatives in appropriate context ("leading", "innovative") when not making specific comparative claims
+An accuracy finding is reportable when it meets ALL of these criteria:
+- **Factually verifiable**: The claim can be checked against available data or documentation
+- **Presented as fact**: The claim is stated as current truth, not as a goal, plan, or estimate
+- **Materially misleading**: The inaccuracy could change a reader's decision or perception
+
+### Accepted Approximation Patterns
+These are standard communication practices — their presence is intentional, not inaccurate:
+- Forward-looking statements labeled as roadmap, plans, or vision → clearly framed as future intent
+- Approximate numbers with explicit qualifiers ("approximately", "roughly", "estimated") → acknowledged imprecision
+- Industry-standard simplifications ("AI-powered" for ML-based features) → accepted terminology
+- Claims verifiable through available project documentation → verify before flagging
+- Aspirational mission/vision statements framed as goals → not presented as achievements
+- Standard marketing superlatives ("leading", "innovative") without specific comparative claims → category norms
 
 ## Error Recovery Protocol
 

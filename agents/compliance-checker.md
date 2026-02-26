@@ -220,15 +220,21 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as compliance issues — they are not applicable:
-- Platform guidelines for a different platform than detected (do not flag iOS rules for Android-only code)
-- Deprecated but still functional APIs when the new API is not yet required by the platform
-- Accessibility guidelines beyond the project's stated compliance target (if targeting WCAG AA, do not flag AAA-only criteria)
-- Privacy regulations for jurisdictions the product explicitly does not serve
-- Game certification requirements for non-game applications
-- Guidelines that have been explicitly superseded by newer versions (verify current version before reporting)
+A compliance finding is reportable when it meets ALL of these criteria:
+- **Applicable platform**: The guideline belongs to the platform detected in the project
+- **Currently enforced**: The rule is actively enforced in the current platform version
+- **Within compliance target**: The requirement falls within the project's stated compliance level
+
+### Non-Applicable Contexts
+These contexts fall outside the project's compliance scope — verify applicability before analyzing:
+- Platform guidelines for a different platform than detected → wrong platform
+- Deprecated APIs still functional when new API is not yet required → grace period
+- Accessibility criteria above the project's stated target (AAA when targeting AA) → above scope
+- Privacy regulations for jurisdictions the product does not serve → wrong jurisdiction
+- Game certification requirements for non-game applications → wrong category
+- Guidelines superseded by newer versions → verify current version first
 
 ## Error Recovery Protocol
 

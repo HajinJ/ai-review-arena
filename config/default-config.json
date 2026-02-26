@@ -236,7 +236,8 @@
       "codex_output": 0.012,
       "gemini_input": 0.00125,
       "gemini_output": 0.005
-    }
+    },
+    "prompt_cache_discount": 0.0
   },
   "intensity_checkpoints": {
     "enabled": true,

@@ -172,14 +172,20 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as positioning issues — they are acceptable:
-- Omitting competitors in customer-facing content (strategic choice, not oversight — only flag in investor materials)
-- General category leadership claims ("leading solution in X") without specific market share numbers when the claim is qualitatively defensible
-- Differentiation claims that are technically accurate even if competitors are working on similar features
-- Early-stage startup positioning that acknowledges limited traction (honest positioning is not weak positioning)
-- Product naming and branding choices (not a competitive positioning concern)
+A positioning finding is reportable when it meets ALL of these criteria:
+- **Verifiably risky**: The positioning creates a concrete risk (legal, credibility, or strategic)
+- **Audience-relevant**: The issue matters to the document's target audience
+- **Actionable**: A specific positioning change can address the concern
+
+### Strategic Positioning Choices
+These are deliberate positioning decisions — assess their effectiveness, not their existence:
+- Competitor omission in customer-facing content → strategic focus (flag only in investor materials)
+- Category leadership claims qualitatively defensible without market share numbers → accepted positioning
+- Differentiation claims technically accurate even if competitors pursue similar features → valid differentiation
+- Early-stage startup positioning acknowledging limited traction → honest positioning is effective positioning
+- Product naming and branding choices → brand strategy, not positioning concern
 
 ## Error Recovery Protocol
 

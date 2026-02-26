@@ -186,16 +186,22 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as test coverage gaps — they do not need dedicated tests:
-- Trivial getters/setters with no logic or transformation
-- Generated code: protobuf stubs, ORM migrations, codegen output, GraphQL types
-- Type definitions, interfaces, and type aliases (no runtime behavior to test)
-- Configuration constants and simple enums with no logic branches
-- Third-party library thin wrappers with 1:1 delegation and no custom logic
-- Framework boilerplate: main entry points, module declarations, dependency injection registration
-- Dead code flagged for removal (should be deleted, not tested)
+A test coverage finding is reportable when it meets ALL of these criteria:
+- **Has runtime behavior**: The code contains logic branches, transformations, or side effects
+- **Testable in isolation**: The code can be meaningfully unit/integration tested without mocking the entire system
+- **Production code**: The code ships to users (not generated, not type-only, not dead code)
+
+### Inherently Untestable Patterns
+These patterns have no meaningful runtime behavior to verify — tests would be tautological:
+- Trivial getters/setters with no logic or transformation → no branch to cover
+- Generated code (protobuf stubs, ORM migrations, codegen output) → machine-verified
+- Type definitions, interfaces, and type aliases → compile-time only
+- Configuration constants and simple enums with no logic → declarative, no branches
+- Third-party library thin wrappers with 1:1 delegation → tested by upstream library
+- Framework boilerplate (main entry, module declarations, DI registration) → framework-verified
+- Dead code flagged for removal → should be deleted, not tested
 
 ## Error Recovery Protocol
 

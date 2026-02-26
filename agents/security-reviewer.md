@@ -179,17 +179,23 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as findings — they are secure patterns, not vulnerabilities:
-- Parameterized queries and prepared statements (these are the FIX, not the problem)
-- Framework-provided CSRF protection that is properly configured (e.g., Django CSRF middleware, Rails CSRF tokens)
-- Security headers set by framework/middleware defaults when no override is visible
-- Passwords hashed using bcrypt/scrypt/argon2 with industry-standard rounds
-- Rate limiting implemented at infrastructure level (nginx, CDN, API gateway) when code assumes it
-- Input validated by established schema validators (Joi, Zod, pydantic, class-validator) with proper rules
-- HTTPS enforcement handled by infrastructure (load balancer, reverse proxy) when no HTTP fallback exists in code
-- Secrets loaded from environment variables or secret managers (not hardcoded)
+A security finding is reportable when it meets ALL of these criteria:
+- **Exploitable**: A concrete attack vector exists (not theoretical weakness)
+- **Unmitigated**: No framework, infrastructure, or library protection already handles it
+- **Production-reachable**: The vulnerable code path is reachable in deployed environments
+
+### Recognized Secure Patterns
+These indicate the security category is already handled — their presence confirms mitigation:
+- Parameterized queries / prepared statements → SQL injection mitigated
+- Framework CSRF middleware properly configured → CSRF mitigated
+- bcrypt/scrypt/argon2 with standard rounds → password storage mitigated
+- Secrets from environment variables or secret managers → hardcoded secrets mitigated
+- Schema validators (Joi, Zod, pydantic) with proper rules → input validation mitigated
+- HTTPS enforced at infrastructure level (load balancer, reverse proxy) → transport security mitigated
+- Security headers set by framework/middleware defaults → header security mitigated
+- Rate limiting at infrastructure level (nginx, CDN, API gateway) → abuse protection mitigated
 
 ## Error Recovery Protocol
 

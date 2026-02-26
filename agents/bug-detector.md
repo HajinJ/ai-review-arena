@@ -181,16 +181,22 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as bugs — they are intentional patterns or framework-managed behavior:
-- Intentional type coercion documented with comments or consistent project convention
-- Empty catch blocks with explicit justification comments (e.g., `// intentionally swallowed`)
-- Optional chaining gaps where framework or type system guarantees non-null at runtime (e.g., required props)
-- Framework-managed state edge cases handled internally (React Query retries, SWR revalidation, Redux middleware)
-- Test files using assertions that intentionally trigger error paths (e.g., `expect(() => fn()).toThrow()`)
-- Loose equality (`==`) in contexts where coercion is intentional and documented (e.g., `value == null` for null+undefined)
-- Fire-and-forget patterns explicitly marked as non-critical (e.g., analytics, logging)
+A bug finding is reportable when it meets ALL of these criteria:
+- **Observable**: The behavior deviates from documented or inferred intent
+- **Unhandled**: No framework, type system, or explicit convention manages it
+- **Reproducible**: A concrete trigger path or input exists (not speculative)
+
+### Accepted Conventions
+These are intentional patterns — their presence confirms deliberate design:
+- Type coercion with documentation or consistent project convention → intentional casting
+- Empty catch blocks with explicit justification comments → intentional error suppression
+- Optional chaining gaps where framework/type system guarantees non-null at runtime → safe access
+- Framework-managed state (React Query retries, SWR revalidation, Redux middleware) → handled by framework
+- Test assertions triggering error paths (`expect(() => fn()).toThrow()`) → intentional test behavior
+- `value == null` for null+undefined checks with consistent project usage → accepted loose equality
+- Fire-and-forget calls explicitly marked non-critical (analytics, logging) → intentional async pattern
 
 ## Error Recovery Protocol
 

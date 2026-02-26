@@ -206,16 +206,22 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as architectural issues — they are acceptable in context:
-- Small scripts and utilities under 200 lines (different architectural needs than large applications)
-- Prototyping/experimental code explicitly marked as such (e.g., in `/experimental`, `/poc`, `/prototype` directories)
-- Generated code: ORM migrations, GraphQL codegen, protobuf stubs, OpenAPI client code
-- Test fixtures, test helpers, and test factory code (different quality bar than production code)
-- Configuration files that are inherently flat (JSON/YAML configs are not "god objects")
-- Monorepo root-level orchestration files (inherently cross-cutting by nature)
-- Temporary coupling during active refactoring when migration path is evident from commit history or comments
+An architecture finding is reportable when it meets ALL of these criteria:
+- **Scale-relevant**: The issue affects maintainability as the codebase grows beyond its current size
+- **Production code**: The code is part of the shipped product (not tooling, tests, or generated output)
+- **Persistent**: The pattern is a settled architectural choice, not a mid-migration temporary state
+
+### Context-Appropriate Exceptions
+These contexts operate under different architectural standards — assess within their own norms:
+- Small scripts and utilities under 200 lines → different architectural needs
+- Code in `/experimental`, `/poc`, `/prototype` directories → exploration-grade standards
+- Generated code (ORM migrations, GraphQL codegen, protobuf stubs, OpenAPI clients) → machine-managed
+- Test fixtures, helpers, and factory code → test-grade standards
+- Configuration files (JSON/YAML) → inherently flat, not "god objects"
+- Monorepo root-level orchestration → inherently cross-cutting
+- Active refactoring with evident migration path (commit history/comments) → transitional state
 
 ## Error Recovery Protocol
 

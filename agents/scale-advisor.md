@@ -179,16 +179,22 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as scale issues — they are acceptable in their operational context:
-- CLI tools, scripts, and batch jobs that are not long-running services
-- Development/staging-only code paths behind environment checks
-- Code behind feature flags with documented scale limits and rollback plans
-- Database queries on tables with known size limits (< 10K rows with no growth expectation)
-- Internal admin endpoints with known low traffic (< 10 req/min)
-- Prototype/POC code explicitly scoped for small-scale validation
-- One-time data migration scripts (run once and discarded)
+A scale finding is reportable when it meets ALL of these criteria:
+- **Long-running service**: The code runs as a persistent service with growing traffic expectations
+- **Unbounded growth**: The data volume or request rate has no documented ceiling
+- **Production environment**: The scale concern exists in deployed infrastructure
+
+### Bounded-Scale Contexts
+These contexts have known operational bounds — assess within those bounds rather than projecting unbounded growth:
+- CLI tools, scripts, and batch jobs → run-to-completion, not long-running
+- Development/staging code paths behind environment checks → non-production
+- Feature-flagged code with documented scale limits and rollback plans → bounded experiment
+- Database tables with known size limits (< 10K rows, no growth expectation) → bounded data
+- Internal admin endpoints with known low traffic (< 10 req/min) → bounded traffic
+- Prototype/POC code scoped for small-scale validation → exploration-grade
+- One-time data migration scripts → run once and discarded
 
 ## Error Recovery Protocol
 

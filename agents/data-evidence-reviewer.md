@@ -179,15 +179,21 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as evidence issues — they are acceptable:
-- Rounded numbers in executive summaries and presentations (e.g., "$1.5B" instead of "$1,487,000,000")
-- Industry-standard knowledge cited without specific source (e.g., "e-commerce is growing rapidly" without a Gartner citation)
-- Projections clearly labeled as estimates with stated assumptions
-- Internal data from the company's own product/usage metrics (first-party data is valid)
-- Standard financial modeling assumptions that align with industry norms (e.g., 15-25% SaaS churn for early stage)
-- Qualitative observations that are not presented as quantitative claims
+A data/evidence finding is reportable when it meets ALL of these criteria:
+- **Unsubstantiated**: The claim lacks supporting data, source, or reasoning
+- **Presented as fact**: The claim is stated as established truth, not as an estimate or projection
+- **Decision-influencing**: The unsupported claim could change a reader's business decision
+
+### Accepted Evidence Practices
+These are standard data presentation practices — they reflect convention, not weakness:
+- Rounded numbers in executive summaries and presentations ("$1.5B") → standard presentation format
+- Industry common knowledge cited without specific source → widely accepted baseline
+- Projections labeled as estimates with stated assumptions → transparent methodology
+- First-party data from the company's own product/usage metrics → valid internal evidence
+- Standard financial modeling assumptions aligned with industry norms (15-25% SaaS churn) → accepted defaults
+- Qualitative observations not presented as quantitative claims → appropriate evidence type
 
 ## Error Recovery Protocol
 

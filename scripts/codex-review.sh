@@ -81,6 +81,10 @@ ${PROMPT_TEMPLATE}
 --- FILE: ${FILE_PATH} ---
 ${FILE_CONTENT}
 --- END FILE ---
+
+---
+[CORE INSTRUCTION REPEAT]
+Review the code above for ${ROLE} issues in file ${FILE_PATH}. Return findings as structured JSON with fields: severity (critical|high|medium|low), description, file, line, and suggestion. Output must be valid JSON only.
 PROMPT_EOF
 )
 

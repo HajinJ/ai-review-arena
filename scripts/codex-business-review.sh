@@ -176,6 +176,10 @@ Focus ONLY on CATEGORY_PLACEHOLDER issues. Be specific and constructive.
 --- BUSINESS CONTENT ---
 CONTENT_PLACEHOLDER
 --- END CONTENT ---
+
+---
+[CORE INSTRUCTION REPEAT]
+Review the business content above for CATEGORY_PLACEHOLDER issues. Return findings as structured JSON with fields: severity (critical|high|medium|low), confidence (0.0-1.0), section, title, category, description, and suggestion. Output must be valid JSON only.
 PROMPT_EOF
 )
   FULL_PROMPT="${FULL_PROMPT//CATEGORY_PLACEHOLDER/$CATEGORY}"
@@ -216,6 +220,10 @@ Be rigorous and objective. Only challenge findings with clear reasoning.
 --- INPUT DATA ---
 CONTENT_PLACEHOLDER
 --- END INPUT ---
+
+---
+[CORE INSTRUCTION REPEAT]
+Cross-review the findings above. For each finding, provide action (challenge|support), confidence_adjustment (-0.3 to +0.3), and reasoning. Return structured JSON with a responses array. Output must be valid JSON only.
 PROMPT_EOF
 )
   FULL_PROMPT="${FULL_PROMPT//CONTENT_PLACEHOLDER/$CONTENT}"

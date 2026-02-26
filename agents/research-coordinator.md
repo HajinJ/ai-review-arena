@@ -202,14 +202,20 @@ SendMessage(
 )
 ```
 
-## When NOT to Research
+## Research Threshold
 
-Do NOT pursue the following research directions — they add noise without value:
-- General programming language tutorials or beginner guides (assume team competence)
-- Best practices for technologies not detected in the project stack
-- Theoretical comparisons when the technology choice is already made and stable
-- Historical background on well-established technologies (e.g., "what is REST")
-- Compliance guidelines for platforms/jurisdictions not relevant to the project
+A research direction is worth pursuing ONLY when it meets ALL of these criteria:
+- **Project-relevant**: The technology or practice is detected in or planned for the current project stack
+- **Implementation-actionable**: The findings will directly inform a coding or architecture decision
+- **Beyond team baseline**: The topic is specific enough that a competent team would benefit from external references
+
+### Out-of-Scope Research
+These research directions produce noise rather than signal — redirect effort to project-specific topics:
+- General programming language tutorials or beginner guides → assume team competence
+- Best practices for technologies not in the detected project stack → not applicable
+- Theoretical comparisons when technology choice is already settled and stable → decision already made
+- Historical background on well-established technologies (e.g., "what is REST") → common knowledge
+- Compliance guidelines for irrelevant platforms/jurisdictions → wrong scope
 
 ## Error Recovery Protocol
 

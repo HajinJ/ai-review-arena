@@ -55,6 +55,18 @@ CODEX_OUTPUT_PRICE="10.00"
 GEMINI_INPUT_PRICE="1.25"
 GEMINI_OUTPUT_PRICE="10.00"
 
+# --- Prompt cache awareness ---
+# Claude prompt caching: cached input tokens billed at ~10% of base price (90% discount).
+# cache_discount = overall expected input cost reduction ratio (0.0 = no caching, 0.5 = 50% input savings).
+# Agent workflows with stable system prompts typically achieve 0.4-0.6 effective discount.
+CACHE_DISCOUNT="0.0"
+if [ -f "$CONFIG_FILE" ]; then
+  cfg_cache=$(jq -r '.cost_estimation.prompt_cache_discount // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  if [ -n "$cfg_cache" ]; then
+    CACHE_DISCOUNT="$cfg_cache"
+  fi
+fi
+
 # --- Read config ---
 OUTPUT_LANG=$(jq -r '.output.language // "ko"' "$CONFIG_FILE" 2>/dev/null)
 claude_enabled=$(jq -r '.models.claude.enabled // false' "$CONFIG_FILE" 2>/dev/null)
@@ -81,10 +93,13 @@ calc_cost() {
   local output_tokens="$2"
   local input_price="$3"
   local output_price="$4"
+  local cache_disc="${5:-$CACHE_DISCOUNT}"
 
+  # Apply prompt cache discount to input tokens:
+  # Effective input price = base_price * (1 - cache_discount)
   awk -v it="$input_tokens" -v ot="$output_tokens" \
-      -v ip="$input_price" -v op="$output_price" \
-      'BEGIN { printf "%.4f", (it/1000000)*ip + (ot/1000000)*op }'
+      -v ip="$input_price" -v op="$output_price" -v cd="$cache_disc" \
+      'BEGIN { printf "%.4f", (it/1000000)*ip*(1-cd) + (ot/1000000)*op }'
 }
 
 format_cost() {
@@ -339,6 +354,7 @@ if [ "$OUTPUT_JSON" = "true" ]; then
     --argjson claude_agents "$claude_agent_count" \
     --argjson cli_calls "$cli_call_count" \
     --argjson lines "$TOTAL_INPUT_LINES" \
+    --arg cache_discount "$CACHE_DISCOUNT" \
     '{
       intensity: $intensity,
       pipeline: $pipeline,
@@ -347,7 +363,8 @@ if [ "$OUTPUT_JSON" = "true" ]; then
       external_cli_calls: $cli_calls,
       total_tokens: $total_tokens,
       total_cost_usd: ($total_cost | tonumber),
-      est_minutes: $est_minutes
+      est_minutes: $est_minutes,
+      prompt_cache_discount: ($cache_discount | tonumber)
     }'
   exit 0
 fi
@@ -367,6 +384,9 @@ if [ "$OUTPUT_LANG" = "ko" ]; then
   echo "### 합계"
   echo "예상 토큰: ~${TOTAL_TOKENS}"
   echo "예상 비용: $(format_cost "$TOTAL_COST_VAL")"
+  if [ "$(echo "$CACHE_DISCOUNT > 0" | bc 2>/dev/null)" = "1" ]; then
+    echo "프롬프트 캐시 할인: $(awk -v d="$CACHE_DISCOUNT" 'BEGIN{printf "%d", d*100}')% (입력 토큰)"
+  fi
   echo "예상 시간: ~${EST_MINUTES}분"
 else
   echo "## Cost & Time Estimate"
@@ -382,5 +402,8 @@ else
   echo "### Total"
   echo "Est. Tokens: ~${TOTAL_TOKENS}"
   echo "Est. Cost: $(format_cost "$TOTAL_COST_VAL")"
+  if [ "$(echo "$CACHE_DISCOUNT > 0" | bc 2>/dev/null)" = "1" ]; then
+    echo "Prompt Cache Discount: $(awk -v d="$CACHE_DISCOUNT" 'BEGIN{printf "%d", d*100}')% (input tokens)"
+  fi
   echo "Est. Time: ~${EST_MINUTES} min"
 fi

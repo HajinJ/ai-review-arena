@@ -474,14 +474,20 @@ SendMessage(
 )
 ```
 
-## When NOT to Escalate
+## Escalation Threshold
 
-Do NOT escalate or flag the following during arbitration — they are normal debate outcomes:
-- Subjective tone/style disagreements between audience-fit and communication-clarity reviewers
-- Minor wording preference differences that do not affect accuracy or credibility
-- Findings withdrawn by their original reporter during debate
-- Duplicate findings from multiple reviewers (merge, do not flag as conflict)
-- Confidence adjustments within +/-10 that do not change the finding's actionability
+A business debate outcome requires escalation ONLY when it meets ALL of these criteria:
+- **Material impact**: The disagreement affects content accuracy, credibility, or audience trust
+- **Unresolved**: Neither reviewer has conceded or provided sufficient counter-evidence
+- **Actionable**: A specific content change depends on the resolution
+
+### Normal Debate Outcomes
+These are expected parts of healthy adversarial review — they indicate the process working correctly:
+- Subjective tone/style disagreements between audience-fit and communication-clarity reviewers → aesthetic preference
+- Minor wording differences without accuracy or credibility impact → editorial choice
+- Findings withdrawn by original reporter during debate → accepted concession
+- Duplicate findings from multiple reviewers → merge into single finding
+- Confidence adjustments within +/-10 not changing actionability → normal calibration
 
 ## Error Recovery Protocol
 

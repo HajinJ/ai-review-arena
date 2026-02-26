@@ -253,6 +253,48 @@ Package AI Review Arena as a distributable extension that other teams can instal
 
 ---
 
+---
+
+## 6. Applied Research Findings (2026-02-26)
+
+These research findings have been applied to the current codebase:
+
+### 6a. Pink Elephant Effect Mitigation (arxiv 2602.11988)
+
+**Applied**: All 16 agent specs reframed from negative ("When NOT to Report") to positive ("Reporting Threshold") framing.
+
+**Evidence**: LLM-generated context files with negative instructions decrease SWE-bench success by 0.5%, AgentBench by 2%, and increase inference cost 20-23%. The "pink elephant effect" causes agents to focus MORE on what they're told NOT to do.
+
+**Our approach**: Positive criteria ("report ONLY when exploitable + unmitigated + production-reachable") with recognized patterns listed as confirmations of mitigation, not prohibitions.
+
+### 6b. Duplicate Prompt Technique (arxiv 2512.14982)
+
+**Applied**: Core review instructions repeated in codex-review.sh, gemini-review.sh, and business variants.
+
+**Evidence**: 47/70 benchmark wins, 0 losses for non-reasoning LLMs. Gemini Flash-Lite accuracy improved from 21.33% to 97.33% on NameIndex. No output token or latency increase. Effect diminishes with 3x repetition vs 2x.
+
+**Limitation**: Only effective for non-reasoning mode. Claude agents using extended thinking do not benefit (5 wins, 1 loss, 22 ties in reasoning mode).
+
+### 6c. Stale Review Invalidation (Code Factory)
+
+**Applied**: Git-hash-based review freshness check in orchestrate-review.sh + aggregate-findings.sh.
+
+**Mechanism**: Commit hash stored when review starts. Before aggregation, current HEAD is compared. If changed, findings are marked `stale: true` with warning banner in generated reports.
+
+### 6d. Prompt Cache-Aware Cost Estimation
+
+**Applied**: `cost_estimation.prompt_cache_discount` config in default-config.json. Cost estimator applies discount to input token pricing.
+
+**Background**: Claude prompt caching (prefix-matching) can reduce input costs by up to 90%. Agent workflows with stable system prompts typically achieve 40-60% effective discount. Default is 0.0 (conservative).
+
+### Sources
+- [AGENTS.md Benchmark Paper](https://arxiv.org/abs/2602.11988)
+- [Duplicate Prompt Paper](https://arxiv.org/abs/2512.14982)
+- [Code Factory Framework](https://ryancarson.com/code-factory/)
+- [Claude Code Prompt Caching](https://www.anthropic.com/engineering/prompt-caching-in-claude-code)
+
+---
+
 ## Summary: Priority Matrix
 
 | Item | Priority | Status | Can Start Now? |
@@ -263,3 +305,7 @@ Package AI Review Arena as a distributable extension that other teams can instal
 | Gemini hook adapter | Medium | v0.26 available | Yes |
 | Remote Control monitoring | Low | No API | No |
 | Agent marketplace | Low | Design phase | No |
+| Pink elephant fix | **Done** | Applied | Completed |
+| Duplicate prompt | **Done** | Applied | Completed |
+| Stale review invalidation | **Done** | Applied | Completed |
+| Cache-aware cost estimation | **Done** | Applied | Completed |

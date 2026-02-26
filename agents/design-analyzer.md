@@ -249,14 +249,20 @@ SendMessage(
 )
 ```
 
-## When NOT to Report
+## Reporting Threshold
 
-Do NOT report the following as design issues — they are acceptable:
-- Minor spacing differences (< 4px) between Figma design and implementation
-- Color variations within the same design token family
-- Platform-specific adaptations (iOS vs Android rendering differences)
-- Responsive layout adjustments that maintain design intent at different breakpoints
-- Animation timing differences that do not affect usability
+A design finding is reportable when it meets ALL of these criteria:
+- **Visually significant**: The deviation is noticeable to users (not sub-pixel differences)
+- **Intent-breaking**: The deviation changes the design's intended visual hierarchy, branding, or usability
+- **Implementable**: A specific code change can address the deviation
+
+### Acceptable Implementation Variations
+These variations are inherent to the design-to-code translation process — they preserve design intent:
+- Minor spacing differences (< 4px) between Figma design and implementation → sub-pixel tolerance
+- Color variations within the same design token family → token-level consistency maintained
+- Platform-specific rendering adaptations (iOS vs Android) → platform-appropriate
+- Responsive layout adjustments maintaining design intent at different breakpoints → responsive by design
+- Animation timing differences not affecting usability → implementation-appropriate
 
 ## Error Recovery Protocol
 
