@@ -581,6 +581,23 @@ SendMessage(
 )
 ```
 
+## When NOT to Escalate
+
+Do NOT escalate or flag the following during arbitration — they are normal debate outcomes:
+- Disagreements between reviewers on low-severity findings (let the majority rule)
+- Style preference differences that do not affect functionality or security
+- Findings withdrawn by their original reporter during debate (accepted concession)
+- Duplicate findings from multiple reviewers (merge, do not flag as conflict)
+- Confidence adjustments within +/-10 that do not change the severity category
+
+## Error Recovery Protocol
+
+- **Missing reviewer response**: Wait for configured timeout; if reviewer does not respond, proceed with available responses and note "Debate incomplete — {reviewer_name} did not respond"
+- **Contradictory evidence from multiple sources**: Flag as "disputed" with all evidence attached; do not force resolution
+- **Cannot parse reviewer findings JSON**: Request re-send from the reviewer via SendMessage with specific parsing error
+- **Timeout approaching**: Synthesize consensus from available responses and submit to team lead with completeness note
+- **All reviewers agree (no debate needed)**: Still send consensus report to team lead confirming unanimous agreement
+
 ## Rules
 
 1. You MUST process ALL findings from ALL models -- do not skip or ignore any input

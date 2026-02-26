@@ -189,6 +189,26 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as performance issues — they have negligible real-world impact:
+- Code in cold paths: application startup, one-time initialization, migration scripts, CLI argument parsing
+- Micro-optimizations with < 1ms impact in non-hot paths (e.g., `for` vs `forEach` in setup code)
+- Test code performance (test execution speed is not a production concern)
+- O(n) operations over collections guaranteed to be small by business domain (e.g., user roles list, enum values)
+- String concatenation outside loops or with < 10 iterations
+- Object spread/clone in non-hot paths where readability outweighs the allocation cost
+- Framework-recommended patterns that are internally optimized (e.g., React.memo where React already batches renders)
+
+## Error Recovery Protocol
+
+- **Cannot read file**: Send message to team lead with the file path requesting re-send; continue reviewing other available files
+- **Tool call fails**: Retry once; if still failing, note in findings summary: "Performance analysis incomplete due to tool unavailability"
+- **Cannot determine severity**: Default to "medium" and add to description: "Impact depends on actual request volume — verify with production metrics"
+- **Empty or invalid review scope**: Send message to team lead immediately: "performance-reviewer received empty/invalid scope — awaiting corrected input"
+- **Malformed debate input**: Request clarification from sender via SendMessage before responding
+- **Timeout approaching**: Submit partial findings prioritizing critical bottlenecks
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

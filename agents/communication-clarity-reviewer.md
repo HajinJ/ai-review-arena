@@ -172,6 +172,25 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as clarity issues — they are acceptable:
+- Technical terminology in content intended for technical audiences (do not oversimplify)
+- Bullet-point style in pitch decks and presentations (brevity is by design, not a problem)
+- Repetition of key messages across sections when it serves emphasis (executive summaries repeat conclusions by design)
+- Passive voice in scientific/regulatory writing where it is the convention
+- Long sentences in legal or compliance sections where precision requires qualification
+- Non-English phrasing patterns when the content is written for a specific non-English audience (e.g., Korean formality)
+
+## Error Recovery Protocol
+
+- **Cannot read content section**: Send message to team lead requesting the missing section; continue reviewing available content
+- **Tool call fails**: Retry once; if still failing, note in summary: "Some analysis skipped due to tool unavailability"
+- **Cannot determine severity**: Default to "medium" and add: "Clarity impact depends on reader familiarity with the domain"
+- **Empty or invalid review scope**: Send message to team lead immediately: "communication-clarity-reviewer received empty/invalid scope — awaiting corrected input"
+- **Malformed debate input**: Request clarification from sender via SendMessage before responding
+- **Timeout approaching**: Submit partial findings with available scorecard
+
 ## Rules
 
 1. Every finding MUST reference a specific section and include the original text

@@ -181,6 +181,26 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as bugs — they are intentional patterns or framework-managed behavior:
+- Intentional type coercion documented with comments or consistent project convention
+- Empty catch blocks with explicit justification comments (e.g., `// intentionally swallowed`)
+- Optional chaining gaps where framework or type system guarantees non-null at runtime (e.g., required props)
+- Framework-managed state edge cases handled internally (React Query retries, SWR revalidation, Redux middleware)
+- Test files using assertions that intentionally trigger error paths (e.g., `expect(() => fn()).toThrow()`)
+- Loose equality (`==`) in contexts where coercion is intentional and documented (e.g., `value == null` for null+undefined)
+- Fire-and-forget patterns explicitly marked as non-critical (e.g., analytics, logging)
+
+## Error Recovery Protocol
+
+- **Cannot read file**: Send message to team lead with the file path requesting re-send; continue reviewing other available files
+- **Tool call fails**: Retry once; if still failing, note in findings summary: "Some analysis skipped due to tool unavailability"
+- **Cannot determine severity**: Default to "medium" and add to description: "Severity uncertain — trigger conditions depend on runtime context not visible in review scope"
+- **Empty or invalid review scope**: Send message to team lead immediately: "bug-detector received empty/invalid scope — awaiting corrected input"
+- **Malformed debate input**: Request clarification from sender via SendMessage before responding
+- **Timeout approaching**: Submit partial findings with summary noting incomplete coverage
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

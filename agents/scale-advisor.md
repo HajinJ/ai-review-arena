@@ -179,6 +179,26 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as scale issues — they are acceptable in their operational context:
+- CLI tools, scripts, and batch jobs that are not long-running services
+- Development/staging-only code paths behind environment checks
+- Code behind feature flags with documented scale limits and rollback plans
+- Database queries on tables with known size limits (< 10K rows with no growth expectation)
+- Internal admin endpoints with known low traffic (< 10 req/min)
+- Prototype/POC code explicitly scoped for small-scale validation
+- One-time data migration scripts (run once and discarded)
+
+## Error Recovery Protocol
+
+- **Cannot read file**: Send message to team lead with the file path requesting re-send; continue reviewing other available files
+- **Tool call fails**: Retry once; if still failing, note in findings summary: "Scale analysis incomplete — some files could not be analyzed"
+- **Cannot determine severity**: Default to "medium" and add to description: "Scale threshold uncertain — verify against actual production traffic data"
+- **Empty or invalid review scope**: Send message to team lead immediately: "scale-advisor received empty/invalid scope — awaiting corrected input"
+- **Malformed debate input**: Request clarification from sender via SendMessage before responding
+- **Timeout approaching**: Submit partial findings prioritizing critical scale risks
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

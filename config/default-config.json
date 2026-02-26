@@ -264,5 +264,84 @@
       "total_hard_limit": 20000
     },
     "summarize_if_exceeds": true
+  },
+  "context_density": {
+    "enabled": true,
+    "role_based_filtering": true,
+    "agent_context_budget_tokens": 8000,
+    "role_filters": {
+      "security": {
+        "include_patterns": ["auth", "login", "password", "token", "session", "cookie", "csrf", "cors", "sanitiz", "escap", "encrypt", "hash", "secret", "key", "inject", "query", "exec", "spawn", "eval"],
+        "include_file_patterns": ["*auth*", "*security*", "*middleware*", "*session*", "*crypto*"],
+        "priority": "input_validation_and_auth_flows"
+      },
+      "bugs": {
+        "include_patterns": ["catch", "throw", "error", "null", "undefined", "async", "await", "promise", "race", "lock", "mutex", "==" , "!=", "switch", "break", "return"],
+        "include_file_patterns": ["*"],
+        "priority": "error_handling_and_control_flow"
+      },
+      "performance": {
+        "include_patterns": ["for", "while", "map", "filter", "reduce", "query", "select", "join", "index", "cache", "memo", "async", "await", "Promise.all", "setTimeout", "setInterval", "buffer", "stream"],
+        "include_file_patterns": ["*service*", "*repository*", "*handler*", "*controller*", "*route*"],
+        "priority": "hot_paths_and_data_operations"
+      },
+      "architecture": {
+        "include_patterns": ["import", "export", "class", "interface", "extends", "implements", "module", "inject", "provider", "factory", "singleton", "abstract"],
+        "include_file_patterns": ["*"],
+        "priority": "module_boundaries_and_dependencies"
+      },
+      "testing": {
+        "include_patterns": ["describe", "it", "test", "expect", "assert", "mock", "spy", "stub", "before", "after", "jest", "vitest", "pytest"],
+        "include_file_patterns": ["*test*", "*spec*", "*.test.*", "*.spec.*"],
+        "priority": "test_files_and_tested_code"
+      }
+    },
+    "compression_strategy": "role_relevant_extract",
+    "fallback_on_small_files": true,
+    "small_file_threshold_lines": 200
+  },
+  "memory_tiers": {
+    "enabled": true,
+    "working_memory": {
+      "scope": "current_session",
+      "description": "Session variables and current context — managed by pipeline phases automatically"
+    },
+    "short_term": {
+      "enabled": true,
+      "storage_dir": "cache/short-term",
+      "ttl_days": 7,
+      "track": ["recurring_findings", "recent_review_patterns", "session_decisions"],
+      "max_entries_per_project": 100,
+      "description": "Per-project patterns from recent reviews — what issues keep appearing"
+    },
+    "long_term": {
+      "enabled": true,
+      "storage_dir": "cache/long-term",
+      "ttl_days": 90,
+      "track": ["model_accuracy_by_category", "accepted_vs_rejected_findings", "feedback_trends"],
+      "max_entries_per_project": 500,
+      "description": "Cross-session learnings — which patterns are useful, model strengths over time"
+    },
+    "permanent": {
+      "enabled": true,
+      "storage_dir": "cache/permanent",
+      "ttl_days": -1,
+      "track": ["team_coding_standards", "project_architecture_decisions", "known_acceptable_patterns"],
+      "max_entries_per_project": 200,
+      "description": "Team standards and architecture decisions — never expires, manually curated"
+    }
+  },
+  "pipeline_evaluation": {
+    "enabled": true,
+    "test_cases_dir": "config/benchmarks/pipeline",
+    "metrics": ["precision", "recall", "f1", "false_positive_rate", "time_to_finding"],
+    "llm_as_judge": {
+      "enabled": true,
+      "position_bias_mitigation": true,
+      "judge_model": "sonnet",
+      "evaluation_criteria": ["finding_accuracy", "severity_calibration", "suggestion_quality", "report_completeness"]
+    },
+    "auto_run_after_review": false,
+    "report_dir": "cache/evaluation-reports"
   }
 }

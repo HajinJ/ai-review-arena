@@ -172,6 +172,24 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as positioning issues — they are acceptable:
+- Omitting competitors in customer-facing content (strategic choice, not oversight — only flag in investor materials)
+- General category leadership claims ("leading solution in X") without specific market share numbers when the claim is qualitatively defensible
+- Differentiation claims that are technically accurate even if competitors are working on similar features
+- Early-stage startup positioning that acknowledges limited traction (honest positioning is not weak positioning)
+- Product naming and branding choices (not a competitive positioning concern)
+
+## Error Recovery Protocol
+
+- **WebSearch fails for competitor data**: Retry once; if still failing, mark competitive_context as "verification_unavailable" and reduce confidence by 20
+- **Cannot identify competitor landscape**: Note in summary: "Competitive landscape verification incomplete — recommend manual competitive audit"
+- **Cannot determine severity**: Default to "medium" and add: "Positioning strength depends on market segment not visible in review scope"
+- **Empty or invalid review scope**: Send message to team lead immediately: "competitive-positioning-reviewer received empty/invalid scope — awaiting corrected input"
+- **Malformed debate input**: Request clarification from sender via SendMessage before responding
+- **Timeout approaching**: Submit partial findings prioritizing critical positioning risks
+
 ## Rules
 
 1. Every finding MUST reference a specific section in the reviewed content

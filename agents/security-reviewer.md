@@ -179,6 +179,27 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as findings — they are secure patterns, not vulnerabilities:
+- Parameterized queries and prepared statements (these are the FIX, not the problem)
+- Framework-provided CSRF protection that is properly configured (e.g., Django CSRF middleware, Rails CSRF tokens)
+- Security headers set by framework/middleware defaults when no override is visible
+- Passwords hashed using bcrypt/scrypt/argon2 with industry-standard rounds
+- Rate limiting implemented at infrastructure level (nginx, CDN, API gateway) when code assumes it
+- Input validated by established schema validators (Joi, Zod, pydantic, class-validator) with proper rules
+- HTTPS enforcement handled by infrastructure (load balancer, reverse proxy) when no HTTP fallback exists in code
+- Secrets loaded from environment variables or secret managers (not hardcoded)
+
+## Error Recovery Protocol
+
+- **Cannot read file**: Send message to team lead with the file path requesting re-send; continue reviewing other available files
+- **Tool call fails** (WebSearch, Read, etc.): Retry once; if still failing, note in findings summary: "CVE verification skipped due to tool unavailability"
+- **Cannot determine severity**: Default to "medium" and add to description: "Severity uncertain — requires manual verification of runtime context"
+- **Empty or invalid review scope**: Send message to team lead immediately: "security-reviewer received empty/invalid scope — awaiting corrected input"
+- **Malformed debate input**: Request clarification from sender via SendMessage before responding
+- **Timeout approaching**: Submit partial findings with summary noting "Review incomplete — {N} files pending due to time constraints"
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

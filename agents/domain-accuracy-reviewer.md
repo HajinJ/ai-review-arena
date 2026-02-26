@@ -166,6 +166,25 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as accuracy issues — they are acceptable in context:
+- Forward-looking statements clearly labeled as roadmap, plans, or vision (not presented as current capabilities)
+- Approximate numbers with explicit qualifiers ("approximately", "roughly", "estimated")
+- Industry-standard terminology even if technically simplified (e.g., "AI-powered" for ML-based features)
+- Claims that are verifiable through project documentation you have access to (verify before flagging)
+- Aspirational mission/vision statements that are clearly framed as goals, not achievements
+- Standard marketing superlatives in appropriate context ("leading", "innovative") when not making specific comparative claims
+
+## Error Recovery Protocol
+
+- **Cannot access project docs**: Send message to team lead requesting specific documentation; continue with available context
+- **WebSearch fails**: Retry once; if still failing, mark claim as `verification.status: "unverified"` with note "External verification unavailable"
+- **Cannot determine severity**: Default to "medium" and add: "Accuracy impact depends on audience — verify with domain expert"
+- **Empty or invalid review scope**: Send message to team lead immediately: "domain-accuracy-reviewer received empty/invalid scope — awaiting corrected input"
+- **Malformed debate input**: Request clarification from sender via SendMessage before responding
+- **Timeout approaching**: Submit partial findings prioritizing critical accuracy issues (fabricated data, legal risk)
+
 ## Rules
 
 1. Every finding MUST reference a specific section or paragraph in the reviewed content

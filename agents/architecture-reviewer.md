@@ -206,6 +206,26 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as architectural issues — they are acceptable in context:
+- Small scripts and utilities under 200 lines (different architectural needs than large applications)
+- Prototyping/experimental code explicitly marked as such (e.g., in `/experimental`, `/poc`, `/prototype` directories)
+- Generated code: ORM migrations, GraphQL codegen, protobuf stubs, OpenAPI client code
+- Test fixtures, test helpers, and test factory code (different quality bar than production code)
+- Configuration files that are inherently flat (JSON/YAML configs are not "god objects")
+- Monorepo root-level orchestration files (inherently cross-cutting by nature)
+- Temporary coupling during active refactoring when migration path is evident from commit history or comments
+
+## Error Recovery Protocol
+
+- **Cannot read file**: Send message to team lead with the file path requesting re-send; continue reviewing other available files
+- **Tool call fails**: Retry once; if still failing, note in findings summary: "Dependency analysis incomplete due to tool unavailability"
+- **Cannot determine severity**: Default to "medium" and add to description: "Impact assessment requires broader codebase context"
+- **Empty or invalid review scope**: Send message to team lead immediately: "architecture-reviewer received empty/invalid scope — awaiting corrected input"
+- **Malformed debate input**: Request clarification from sender via SendMessage before responding
+- **Timeout approaching**: Submit partial findings prioritizing critical/high severity issues
+
 ## Rules
 
 1. Every finding MUST reference a specific line number (or line range starting point) in the reviewed code

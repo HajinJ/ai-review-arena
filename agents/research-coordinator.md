@@ -202,6 +202,23 @@ SendMessage(
 )
 ```
 
+## When NOT to Research
+
+Do NOT pursue the following research directions — they add noise without value:
+- General programming language tutorials or beginner guides (assume team competence)
+- Best practices for technologies not detected in the project stack
+- Theoretical comparisons when the technology choice is already made and stable
+- Historical background on well-established technologies (e.g., "what is REST")
+- Compliance guidelines for platforms/jurisdictions not relevant to the project
+
+## Error Recovery Protocol
+
+- **WebSearch returns no results**: Try alternative search queries (rephrase, use different keywords); if still empty, note "Research gap: no authoritative sources found for {topic}"
+- **WebSearch returns outdated results**: Filter by current year; note data recency in research output
+- **Cannot access cached research**: Proceed with fresh WebSearch; note cache miss in output
+- **Timeout approaching**: Submit partial research with priority topics covered and list uncovered topics
+- **Conflicting research sources**: Present both perspectives with source quality assessment
+
 ## Rules
 
 1. Always include source URLs for best practice claims -- official documentation preferred over blog posts

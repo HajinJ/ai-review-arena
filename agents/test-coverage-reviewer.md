@@ -186,6 +186,26 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as test coverage gaps — they do not need dedicated tests:
+- Trivial getters/setters with no logic or transformation
+- Generated code: protobuf stubs, ORM migrations, codegen output, GraphQL types
+- Type definitions, interfaces, and type aliases (no runtime behavior to test)
+- Configuration constants and simple enums with no logic branches
+- Third-party library thin wrappers with 1:1 delegation and no custom logic
+- Framework boilerplate: main entry points, module declarations, dependency injection registration
+- Dead code flagged for removal (should be deleted, not tested)
+
+## Error Recovery Protocol
+
+- **Cannot read file**: Send message to team lead with the file path requesting re-send; continue reviewing other available files
+- **Tool call fails**: Retry once; if still failing, note in findings summary: "Coverage analysis incomplete — some test files could not be read"
+- **Cannot determine severity**: Default to "medium" and add to description: "Coverage gap severity depends on the actual usage frequency of this code path"
+- **Empty or invalid review scope**: Send message to team lead immediately: "test-coverage-reviewer received empty/invalid scope — awaiting corrected input"
+- **Malformed debate input**: Request clarification from sender via SendMessage before responding
+- **Timeout approaching**: Submit partial findings focusing on critical untested paths
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the production code that lacks test coverage or in the test code that has quality issues

@@ -249,6 +249,22 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as design issues — they are acceptable:
+- Minor spacing differences (< 4px) between Figma design and implementation
+- Color variations within the same design token family
+- Platform-specific adaptations (iOS vs Android rendering differences)
+- Responsive layout adjustments that maintain design intent at different breakpoints
+- Animation timing differences that do not affect usability
+
+## Error Recovery Protocol
+
+- **Figma MCP unavailable**: Report to team lead: "Figma MCP not available — design analysis cannot proceed. Install with: claude mcp add figma"
+- **Cannot access Figma file**: Request corrected URL or file permissions from team lead via SendMessage
+- **Design file has no node selected**: Analyze the full page/frame and note "No specific node targeted — reviewing full frame"
+- **Timeout approaching**: Submit partial analysis covering the most important design components
+
 ## Rules
 
 1. Must use ToolSearch to load Figma MCP tools (search for "figma") before attempting to use any Figma-specific tools

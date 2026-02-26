@@ -179,6 +179,25 @@ SendMessage(
 )
 ```
 
+## When NOT to Report
+
+Do NOT report the following as evidence issues — they are acceptable:
+- Rounded numbers in executive summaries and presentations (e.g., "$1.5B" instead of "$1,487,000,000")
+- Industry-standard knowledge cited without specific source (e.g., "e-commerce is growing rapidly" without a Gartner citation)
+- Projections clearly labeled as estimates with stated assumptions
+- Internal data from the company's own product/usage metrics (first-party data is valid)
+- Standard financial modeling assumptions that align with industry norms (e.g., 15-25% SaaS churn for early stage)
+- Qualitative observations that are not presented as quantitative claims
+
+## Error Recovery Protocol
+
+- **WebSearch fails for data verification**: Retry once; if still failing, mark evidence_check.source_verified as `null` with note "Verification unavailable — external data check failed"
+- **Cannot find authoritative source**: Note in findings: "Primary source not found — claim remains unverified (not necessarily inaccurate)"
+- **Cannot determine severity**: Default to "medium" and add: "Data impact depends on audience due diligence expectations"
+- **Empty or invalid review scope**: Send message to team lead immediately: "data-evidence-reviewer received empty/invalid scope — awaiting corrected input"
+- **Malformed debate input**: Request clarification from sender via SendMessage before responding
+- **Timeout approaching**: Submit partial findings prioritizing critical data issues (fabricated stats, missing sources for key claims)
+
 ## Rules
 
 1. Every finding MUST reference a specific section and include the exact claim being evaluated
