@@ -2,7 +2,7 @@
 
 ## Project Structure
 - `.claude-plugin/` - Plugin manifest (v3.2.0)
-- `hooks/` - PostToolUse hook for auto-review
+- `hooks/` - PostToolUse hook for auto-review + Gemini CLI AfterTool hook
 - `commands/` - Slash commands (7 files)
   - `arena` - Full lifecycle orchestrator (research → compliance → benchmark → review → auto-fix)
   - `arena-business` - Business content lifecycle orchestrator
@@ -17,17 +17,20 @@
   - Debate: debate-arbitrator, business-debate-arbitrator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell scripts (22 files)
+- `scripts/` - Shell/Python scripts (24 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
   - Review: aggregate-findings.sh, run-debate.sh, generate-report.sh, cost-estimator.sh
   - Arena: detect-stack.sh, cache-manager.sh, benchmark-models.sh, benchmark-business-models.sh, search-best-practices.sh, search-guidelines.sh
+  - External integrations: openai-ws-debate.py (WebSocket debate), gemini-hook-adapter.sh (Gemini hook adapter)
   - Evaluation: evaluate-pipeline.sh
   - Feedback: feedback-tracker.sh
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
   - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation)
   - review-prompts/ - Role-specific review prompts (9 files)
+  - schemas/ - Codex structured output JSON schemas (5 files: review, cross-examine, defend, business-review, business-cross-review)
+  - codex-agents/ - Codex multi-agent TOML configs (5 files: security, bugs, performance, architecture, testing)
   - compliance-rules.json - Feature→guideline mapping
   - tech-queries.json - Technology→search query mapping (31 technologies)
   - benchmarks/ - Model benchmark test cases (16 files: 4 code + 12 business)

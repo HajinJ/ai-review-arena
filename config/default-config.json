@@ -14,7 +14,7 @@
       "model_variant": "gpt-5.3-codex-spark",
       "structured_output": true,
       "multi_agent": {
-        "enabled": false,
+        "enabled": true,
         "max_threads": 3,
         "max_depth": 1,
         "agents_dir": "config/codex-agents"
@@ -54,12 +54,12 @@
     "debounce_writes": 3
   },
   "gemini_hooks": {
-    "enabled": false,
+    "enabled": true,
     "event_types": ["AfterTool"],
     "tool_matchers": ["write_file", "replace_in_file", "patch"]
   },
   "websocket": {
-    "enabled": false,
+    "enabled": true,
     "url": "wss://api.openai.com/v1/responses",
     "connection_timeout_seconds": 30,
     "max_connection_minutes": 55,

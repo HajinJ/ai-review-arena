@@ -47,6 +47,7 @@ source ~/.zshrc
 | [jq](https://jqlang.github.io/jq/) | 권장 | 스크립트 내 JSON 처리 |
 | [OpenAI Codex CLI](https://github.com/openai/codex) | 선택 | 두 번째 AI 관점 |
 | [Google Gemini CLI](https://github.com/google-gemini/gemini-cli) | 선택 | 세 번째 AI 관점 |
+| [Python 3](https://www.python.org/) + `openai>=2.22.0` | 선택 | WebSocket 토론 가속 (~40% 빠름) |
 
 Codex나 Gemini 없이도 Arena는 Claude 에이전트만으로 전체 파이프라인을 실행합니다. 폴백 프레임워크가 모든 단계에서 우아한 성능 저하를 보장합니다.
 
@@ -539,6 +540,11 @@ ai-review-arena/
 +-- CLAUDE.md                    # 플러그인 개발 규칙
 +-- install.sh / install.ps1     # 설치 프로그램
 +-- uninstall.sh                 # 제거 프로그램
++-- requirements.txt             # Python 의존성 (openai>=2.22.0)
+|
++-- hooks/                       # 자동 리뷰 훅
+|   +-- hooks.json               # Claude Code PostToolUse 훅
+|   +-- gemini-hooks.json        # Gemini CLI AfterTool 훅 어댑터 설정
 |
 +-- commands/                    # 파이프라인 정의 (7개 명령)
 |   +-- arena.md                 # 코드 파이프라인 (~2500줄)
@@ -567,7 +573,7 @@ ai-review-arena/
 |   +-- data-evidence-reviewer.md          # 비즈니스: 데이터/증거 품질
 |   +-- business-debate-arbitrator.md      # 비즈니스: 3라운드 합의 + 외부 모델 처리
 |
-+-- scripts/                     # 셸 스크립트 (22개)
++-- scripts/                     # 셸/Python 스크립트 (24개)
 |   +-- codex-review.sh          # Codex 1라운드 코드 리뷰
 |   +-- gemini-review.sh         # Gemini 1라운드 코드 리뷰
 |   +-- codex-cross-examine.sh   # Codex 2 & 3라운드 (코드)
@@ -588,6 +594,8 @@ ai-review-arena/
 |   +-- cache-manager.sh         # 캐시 관리
 |   +-- cost-estimator.sh        # 토큰 비용 추정 + 캐시 할인
 |   +-- utils.sh                 # 공유 유틸리티
+|   +-- openai-ws-debate.py       # WebSocket 토론 클라이언트 (Responses API)
+|   +-- gemini-hook-adapter.sh   # Gemini 훅 → Arena 리뷰 어댑터
 |   +-- setup-arena.sh           # Arena 설정
 |   +-- setup.sh                 # 일반 설정
 |
@@ -604,6 +612,12 @@ ai-review-arena/
 |   +-- compliance-rules.json    # 기능-가이드라인 매핑
 |   +-- tech-queries.json        # 기술-검색 쿼리 매핑 (31개 기술)
 |   +-- review-prompts/          # 구조화된 프롬프트 (9개 템플릿)
+|   +-- schemas/                 # Codex 구조화된 출력 JSON 스키마 (5개)
+|   |   +-- codex-review.json, codex-cross-examine.json, codex-defend.json
+|   |   +-- codex-business-review.json, codex-business-cross-review.json
+|   +-- codex-agents/            # Codex 멀티에이전트 TOML 설정 (5개)
+|   |   +-- security.toml, bugs.toml, performance.toml
+|   |   +-- architecture.toml, testing.toml
 |   +-- benchmarks/              # 모델 벤치마크 테스트 케이스
 |       +-- security-test-01.json          # 코드: 보안
 |       +-- bugs-test-01.json              # 코드: 버그
@@ -664,6 +678,10 @@ ai-review-arena/
 - **Duplicate Prompt Technique** ([arxiv 2512.14982](https://arxiv.org/abs/2512.14982)): 비추론 LLM 정확도 향상을 위해 외부 CLI 스크립트에 핵심 리뷰 지시 반복
 - **리뷰 유효성 검증**: 리뷰 중 코드 변경 시 오래된 발견에 기반한 조치를 방지하는 git 해시 기반 리뷰 신선도 확인
 - **프롬프트 캐시 인식 비용 추정**: Claude의 프리픽스 캐싱으로 정확한 비용 예측을 위한 `prompt_cache_discount` 설정
+- **Codex 구조화된 출력**: `--output-schema` + `-o` 플래그로 보장된 유효 JSON 출력, 4계층 JSON 추출 폴백 제거. 코드 리뷰, 교차 심문, 방어, 비즈니스 리뷰, 비즈니스 교차 리뷰용 5개 JSON 스키마. `models.codex.structured_output` 설정 (기본값: `true`)
+- **Codex 멀티에이전트 서브에이전트**: Codex 실험적 멀티에이전트 기능용 5개 TOML 에이전트 설정 (security, bugs, performance, architecture, testing). 이중 게이트: 설정 플래그 AND 런타임 기능 확인. `models.codex.multi_agent.enabled` 설정 (기본값: `true`). 기능 미지원 시 자동으로 단일 에이전트 경로 폴백
+- **OpenAI WebSocket 토론 가속**: 영구 WebSocket 연결 (`wss://api.openai.com/v1/responses`)로 `previous_response_id` 체이닝을 통한 ~40% 빠른 토론. Python 클라이언트 (`scripts/openai-ws-debate.py`) + 자동 HTTP 폴백. `pip install openai>=2.22.0` 필요. `websocket.enabled` 설정 (기본값: `true`)
+- **Gemini CLI 훅 크로스 호환성**: 네이티브 Gemini CLI AfterTool 훅 어댑터 (`scripts/gemini-hook-adapter.sh`)가 Gemini 훅 이벤트를 Arena 리뷰 파이프라인으로 변환. 설치/제거 스크립트에 Gemini 설정 지원 추가. `gemini_hooks.enabled` 설정 (기본값: `true`)
 
 ### v3.1.0
 

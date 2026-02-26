@@ -47,6 +47,7 @@ That's it. Every Claude Code session now runs through Arena automatically.
 | [jq](https://jqlang.github.io/jq/) | Recommended | JSON processing in scripts |
 | [OpenAI Codex CLI](https://github.com/openai/codex) | Optional | Second AI perspective |
 | [Google Gemini CLI](https://github.com/google-gemini/gemini-cli) | Optional | Third AI perspective |
+| [Python 3](https://www.python.org/) + `openai>=2.22.0` | Optional | WebSocket debate acceleration (~40% faster) |
 
 Without Codex or Gemini, Arena runs the full pipeline with Claude agents only. The fallback framework ensures graceful degradation at every level.
 
@@ -541,6 +542,11 @@ ai-review-arena/
 +-- CLAUDE.md                    # Plugin development rules
 +-- install.sh / install.ps1     # Installers
 +-- uninstall.sh                 # Uninstaller
++-- requirements.txt             # Python dependencies (openai>=2.22.0)
+|
++-- hooks/                       # Auto-review hooks
+|   +-- hooks.json               # Claude Code PostToolUse hook
+|   +-- gemini-hooks.json        # Gemini CLI AfterTool hook adapter config
 |
 +-- commands/                    # Pipeline definitions (7 commands)
 |   +-- arena.md                 # Code pipeline (~2500 lines)
@@ -569,7 +575,7 @@ ai-review-arena/
 |   +-- data-evidence-reviewer.md          # Business: data/evidence quality
 |   +-- business-debate-arbitrator.md      # Business: 3-round consensus + external model handling
 |
-+-- scripts/                     # Shell scripts (22 scripts)
++-- scripts/                     # Shell/Python scripts (24 scripts)
 |   +-- codex-review.sh          # Codex Round 1 code review
 |   +-- gemini-review.sh         # Gemini Round 1 code review
 |   +-- codex-cross-examine.sh   # Codex Round 2 & 3 (code)
@@ -590,6 +596,8 @@ ai-review-arena/
 |   +-- cache-manager.sh         # Cache management
 |   +-- cost-estimator.sh        # Token cost estimation + cache discount
 |   +-- utils.sh                 # Shared utilities
+|   +-- openai-ws-debate.py       # WebSocket debate client (Responses API)
+|   +-- gemini-hook-adapter.sh   # Gemini hook → Arena review adapter
 |   +-- setup-arena.sh           # Arena setup
 |   +-- setup.sh                 # General setup
 |
@@ -606,6 +614,12 @@ ai-review-arena/
 |   +-- compliance-rules.json    # Feature-to-guideline mapping
 |   +-- tech-queries.json        # Tech-to-search-query mapping (31 technologies)
 |   +-- review-prompts/          # Structured prompts (9 templates)
+|   +-- schemas/                 # Codex structured output JSON schemas (5 schemas)
+|   |   +-- codex-review.json, codex-cross-examine.json, codex-defend.json
+|   |   +-- codex-business-review.json, codex-business-cross-review.json
+|   +-- codex-agents/            # Codex multi-agent TOML configs (5 agents)
+|   |   +-- security.toml, bugs.toml, performance.toml
+|   |   +-- architecture.toml, testing.toml
 |   +-- benchmarks/              # Model benchmark test cases
 |       +-- security-test-01.json          # Code: security
 |       +-- bugs-test-01.json              # Code: bugs
@@ -666,6 +680,10 @@ ai-review-arena/
 - **Duplicate Prompt Technique** ([arxiv 2512.14982](https://arxiv.org/abs/2512.14982)): Core review instructions repeated in external CLI scripts for improved non-reasoning LLM accuracy
 - **Stale Review Detection**: Git-hash-based review freshness check prevents acting on outdated findings when code changes mid-review
 - **Prompt Cache-Aware Cost Estimation**: `prompt_cache_discount` config for accurate cost projections with Claude's prefix caching
+- **Codex Structured Output**: `--output-schema` + `-o` flags for guaranteed-valid JSON output, eliminating 4-layer JSON extraction fallback. 5 JSON schemas for code review, cross-examine, defend, business review, and business cross-review. Controlled by `models.codex.structured_output` (default: `true`)
+- **Codex Multi-Agent Sub-Agents**: 5 TOML agent configs (security, bugs, performance, architecture, testing) for Codex's experimental multi-agent feature. Dual-gated: config flag AND runtime feature check. Controlled by `models.codex.multi_agent.enabled` (default: `true`). Automatic fallback to single-agent path if feature unavailable
+- **OpenAI WebSocket Debate Acceleration**: Persistent WebSocket connection (`wss://api.openai.com/v1/responses`) for ~40% faster debate rounds via `previous_response_id` chaining. Python client (`scripts/openai-ws-debate.py`) with automatic HTTP fallback. Requires `pip install openai>=2.22.0`. Controlled by `websocket.enabled` (default: `true`)
+- **Gemini CLI Hooks Cross-Compatibility**: Native Gemini CLI AfterTool hook adapter (`scripts/gemini-hook-adapter.sh`) translates Gemini hook events to Arena's review pipeline. Installer/uninstaller updated for Gemini settings. Controlled by `gemini_hooks.enabled` (default: `true`)
 
 ### v3.1.0
 
