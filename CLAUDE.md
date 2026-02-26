@@ -30,7 +30,7 @@
   - review-prompts/ - Role-specific review prompts (9 files)
   - compliance-rules.json - Feature→guideline mapping
   - tech-queries.json - Technology→search query mapping (31 technologies)
-  - benchmarks/ - Model benchmark test cases (16 files: 4 code + 12 business) + pipeline/ subfolder
+  - benchmarks/ - Model benchmark test cases (16 files: 4 code + 12 business)
 - `docs/` - Documentation and TODO files
   - TODO-external-integrations.md - Research-backed TODO items for external API integrations
 - `shared-phases/` - Common phase definitions shared by code and business pipelines

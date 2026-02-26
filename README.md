@@ -1,5 +1,7 @@
 # AI Review Arena
 
+[English](README.md) | [한국어](README.ko.md)
+
 A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that makes AI models argue with each other about your code **and business content** before any of it ships.
 
 ## The Problem
@@ -102,7 +104,7 @@ The arbitrator picks one of four levels:
 
 ### Cost estimation before execution
 
-After intensity is decided, Arena estimates cost and time before proceeding (Phase 0.2 / B0.2). You see the breakdown and can proceed, adjust intensity, or cancel. Below `$5.00` (configurable), it auto-proceeds.
+After intensity is decided, Arena estimates cost and time before proceeding (Phase 0.2 / B0.2). You see the breakdown and can proceed, adjust intensity, or cancel. Below `$5.00` (configurable), it auto-proceeds. The estimator supports prompt cache discount configuration for accurate cost projections when using Claude's prefix caching.
 
 ---
 
@@ -200,6 +202,18 @@ Business auto-fix is more aggressive: it revises content based on consensus find
 
 ---
 
+## Stale Review Detection
+
+Arena tracks code freshness using a git-hash-based invalidation system. When a review starts, the current `HEAD` commit hash is stored. Before findings are aggregated, the current `HEAD` is compared against the stored hash. If code changed during the review:
+
+- All findings are marked with `stale: true`
+- A warning banner appears in the report: **"Code changed after review — re-verify findings"**
+- Findings are preserved (not discarded) for reference, but flagged for re-verification
+
+This prevents acting on outdated findings when code changes land mid-review.
+
+---
+
 ## Business Model Benchmarking
 
 At `comprehensive` intensity, Arena benchmarks Claude, Codex, and Gemini on **12 planted-error business documents** (3 per category) to determine which model is best at catching each type of issue:
@@ -224,6 +238,16 @@ At `standard` and `deep` intensity (no benchmarking data), external models alway
 Early versions used keyword matching: if a request mentioned "auth" or "security," intensity went to `deep`. This broke constantly. A request like "fix the deadlock in production" has no security keywords, but it's a concurrency bug where a bad fix creates new race conditions. No keyword list handles that.
 
 Agent debate solves this because agents can **reason about novel scenarios**. The risk-assessor understands that production outages are serious. The efficiency-advocate pushes back when thoroughness isn't justified. The arbitrator weighs both sides. This works for any request, in any domain, without maintaining a keyword dictionary.
+
+### Why agents use positive framing
+
+Agent specifications use positive criteria ("report ONLY when criteria met") instead of negative instructions ("don't report X"). This is based on the [AGENTS.md benchmark paper](https://arxiv.org/abs/2602.11988) which found that context files with negative instructions trigger a "pink elephant effect" — telling an agent NOT to do something paradoxically increases its attention on excluded patterns, reducing SWE-bench success by 0.5%, AgentBench by 2%, and increasing inference cost by 20-23%.
+
+All 16 agents define a **Reporting Threshold** with 3 AND-criteria that must all be true for a finding to be reportable, plus a list of **Recognized Patterns** that confirm mitigation. For example, the security-reviewer reports only when a finding is Exploitable AND Unmitigated AND Production-reachable — and lists patterns like "parameterized queries" as confirmation that SQL injection is mitigated.
+
+### Why external CLI prompts repeat core instructions
+
+External CLI scripts (Codex, Gemini) use the [Duplicate Prompt Technique](https://arxiv.org/abs/2512.14982) — repeating the core review instruction at the end of the prompt. This improved non-reasoning LLM accuracy across 47/70 benchmarks with 0 losses. Gemini Flash-Lite accuracy improved from 21.33% to 97.33% on one benchmark. The technique has no effect (positive or negative) on reasoning-mode models, so it's applied only to external CLIs.
 
 ### Why success criteria exist before code is written
 
@@ -367,6 +391,10 @@ Create `.ai-review-arena.json` in your project root:
 
 Place at `~/.claude/.ai-review-arena.json` for defaults across all projects.
 
+### Config merge order
+
+Settings are deep-merged in priority order: **default** (built-in) → **global** (`~/.claude/.ai-review-arena.json`) → **project** (`.ai-review-arena.json`). Project-level values override global, which overrides defaults.
+
 ### Environment variables
 
 ```bash
@@ -439,7 +467,9 @@ The final report always shows which fallback level was active and what was skipp
 
 ## Feedback Loop
 
-After each review session, Arena optionally collects feedback on findings (useful / not useful / false positive). Feedback is stored in JSONL format and used to generate per-model, per-category accuracy reports:
+After each review session, Arena optionally collects feedback on findings (useful / not useful / false positive). Feedback is stored in JSONL format and used for two purposes:
+
+1. **Accuracy reports** — per-model, per-category quality tracking:
 
 ```
 Model Quality Report (last 30 days):
@@ -449,6 +479,39 @@ Model Quality Report (last 30 days):
 | Codex  | 38     | 12         | 5              | 69.1%    |
 | Gemini | 41     | 10         | 4              | 74.5%    |
 ```
+
+2. **Routing optimization** — combined score (60% feedback accuracy + 40% benchmark F1) determines which model reviews which category in future sessions.
+
+---
+
+## Context Density
+
+Arena provides each review agent with context tailored to its role. Instead of sending the full codebase to every agent, it filters by role-specific patterns:
+
+| Role | Prioritized Patterns |
+|------|---------------------|
+| security | `auth`, `login`, `password`, `token`, `session`, `csrf`, `inject`, `eval` |
+| bugs | `catch`, `throw`, `error`, `null`, `undefined`, `async`, `await`, `race` |
+| performance | `for`, `while`, `map`, `query`, `select`, `cache`, `Promise.all`, `stream` |
+| architecture | `import`, `export`, `class`, `interface`, `extends`, `module`, `provider` |
+| testing | `describe`, `it`, `test`, `expect`, `mock`, `jest`, `vitest`, `pytest` |
+
+Each agent receives up to 8,000 tokens of role-relevant context (configurable). Files under 200 lines bypass filtering and are sent in full.
+
+---
+
+## Memory Tiers
+
+Arena maintains a 4-tier memory architecture for learning across review sessions:
+
+| Tier | Scope | TTL | Tracks |
+|------|-------|-----|--------|
+| **Working** | Current session | Session | Pipeline variables, current context |
+| **Short-term** | Per project | 7 days | Recurring findings, recent review patterns |
+| **Long-term** | Cross-session | 90 days | Model accuracy by category, feedback trends |
+| **Permanent** | Per project | Never | Team coding standards, architecture decisions |
+
+Short-term and long-term tiers inform routing decisions and agent context. Permanent tier is manually curated.
 
 ---
 
@@ -506,7 +569,7 @@ ai-review-arena/
 |   +-- data-evidence-reviewer.md          # Business: data/evidence quality
 |   +-- business-debate-arbitrator.md      # Business: 3-round consensus + external model handling
 |
-+-- scripts/                     # Shell scripts (21 scripts)
++-- scripts/                     # Shell scripts (22 scripts)
 |   +-- codex-review.sh          # Codex Round 1 code review
 |   +-- gemini-review.sh         # Gemini Round 1 code review
 |   +-- codex-cross-examine.sh   # Codex Round 2 & 3 (code)
@@ -515,22 +578,31 @@ ai-review-arena/
 |   +-- gemini-business-review.sh # Gemini business review (dual-mode: round1/round2)
 |   +-- benchmark-models.sh      # Code model benchmarking
 |   +-- benchmark-business-models.sh # Business model benchmarking (12 test cases, F1)
+|   +-- evaluate-pipeline.sh     # Pipeline evaluation (precision/recall/F1)
 |   +-- feedback-tracker.sh      # Review quality feedback recording + reporting
-|   +-- orchestrate-review.sh    # Review orchestration
-|   +-- aggregate-findings.sh    # Finding aggregation
+|   +-- orchestrate-review.sh    # Review orchestration + stale review detection
+|   +-- aggregate-findings.sh    # Finding aggregation + stale marking
 |   +-- run-debate.sh            # Debate execution
-|   +-- generate-report.sh       # Report generation
+|   +-- generate-report.sh       # Report generation + stale warning banner
 |   +-- detect-stack.sh          # Stack detection
 |   +-- search-best-practices.sh # Best practice search
 |   +-- search-guidelines.sh     # Compliance guideline search
 |   +-- cache-manager.sh         # Cache management
-|   +-- cost-estimator.sh        # Token cost estimation
+|   +-- cost-estimator.sh        # Token cost estimation + cache discount
 |   +-- utils.sh                 # Shared utilities
 |   +-- setup-arena.sh           # Arena setup
 |   +-- setup.sh                 # General setup
 |
++-- shared-phases/               # Common phase definitions (shared by code + business)
+|   +-- intensity-decision.md    # Phase 0.1/B0.1: Agent Teams intensity debate
+|   +-- cost-estimation.md       # Phase 0.2/B0.2: Cost & time estimation
+|   +-- feedback-routing.md      # Feedback-based model-category role assignment
+|
 +-- config/
-|   +-- default-config.json      # All default settings (code + business + fallback + cost)
+|   +-- default-config.json      # All settings (models, review, debate, arena, cache,
+|   |                            #   benchmarks, compliance, routing, fallback, cost,
+|   |                            #   feedback, context forwarding, context density,
+|   |                            #   memory tiers, pipeline evaluation)
 |   +-- compliance-rules.json    # Feature-to-guideline mapping
 |   +-- tech-queries.json        # Tech-to-search-query mapping (31 technologies)
 |   +-- review-prompts/          # Structured prompts (9 templates)
@@ -544,8 +616,14 @@ ai-review-arena/
 |       +-- business-positioning-test-{01,02,03}.json # Business: positioning (3 tests)
 |       +-- business-evidence-test-{01,02,03}.json    # Business: evidence (3 tests)
 |
++-- docs/                        # Documentation
+|   +-- TODO-external-integrations.md  # Research-backed TODO items
+|
 +-- cache/                       # Runtime cache (gitignored)
     +-- feedback/                # Feedback JSONL storage
+    +-- short-term/              # Short-term memory (7-day TTL)
+    +-- long-term/               # Long-term memory (90-day TTL)
+    +-- permanent/               # Permanent memory (manually curated)
 ```
 
 ---
@@ -580,6 +658,14 @@ ai-review-arena/
 - **Cache Session Cleanup**: `cache-manager.sh cleanup-sessions` removes stale `/tmp/ai-review-arena*` directories and merged config temp files
 - **Hash Collision Resistance**: `project_hash()` extended from 48-bit (12 chars) to 80-bit (20 chars)
 - **i18n Cleanup**: All prompts, examples, and metadata in routing/command files converted to English; Korean retained only in intentional i18n output templates
+- **Context Density Filtering**: Role-based context filtering provides each agent with relevant code patterns only, reducing noise and token cost (8,000 token budget per agent)
+- **Memory Tiers**: 4-tier memory architecture (working/short-term/long-term/permanent) for cross-session learning
+- **Pipeline Evaluation**: Precision/recall/F1 metrics with LLM-as-Judge scoring and position bias mitigation
+- **Agent Hardening**: Error Recovery Protocol added to all 16 agents (retry → partial submit → team lead notification)
+- **Positive Framing** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): All 16 agent specs reframed from negative ("When NOT to Report") to positive ("Reporting Threshold") to avoid the pink elephant effect
+- **Duplicate Prompt Technique** ([arxiv 2512.14982](https://arxiv.org/abs/2512.14982)): Core review instructions repeated in external CLI scripts for improved non-reasoning LLM accuracy
+- **Stale Review Detection**: Git-hash-based review freshness check prevents acting on outdated findings when code changes mid-review
+- **Prompt Cache-Aware Cost Estimation**: `prompt_cache_discount` config for accurate cost projections with Claude's prefix caching
 
 ### v3.1.0
 
