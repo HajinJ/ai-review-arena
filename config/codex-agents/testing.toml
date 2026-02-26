@@ -1,0 +1,7 @@
+[agent]
+description = "Test coverage code reviewer. Identifies missing test cases, untested edge cases, weak assertions, and test quality issues."
+sandbox_mode = "read-only"
+
+[agent.instructions]
+system_prompt_file = "../../config/review-prompts/testing.txt"
+output_schema_file = "../../config/schemas/codex-review.json"

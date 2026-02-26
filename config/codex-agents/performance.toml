@@ -1,0 +1,7 @@
+[agent]
+description = "Performance-focused code reviewer. Detects N+1 queries, memory leaks, unnecessary allocations, blocking I/O, and algorithmic inefficiencies."
+sandbox_mode = "read-only"
+
+[agent.instructions]
+system_prompt_file = "../../config/review-prompts/performance.txt"
+output_schema_file = "../../config/schemas/codex-review.json"

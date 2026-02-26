@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "AfterTool": [
+      {
+        "matcher": "write_file|replace_in_file|patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$PLUGIN_DIR/scripts/gemini-hook-adapter.sh",
+            "timeout": 300000
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -38,5 +38,26 @@ if [ -f "$CLAUDE_DIR/CLAUDE.md" ] && grep -q "@ARENA-ROUTER.md" "$CLAUDE_DIR/CLA
   echo -e "${GREEN}✓${NC} Removed @ARENA-ROUTER.md from CLAUDE.md"
 fi
 
+# Remove Gemini hooks
+GEMINI_SETTINGS="$HOME/.gemini/settings.json"
+if [ -f "$GEMINI_SETTINGS" ] && command -v jq &>/dev/null; then
+  if jq -e '.hooks.AfterTool[]? | select(.hooks[]?.command | contains("gemini-hook-adapter"))' "$GEMINI_SETTINGS" &>/dev/null; then
+    # Remove our hook entries from AfterTool
+    CLEANED=$(jq '
+      if .hooks.AfterTool then
+        .hooks.AfterTool = [.hooks.AfterTool[] | select(.hooks[]?.command | contains("gemini-hook-adapter") | not)]
+      else . end |
+      if .hooks.AfterTool == [] then del(.hooks.AfterTool) else . end |
+      if .hooks == {} then del(.hooks) else . end
+    ' "$GEMINI_SETTINGS" 2>/dev/null)
+
+    if [ -n "$CLEANED" ] && echo "$CLEANED" | jq . &>/dev/null; then
+      echo "$CLEANED" > "$GEMINI_SETTINGS"
+      echo -e "${GREEN}✓${NC} Removed Gemini hooks"
+    fi
+  fi
+fi
+rm -f "${GEMINI_SETTINGS}.bak"
+
 echo ""
 echo -e "${GREEN}Uninstallation complete.${NC}"

@@ -6,41 +6,34 @@ Research completed 2026-02-26. These items require external API changes or featu
 
 ## 1. Codex Sub-Agent Integration
 
-**Status**: Experimental (feature flag gated)
+**Status**: Implemented (2026-02-26) — structured output active, sub-agents feature-flagged
 **Priority**: High
-**Blocked by**: Codex multi-agent feature graduating from experimental
+**Blocked by**: Codex multi-agent feature graduating from experimental (sub-agent path only)
 
 ### Current State (Feb 2026)
 - Codex CLI sub-agents implemented via PR #3655, tracking issue #2604 closed as COMPLETED (2026-02-23)
 - Still gated behind experimental flag (`/experimental` menu or `~/.codex/config.toml` `[features] multi_agent = true`)
 - Not yet GA -- OpenAI has not removed the experimental label
 
-### What We Can Do Now
+### Implementation (2026-02-26)
+
+**Structured Output** (active by default):
+- Created 5 JSON schemas in `config/schemas/`: `codex-review.json`, `codex-cross-examine.json`, `codex-defend.json`, `codex-business-review.json`, `codex-business-cross-review.json`
+- Updated `codex-review.sh`, `codex-cross-examine.sh`, `codex-business-review.sh` to use `--output-schema` + `-o` flags
+- Eliminates 4-layer JSON extraction fallback when structured output succeeds
+- Controlled by `models.codex.structured_output` config (default: `true`)
+- Automatic fallback to existing `extract_json()` if schema mode fails
+
+**Sub-Agent Configs** (feature-flagged, disabled by default):
+- Created 5 TOML agent configs in `config/codex-agents/`: `security.toml`, `bugs.toml`, `performance.toml`, `architecture.toml`, `testing.toml`
+- Added conditional multi-agent path in `codex-review.sh` — checks both config flag AND runtime feature availability
+- Controlled by `models.codex.multi_agent.enabled` config (default: `false`)
+- Automatic fallback to single-agent path if feature unavailable
+
+### Original Research Notes
 - Our `codex-review.sh` already uses `codex exec --full-auto` for non-interactive mode
 - Codex supports `--json` for JSONL event streams and `--output-schema` for structured output
 - Codex can run as MCP server: `codex mcp-server` (runs over stdio)
-
-### Integration Plan
-1. **Update `codex-review.sh`** to use `--output-schema` for structured review output:
-   ```bash
-   codex exec --full-auto --json --output-schema ./config/codex-review-schema.json "Review this code..." \
-     -o /tmp/codex-review-result.json
-   ```
-2. **Create `config/codex-review-schema.json`** defining expected output fields (findings, severity, confidence)
-3. **Enable parallel sub-agent spawning** when multi-agent feature becomes GA:
-   - Define agent roles in `~/.codex/config.toml`:
-     ```toml
-     [agents.security-reviewer]
-     description = "Security vulnerability scanner"
-     config_file = "agents/security.toml"
-     sandbox_mode = "read-only"
-
-     [agents.bug-detector]
-     description = "Bug and logic error detection"
-     config_file = "agents/bugs.toml"
-     ```
-   - Use `agents.max_threads` to control concurrency
-   - Use `agents.max_depth = 1` (default) to prevent recursive spawning
 
 ### Key Config Knobs
 | Setting | Type | Purpose |
@@ -64,9 +57,9 @@ Research completed 2026-02-26. These items require external API changes or featu
 
 ## 2. OpenAI Responses API WebSocket Mode
 
-**Status**: Available (SDK v2.22.0+)
+**Status**: Implemented (2026-02-26) — feature-flagged, disabled by default
 **Priority**: Medium
-**Blocked by**: Need to refactor `codex-review.sh` and debate scripts to use Python/Node SDK instead of CLI
+**Blocked by**: ~~Need to refactor debate scripts~~ Done — requires `pip install openai>=2.22.0`
 
 ### Current State (Feb 2026)
 - WebSocket mode for Responses API released 2026-02-23 in OpenAI Python SDK v2.22.0
@@ -84,18 +77,21 @@ Research completed 2026-02-26. These items require external API changes or featu
 
 **Trade-off**: Initial WebSocket handshake adds slight TTFT overhead on short tasks.
 
-### Integration Plan
-1. **Create `scripts/openai-ws-client.py`** (or `.js`): A thin WebSocket client that:
-   - Opens persistent connection to `wss://api.openai.com/v1/responses`
-   - Sends `response.create` events with review prompts
-   - Uses `previous_response_id` for multi-turn continuation (incremental input only)
-   - Returns structured JSON findings
-2. **Update debate scripts** to use WebSocket for multi-turn cross-examination:
-   - Round 1: Initial review (response.create)
-   - Round 2: Challenge (continue with previous_response_id + challenge input)
-   - Round 3: Final position (continue with previous_response_id + final input)
-   - All 3 rounds on single connection = ~40% faster debate
-3. **Compatible with `store=false`** and Zero Data Retention (in-memory state only)
+### Implementation (2026-02-26)
+- Created `scripts/openai-ws-debate.py`: WebSocket debate client using OpenAI Responses API
+  - Runs all 3 debate rounds on single persistent connection via `previous_response_id`
+  - Falls back to standard HTTP if WebSocket mode unavailable
+  - Matches `run-debate.sh` output format: `{accepted, rejected, disputed}`
+  - Compatible with `store=false` for Zero Data Retention
+- Created `requirements.txt` with `openai>=2.22.0` dependency
+- Added WebSocket fast path in `run-debate.sh` — checks Python 3, openai package, and `websocket.enabled` config
+- Controlled by `websocket.enabled` config (default: `false`)
+- No breaking changes: falls through to existing bash debate logic if any precondition fails
+
+### Original Integration Plan
+1. ~~Create WebSocket client~~ Done: `scripts/openai-ws-debate.py`
+2. ~~Update debate scripts~~ Done: `run-debate.sh` WebSocket fast path
+3. Compatible with `store=false` and Zero Data Retention (in-memory state only)
 
 ### Key Technical Details
 - Server keeps one previous-response state in connection-local in-memory cache
@@ -159,9 +155,9 @@ Research completed 2026-02-26. These items require external API changes or featu
 
 ## 4. Gemini CLI Hooks v0.26 Cross-Compatibility
 
-**Status**: Available (v0.26.0)
+**Status**: Implemented (2026-02-26) — feature-flagged, disabled by default
 **Priority**: Medium
-**Blocked by**: Need to create Gemini-compatible hook wrappers
+**Blocked by**: ~~Need to create Gemini-compatible hook wrappers~~ Done
 
 ### Current State (Feb 2026)
 - Gemini CLI v0.26.0 added comprehensive hooks system with 11 event types
@@ -183,30 +179,21 @@ Research completed 2026-02-26. These items require external API changes or featu
 | `PreCompress` | None | Before context compression |
 | `Notification` | None | System alerts |
 
-### Integration Plan
-1. **Create `hooks/gemini-hooks.json`** mapping to Gemini's settings.json format:
-   ```json
-   {
-     "hooks": {
-       "AfterTool": [{
-         "matcher": "write_file|replace",
-         "hooks": [{
-           "type": "command",
-           "command": "$GEMINI_PROJECT_DIR/.gemini/hooks/orchestrate-review.sh",
-           "timeout": 120000
-         }]
-       }]
-     }
-   }
-   ```
-2. **Create adapter script** `scripts/gemini-hook-adapter.sh`:
-   - Translates Gemini's stdin JSON format to our expected format
-   - Maps `$GEMINI_PROJECT_DIR` to `$PLUGIN_DIR`
-   - Calls `orchestrate-review.sh` with adapted arguments
-3. **Leverage Gemini-unique hooks**:
-   - `BeforeModel`: Inject context density-filtered content before LLM request
-   - `AfterModel`: Stream-level redaction of sensitive output
-   - `BeforeToolSelection`: Restrict tools based on review phase
+### Implementation (2026-02-26)
+- Created `hooks/gemini-hooks.json`: Gemini-native AfterTool hook config targeting `write_file|replace_in_file|patch`
+- Created `scripts/gemini-hook-adapter.sh`: Translates Gemini hook stdin JSON to orchestrate-review.sh format
+  - Parses `toolName` and `toolInput.path` from Gemini's AfterTool JSON
+  - Checks file extension against reviewable extensions
+  - Checks `gemini_hooks.enabled` config before running
+  - Defensive: exits 0 on any unexpected input
+- Updated `install.sh` (step 6/6): Detects Gemini CLI, merges hooks into `~/.gemini/settings.json`
+- Updated `uninstall.sh`: Removes Arena hook entries from Gemini settings
+- Controlled by `gemini_hooks.enabled` config (default: `false`)
+
+### Future Gemini-Unique Hooks (not yet implemented)
+- `BeforeModel`: Inject context density-filtered content before LLM request
+- `AfterModel`: Stream-level redaction of sensitive output
+- `BeforeToolSelection`: Restrict tools based on review phase
 
 ### Gemini Hook Configuration Hierarchy (4 levels)
 1. Project: `.gemini/settings.json`
@@ -299,10 +286,10 @@ These research findings have been applied to the current codebase:
 
 | Item | Priority | Status | Can Start Now? |
 |------|----------|--------|----------------|
-| Codex `--output-schema` | High | Ready | Yes (partial) |
-| Codex sub-agent roles | High | Experimental | No (wait for GA) |
-| WebSocket debate acceleration | Medium | SDK available | Yes (need Python/Node client) |
-| Gemini hook adapter | Medium | v0.26 available | Yes |
+| Codex `--output-schema` | High | **Done** | Implemented (active by default) |
+| Codex sub-agent roles | High | **Done** | Implemented (feature-flagged) |
+| WebSocket debate acceleration | Medium | **Done** | Implemented (feature-flagged) |
+| Gemini hook adapter | Medium | **Done** | Implemented (feature-flagged) |
 | Remote Control monitoring | Low | No API | No |
 | Agent marketplace | Low | Design phase | No |
 | Pink elephant fix | **Done** | Applied | Completed |

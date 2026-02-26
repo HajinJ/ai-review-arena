@@ -1,0 +1,7 @@
+[agent]
+description = "Architecture-focused code reviewer. Evaluates design patterns, SOLID principles, coupling, cohesion, and module boundary violations."
+sandbox_mode = "read-only"
+
+[agent.instructions]
+system_prompt_file = "../../config/review-prompts/architecture.txt"
+output_schema_file = "../../config/schemas/codex-review.json"

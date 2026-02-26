@@ -63,6 +63,30 @@ if [ -f "$CONFIG_FILE" ]; then
   fi
 fi
 
+# --- Read structured output config ---
+STRUCTURED_OUTPUT=true
+if [ -f "$CONFIG_FILE" ]; then
+  cfg_structured=$(jq -r '.models.codex.structured_output // true' "$CONFIG_FILE" 2>/dev/null || true)
+  if [ "$cfg_structured" = "false" ]; then
+    STRUCTURED_OUTPUT=false
+  fi
+fi
+SCHEMA_FILE="${PLUGIN_DIR}/config/schemas/codex-review.json"
+
+# --- Read multi-agent config (experimental) ---
+MULTI_AGENT=false
+if [ -f "$CONFIG_FILE" ]; then
+  cfg_multi_agent=$(jq -r '.models.codex.multi_agent.enabled // false' "$CONFIG_FILE" 2>/dev/null || true)
+  if [ "$cfg_multi_agent" = "true" ]; then
+    # Check if codex supports agents feature at runtime
+    if codex exec --help 2>&1 | grep -q "agents" 2>/dev/null; then
+      MULTI_AGENT=true
+      AGENTS_DIR=$(jq -r '.models.codex.multi_agent.agents_dir // "config/codex-agents"' "$CONFIG_FILE" 2>/dev/null || echo "config/codex-agents")
+      AGENT_CONFIG="${PLUGIN_DIR}/${AGENTS_DIR}/${ROLE}.toml"
+    fi
+  fi
+fi
+
 # --- Read file content from stdin ---
 FILE_CONTENT=$(cat)
 
@@ -91,17 +115,66 @@ PROMPT_EOF
 # --- Execute codex review ---
 RAW_OUTPUT=""
 REVIEW_ERROR=""
+PARSED_JSON=""
 
-RAW_OUTPUT=$(
-  timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" "$FULL_PROMPT" 2>/dev/null
-) || {
-  exit_code=$?
-  if [ "$exit_code" -eq 124 ]; then
-    REVIEW_ERROR="Codex review timed out after ${TIMEOUT}s"
-  else
-    REVIEW_ERROR="Codex exited with code ${exit_code}"
+# Try multi-agent path first (experimental, feature-flagged)
+if [ "$MULTI_AGENT" = "true" ] && [ -f "$AGENT_CONFIG" ]; then
+  OUTPUT_FILE=$(mktemp)
+  RAW_OUTPUT=$(
+    timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" \
+      --config "agents.${ROLE}.config_file=${AGENT_CONFIG}" \
+      --output-schema "$SCHEMA_FILE" -o "$OUTPUT_FILE" "$FULL_PROMPT" 2>/dev/null
+  ) || {
+    exit_code=$?
+    if [ "$exit_code" -eq 124 ]; then
+      REVIEW_ERROR="Codex multi-agent review timed out after ${TIMEOUT}s"
+    else
+      # Multi-agent failed — reset error to allow fallback
+      REVIEW_ERROR=""
+    fi
+  }
+
+  if [ -z "$REVIEW_ERROR" ] && [ -f "$OUTPUT_FILE" ] && jq . "$OUTPUT_FILE" &>/dev/null; then
+    PARSED_JSON=$(cat "$OUTPUT_FILE")
   fi
-}
+  rm -f "$OUTPUT_FILE"
+fi
+
+# Try structured output first
+if [ "$STRUCTURED_OUTPUT" = "true" ] && [ -f "$SCHEMA_FILE" ]; then
+  OUTPUT_FILE=$(mktemp)
+  RAW_OUTPUT=$(
+    timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" \
+      --output-schema "$SCHEMA_FILE" -o "$OUTPUT_FILE" "$FULL_PROMPT" 2>/dev/null
+  ) || {
+    exit_code=$?
+    if [ "$exit_code" -eq 124 ]; then
+      REVIEW_ERROR="Codex review timed out after ${TIMEOUT}s"
+    else
+      REVIEW_ERROR="Codex exited with code ${exit_code}"
+    fi
+  }
+
+  # Read structured output from -o file (clean JSON, no extraction needed)
+  if [ -z "$REVIEW_ERROR" ] && [ -f "$OUTPUT_FILE" ] && jq . "$OUTPUT_FILE" &>/dev/null; then
+    PARSED_JSON=$(cat "$OUTPUT_FILE")
+  fi
+  rm -f "$OUTPUT_FILE"
+fi
+
+# Fallback to standard execution if structured output didn't work
+if [ -z "$PARSED_JSON" ] && [ -z "$REVIEW_ERROR" ]; then
+  RAW_OUTPUT=$(
+    timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" "$FULL_PROMPT" 2>/dev/null
+  ) || {
+    exit_code=$?
+    if [ "$exit_code" -eq 124 ]; then
+      REVIEW_ERROR="Codex review timed out after ${TIMEOUT}s"
+    else
+      REVIEW_ERROR="Codex exited with code ${exit_code}"
+    fi
+  }
+fi
 
 # --- Handle errors ---
 if [ -n "$REVIEW_ERROR" ]; then
@@ -109,7 +182,7 @@ if [ -n "$REVIEW_ERROR" ]; then
   exit 0
 fi
 
-if [ -z "$RAW_OUTPUT" ]; then
+if [ -z "$RAW_OUTPUT" ] && [ -z "$PARSED_JSON" ]; then
   echo "{\"model\":\"codex\",\"role\":\"$ROLE\",\"error\":\"Codex returned empty response\",\"findings\":[]}"
   exit 0
 fi
@@ -150,12 +223,14 @@ extract_json() {
   return 1
 }
 
-PARSED_JSON=""
-PARSED_JSON=$(extract_json "$RAW_OUTPUT") || {
-  # Could not parse JSON at all -- wrap raw output as error
-  echo "{\"model\":\"codex\",\"role\":\"$ROLE\",\"error\":\"Failed to parse JSON from codex response\",\"raw_output\":$(echo "$RAW_OUTPUT" | head -c 2000 | jq -Rs .),\"findings\":[]}"
-  exit 0
-}
+# Skip extraction if structured output already provided clean JSON
+if [ -z "$PARSED_JSON" ]; then
+  PARSED_JSON=$(extract_json "$RAW_OUTPUT") || {
+    # Could not parse JSON at all -- wrap raw output as error
+    echo "{\"model\":\"codex\",\"role\":\"$ROLE\",\"error\":\"Failed to parse JSON from codex response\",\"raw_output\":$(echo "$RAW_OUTPUT" | head -c 2000 | jq -Rs .),\"findings\":[]}"
+    exit 0
+  }
+fi
 
 # --- Normalize output ---
 # Ensure required fields are present in the output

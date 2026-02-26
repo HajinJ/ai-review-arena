@@ -1,0 +1,7 @@
+[agent]
+description = "Bug detection code reviewer. Identifies logic errors, null references, race conditions, off-by-one errors, and unhandled edge cases."
+sandbox_mode = "read-only"
+
+[agent.instructions]
+system_prompt_file = "../../config/review-prompts/bugs.txt"
+output_schema_file = "../../config/schemas/codex-review.json"

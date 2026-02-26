@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "model": { "type": "string" },
+    "round": { "type": "integer" },
+    "phase": { "type": "string" },
+    "responses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "finding_index": { "type": "integer" },
+          "agree": { "type": "boolean" },
+          "confidence_adjustment": { "type": "number", "minimum": -20, "maximum": 20 },
+          "evidence": { "type": "string" }
+        },
+        "required": ["finding_index", "agree", "confidence_adjustment", "evidence"]
+      }
+    }
+  },
+  "required": ["model", "round", "phase", "responses"]
+}

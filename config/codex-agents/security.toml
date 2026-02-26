@@ -1,0 +1,7 @@
+[agent]
+description = "Security-focused code reviewer. Detects vulnerabilities, injection flaws, auth bypasses, secrets leakage, and OWASP Top 10 issues."
+sandbox_mode = "read-only"
+
+[agent.instructions]
+system_prompt_file = "../../config/review-prompts/security.txt"
+output_schema_file = "../../config/schemas/codex-review.json"

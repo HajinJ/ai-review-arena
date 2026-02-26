@@ -11,7 +11,14 @@
       "roles": ["bugs", "performance"],
       "command": "codex exec --full-auto",
       "timeout_seconds": 120,
-      "model_variant": "gpt-5.3-codex-spark"
+      "model_variant": "gpt-5.3-codex-spark",
+      "structured_output": true,
+      "multi_agent": {
+        "enabled": false,
+        "max_threads": 3,
+        "max_depth": 1,
+        "agents_dir": "config/codex-agents"
+      }
     },
     "gemini": {
       "enabled": true,
@@ -45,6 +52,19 @@
     "batch_size": 5,
     "min_lines_changed": 10,
     "debounce_writes": 3
+  },
+  "gemini_hooks": {
+    "enabled": false,
+    "event_types": ["AfterTool"],
+    "tool_matchers": ["write_file", "replace_in_file", "patch"]
+  },
+  "websocket": {
+    "enabled": false,
+    "url": "wss://api.openai.com/v1/responses",
+    "connection_timeout_seconds": 30,
+    "max_connection_minutes": 55,
+    "store": false,
+    "model": "gpt-5.3-codex-spark"
   },
   "output": {
     "language": "ko",
