@@ -256,14 +256,30 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
       continue
     fi
 
-    # --- Codex ---
+    # --- Launch Codex + Gemini in parallel ---
+    CODEX_TMP="" GEMINI_TMP=""
+    CODEX_PID="" GEMINI_PID=""
+
     if has_model "codex" && command -v codex &>/dev/null; then
-      CODEX_RESPONSE=$(echo "$CODE" | "$SCRIPT_DIR/codex-review.sh" "$TEST_FILE" "${CONFIG_FILE:-/dev/null}" "$TEST_ROLE" 2>/dev/null || echo "{}")
-      CODEX_TEXT=$(echo "$CODEX_RESPONSE" | jq -r 'tostring' 2>/dev/null || echo "")
+      CODEX_TMP=$(mktemp)
+      ( echo "$CODE" | "$SCRIPT_DIR/codex-review.sh" "$TEST_FILE" "${CONFIG_FILE:-/dev/null}" "$TEST_ROLE" > "$CODEX_TMP" 2>/dev/null ) &
+      CODEX_PID=$!
+    fi
 
+    if has_model "gemini" && command -v gemini &>/dev/null; then
+      GEMINI_TMP=$(mktemp)
+      ( echo "$CODE" | "$SCRIPT_DIR/gemini-review.sh" "$TEST_FILE" "${CONFIG_FILE:-/dev/null}" "$TEST_ROLE" > "$GEMINI_TMP" 2>/dev/null ) &
+      GEMINI_PID=$!
+    fi
+
+    # Wait for parallel benchmarks
+    [ -n "$CODEX_PID" ] && wait "$CODEX_PID" 2>/dev/null || true
+    [ -n "$GEMINI_PID" ] && wait "$GEMINI_PID" 2>/dev/null || true
+
+    # --- Process Codex results ---
+    if [ -n "$CODEX_TMP" ] && [ -f "$CODEX_TMP" ]; then
+      CODEX_TEXT=$(jq -r 'tostring' "$CODEX_TMP" 2>/dev/null || cat "$CODEX_TMP")
       read -r matched total <<< "$(check_ground_truth "$CODEX_TEXT" "$GROUND_TRUTH")"
-
-      # Update results for codex
       RESULTS=$(echo "$RESULTS" | jq \
         --arg model "codex" \
         --arg cat "$BENCH_CATEGORY" \
@@ -276,15 +292,13 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
         .[$model][$cat].total_expected += $total |
         .[$model][$cat].total_found += (if $matched > 0 then 1 else 0 end)
         ')
+      rm -f "$CODEX_TMP"
     fi
 
-    # --- Gemini ---
-    if has_model "gemini" && command -v gemini &>/dev/null; then
-      GEMINI_RESPONSE=$(echo "$CODE" | "$SCRIPT_DIR/gemini-review.sh" "$TEST_FILE" "${CONFIG_FILE:-/dev/null}" "$TEST_ROLE" 2>/dev/null || echo "{}")
-      GEMINI_TEXT=$(echo "$GEMINI_RESPONSE" | jq -r 'tostring' 2>/dev/null || echo "")
-
+    # --- Process Gemini results ---
+    if [ -n "$GEMINI_TMP" ] && [ -f "$GEMINI_TMP" ]; then
+      GEMINI_TEXT=$(jq -r 'tostring' "$GEMINI_TMP" 2>/dev/null || cat "$GEMINI_TMP")
       read -r matched total <<< "$(check_ground_truth "$GEMINI_TEXT" "$GROUND_TRUTH")"
-
       RESULTS=$(echo "$RESULTS" | jq \
         --arg model "gemini" \
         --arg cat "$BENCH_CATEGORY" \
@@ -297,6 +311,7 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
         .[$model][$cat].total_expected += $total |
         .[$model][$cat].total_found += (if $matched > 0 then 1 else 0 end)
         ')
+      rm -f "$GEMINI_TMP"
     fi
 
     # --- Claude (marker for external processing) ---

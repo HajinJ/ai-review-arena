@@ -70,6 +70,7 @@ fi
 # --- Resolve paths ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/utils.sh"
 
 # --- Check dependencies ---
 if ! command -v gemini &>/dev/null; then
@@ -292,41 +293,7 @@ if [ -z "$RAW_OUTPUT" ]; then
   exit 0
 fi
 
-# --- Extract JSON from response (4-layer extraction) ---
-extract_json() {
-  local input="$1"
-
-  # Try 1: Input is already valid JSON
-  if echo "$input" | jq . &>/dev/null 2>&1; then
-    echo "$input"
-    return 0
-  fi
-
-  # Try 2: Extract from ```json ... ``` blocks
-  local extracted
-  extracted=$(echo "$input" | sed -n '/^```json/,/^```$/p' | sed '1d;$d')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  # Try 3: Extract from ``` ... ``` blocks (no language tag)
-  extracted=$(echo "$input" | sed -n '/^```/,/^```$/p' | sed '1d;$d')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  # Try 4: Find first { to last } on a best-effort basis
-  extracted=$(echo "$input" | sed -n '/^[[:space:]]*{/,/}[[:space:]]*$/p')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  return 1
-}
-
+# --- Extract JSON from response (uses shared extract_json from utils.sh) ---
 PARSED_JSON=""
 PARSED_JSON=$(extract_json "$RAW_OUTPUT") || {
   # Could not parse JSON at all -- wrap raw output as error (always exit 0)

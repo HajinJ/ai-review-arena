@@ -61,7 +61,7 @@ if [ -d "$PLUGIN_DIR" ] && [ "$(ls -A "$PLUGIN_DIR" 2>/dev/null)" ]; then
 fi
 
 # Copy all plugin files
-for item in .claude-plugin agents commands config hooks scripts shared-phases docs requirements.txt CLAUDE.md; do
+for item in .claude-plugin agents commands config hooks scripts shared-phases docs requirements.txt CLAUDE.md ARENA-ROUTER.md; do
   if [ -e "$SCRIPT_DIR/$item" ]; then
     cp -r "$SCRIPT_DIR/$item" "$PLUGIN_DIR/"
     echo -e "  ${GREEN}✓${NC} $item"
@@ -76,12 +76,11 @@ echo -e "  ${GREEN}✓${NC} Scripts made executable"
 echo ""
 echo -e "${YELLOW}[4/6] Installing ARENA-ROUTER.md...${NC}"
 
-if [ -f "$CLAUDE_DIR/ARENA-ROUTER.md" ]; then
-  echo -e "  ${YELLOW}!${NC} ARENA-ROUTER.md already exists, backing up..."
-  cp "$CLAUDE_DIR/ARENA-ROUTER.md" "$CLAUDE_DIR/ARENA-ROUTER.md.bak"
+if [ -f "$PLUGIN_DIR/ARENA-ROUTER.md" ]; then
+  echo -e "  ${GREEN}✓${NC} ARENA-ROUTER.md installed to plugin directory"
+else
+  echo -e "  ${YELLOW}!${NC} ARENA-ROUTER.md not found in source"
 fi
-cp "$SCRIPT_DIR/ARENA-ROUTER.md" "$CLAUDE_DIR/ARENA-ROUTER.md"
-echo -e "  ${GREEN}✓${NC} $CLAUDE_DIR/ARENA-ROUTER.md"
 
 # Update CLAUDE.md
 echo ""
@@ -93,12 +92,12 @@ if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ]; then
   echo -e "  ${GREEN}✓${NC} Created new CLAUDE.md"
 fi
 
-if grep -q "@ARENA-ROUTER.md" "$CLAUDE_DIR/CLAUDE.md" 2>/dev/null; then
-  echo -e "  ${GREEN}✓${NC} @ARENA-ROUTER.md already referenced in CLAUDE.md"
+if grep -q "ARENA-ROUTER.md" "$CLAUDE_DIR/CLAUDE.md" 2>/dev/null; then
+  echo -e "  ${GREEN}✓${NC} ARENA-ROUTER.md already referenced in CLAUDE.md"
 else
   echo "" >> "$CLAUDE_DIR/CLAUDE.md"
-  echo "@ARENA-ROUTER.md" >> "$CLAUDE_DIR/CLAUDE.md"
-  echo -e "  ${GREEN}✓${NC} Added @ARENA-ROUTER.md to CLAUDE.md"
+  echo "@plugins/ai-review-arena/ARENA-ROUTER.md" >> "$CLAUDE_DIR/CLAUDE.md"
+  echo -e "  ${GREEN}✓${NC} Added @plugins/ai-review-arena/ARENA-ROUTER.md to CLAUDE.md"
 fi
 
 # Install Gemini hooks (optional)
@@ -116,8 +115,12 @@ if command -v gemini &>/dev/null; then
       # Merge our hooks into existing settings
       HOOK_CONFIG="$PLUGIN_DIR/hooks/gemini-hooks.json"
       if [ -f "$HOOK_CONFIG" ]; then
-        # Replace $PLUGIN_DIR placeholder with actual path
-        RESOLVED_HOOKS=$(sed "s|\$PLUGIN_DIR|$PLUGIN_DIR|g" "$HOOK_CONFIG")
+        # Replace $PLUGIN_DIR placeholder with actual path (use jq to avoid sed injection)
+        RESOLVED_HOOKS=$(jq --arg dir "$PLUGIN_DIR" 'walk(if type == "string" then gsub("\\$PLUGIN_DIR"; $dir) else . end)' "$HOOK_CONFIG" 2>/dev/null)
+        if [ -z "$RESOLVED_HOOKS" ] || ! echo "$RESOLVED_HOOKS" | jq . &>/dev/null; then
+          # Fallback: simple sed with safe delimiter
+          RESOLVED_HOOKS=$(sed "s|\\\$PLUGIN_DIR|${PLUGIN_DIR//|/\\|}|g" "$HOOK_CONFIG")
+        fi
 
         # Merge hooks into settings (append to AfterTool array instead of clobbering)
         MERGED=$(echo "$RESOLVED_HOOKS" | jq --slurpfile existing "$GEMINI_SETTINGS" '

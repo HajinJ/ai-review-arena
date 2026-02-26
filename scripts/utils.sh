@@ -157,10 +157,28 @@ load_config() {
     return 0
   fi
 
-  # Merge into a temp file for the session
-  local merged_tmp
-  merged_tmp=$(mktemp /tmp/arena-config-merged.XXXXXXXXXX.json)
-  merge_configs "${configs_to_merge[@]}" > "$merged_tmp"
+  # Merge into a deterministic temp file keyed by project hash (avoids orphan accumulation)
+  local config_hash
+  config_hash=$(echo -n "${configs_to_merge[*]}" | shasum -a 256 | cut -c1-12)
+  local merged_tmp="/tmp/arena-config-merged.${config_hash}.json"
+
+  # Only regenerate if missing or source configs are newer
+  local needs_regen=false
+  if [ ! -f "$merged_tmp" ]; then
+    needs_regen=true
+  else
+    for cfg_src in "${configs_to_merge[@]}"; do
+      if [ "$cfg_src" -nt "$merged_tmp" ] 2>/dev/null; then
+        needs_regen=true
+        break
+      fi
+    done
+  fi
+
+  if [ "$needs_regen" = "true" ]; then
+    merge_configs "${configs_to_merge[@]}" > "$merged_tmp"
+  fi
+
   echo "$merged_tmp"
   return 0
 }
@@ -197,6 +215,61 @@ get_config_value() {
   fi
 
   jq -r "$jq_path // empty" "$config_file" 2>/dev/null
+}
+
+# =============================================================================
+# JSON Extraction (shared — replaces 6 duplicated copies)
+# =============================================================================
+
+extract_json() {
+  local input="$1"
+
+  # Try 1: Input is already valid JSON
+  if echo "$input" | jq . &>/dev/null 2>&1; then
+    echo "$input"
+    return 0
+  fi
+
+  # Try 2: Extract from ```json ... ``` blocks
+  local extracted
+  extracted=$(echo "$input" | sed -n '/^```json/,/^```$/p' | sed '1d;$d')
+  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
+    echo "$extracted"
+    return 0
+  fi
+
+  # Try 3: Extract from ``` ... ``` blocks (no language tag)
+  extracted=$(echo "$input" | sed -n '/^```/,/^```$/p' | sed '1d;$d')
+  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
+    echo "$extracted"
+    return 0
+  fi
+
+  # Try 4: Find outermost JSON object using jq -R (robust brace matching)
+  extracted=$(echo "$input" | jq -Rsc '
+    # Find first { and extract to end, let jq validate
+    if test("\\{") then
+      capture("(?<json>\\{.+)").json // empty
+    else empty end
+  ' 2>/dev/null)
+  if [ -n "$extracted" ]; then
+    # Try parsing the extracted substring
+    local parsed
+    parsed=$(echo "$extracted" | jq -r '.' 2>/dev/null)
+    if [ -n "$parsed" ] && echo "$parsed" | jq . &>/dev/null 2>&1; then
+      echo "$parsed"
+      return 0
+    fi
+  fi
+
+  # Try 5: Fallback — sed-based first { to last }
+  extracted=$(echo "$input" | sed -n '/^[[:space:]]*{/,/}[[:space:]]*$/p')
+  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
+    echo "$extracted"
+    return 0
+  fi
+
+  return 1
 }
 
 # =============================================================================

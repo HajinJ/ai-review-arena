@@ -54,9 +54,15 @@ CI_CD=()
 PLATFORM=""
 
 # --- Helper: add unique (bash 3.2 compatible, no nameref) ---
+# Uses eval for dynamic array names — validated against allowlist for safety
 add_unique() {
   local target_var="$1"
   local value="$2"
+  # Safety: only allow known array names (prevents eval injection)
+  case "$target_var" in
+    LANGUAGES|FRAMEWORKS|DATABASES|INFRASTRUCTURE|BUILD_TOOLS|TESTING|CI_CD|ALL_TECHNOLOGIES) ;;
+    *) return 1 ;;
+  esac
   # Check if value already exists in array
   eval "local _items=(\"\${${target_var}[@]+\"\${${target_var}[@]}\"}\")"
   local item
@@ -339,7 +345,7 @@ detect_infrastructure() {
 
   if has_dir "k8s" || has_dir "kubernetes"; then
     local k8s_files
-    k8s_files=$(find "$PROJECT_ROOT/k8s" "$PROJECT_ROOT/kubernetes" -name "*.yaml" -o -name "*.yml" 2>/dev/null | head -1)
+    k8s_files=$(find "$PROJECT_ROOT/k8s" "$PROJECT_ROOT/kubernetes" -maxdepth 3 -name "*.yaml" -o -name "*.yml" 2>/dev/null | head -1)
     if [ -n "$k8s_files" ]; then
       add_unique INFRASTRUCTURE "kubernetes"
     fi
@@ -361,7 +367,7 @@ detect_infrastructure() {
 detect_cicd() {
   if has_dir ".github/workflows"; then
     local workflow_files
-    workflow_files=$(find "$PROJECT_ROOT/.github/workflows" -name "*.yml" -o -name "*.yaml" 2>/dev/null | head -1)
+    workflow_files=$(find "$PROJECT_ROOT/.github/workflows" -maxdepth 2 -name "*.yml" -o -name "*.yaml" 2>/dev/null | head -1)
     if [ -n "$workflow_files" ]; then
       add_unique CI_CD "github-actions"
     fi

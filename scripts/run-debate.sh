@@ -23,6 +23,7 @@ SESSION_DIR="${3:?Usage: run-debate.sh <findings_json> <config_file> <session_di
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/utils.sh"
 
 # --- Dependencies ---
 if ! command -v jq &>/dev/null; then
@@ -30,12 +31,23 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
-# --- Read config ---
-DEBATE_ENABLED=$(jq -r '.debate.enabled // false' "$CONFIG_FILE" 2>/dev/null)
-MAX_ROUNDS=$(jq -r '.debate.max_rounds // 2' "$CONFIG_FILE" 2>/dev/null)
-CONSENSUS_THRESHOLD=$(jq -r '.debate.consensus_threshold // 80' "$CONFIG_FILE" 2>/dev/null)
-CHALLENGE_THRESHOLD=$(jq -r '.debate.challenge_threshold // 60' "$CONFIG_FILE" 2>/dev/null)
-TIMEOUT=$(jq -r '.timeout // 120' "$CONFIG_FILE" 2>/dev/null)
+# --- Read config (batched into single jq call) ---
+_DEBATE_CFG=$(jq -r '[
+  (.debate.enabled // false),
+  (.debate.max_rounds // 2),
+  (.debate.consensus_threshold // 80),
+  (.debate.challenge_threshold // 60),
+  (.timeout // 120)
+] | @tsv' "$CONFIG_FILE" 2>/dev/null) || _DEBATE_CFG=""
+
+if [ -n "$_DEBATE_CFG" ]; then
+  IFS=$'\t' read -r DEBATE_ENABLED MAX_ROUNDS CONSENSUS_THRESHOLD CHALLENGE_THRESHOLD TIMEOUT <<< "$_DEBATE_CFG"
+else
+  DEBATE_ENABLED="false"; MAX_ROUNDS=2; CONSENSUS_THRESHOLD=80; CHALLENGE_THRESHOLD=60; TIMEOUT=120
+fi
+
+# Safety cap: prevent runaway debate loops from bad config
+if ! [[ "$MAX_ROUNDS" =~ ^[0-9]+$ ]] || [ "$MAX_ROUNDS" -gt 10 ]; then MAX_ROUNDS=2; fi
 
 # --- Check if debate is enabled ---
 if [ "$DEBATE_ENABLED" != "true" ] || [ "$MAX_ROUNDS" -le 0 ] 2>/dev/null; then
@@ -201,24 +213,11 @@ CHALLENGE_EOF
     return
   fi
 
-  # Try to extract JSON from result
+  # Extract JSON from result (uses shared extract_json from utils.sh)
   local parsed=""
+  parsed=$(extract_json "$result") || true
 
-  # Try direct parse
-  if echo "$result" | jq . &>/dev/null 2>&1; then
-    parsed="$result"
-  else
-    # Try extracting from code blocks
-    parsed=$(echo "$result" | sed -n '/^```json/,/^```$/p' | sed '1d;$d' 2>/dev/null)
-    if [ -z "$parsed" ] || ! echo "$parsed" | jq . &>/dev/null 2>&1; then
-      parsed=$(echo "$result" | sed -n '/^```/,/^```$/p' | sed '1d;$d' 2>/dev/null)
-    fi
-    if [ -z "$parsed" ] || ! echo "$parsed" | jq . &>/dev/null 2>&1; then
-      parsed=$(echo "$result" | sed -n '/^[[:space:]]*{/,/}[[:space:]]*$/p' 2>/dev/null)
-    fi
-  fi
-
-  if [ -n "$parsed" ] && echo "$parsed" | jq . &>/dev/null 2>&1; then
+  if [ -n "$parsed" ]; then
     # Validate and normalize
     echo "$parsed" | jq '{
       agree: (.agree // true),
@@ -241,29 +240,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
     break
   fi
 
-  # Identify challengeable findings
-  CHALLENGEABLE_INDICES=$(echo "$CURRENT_FINDINGS" | jq --argjson threshold "$CHALLENGE_THRESHOLD" '
-    [range(length)] | map(select(
-      . as $i |
-      ($CURRENT_FINDINGS[$i] |
-        ((.models | length) <= 1) or
-        ((.confidence // 50) < $threshold)
-      )
-    ))
-  ' --jsonargs 2>/dev/null || echo "[]")
-
-  # Substitute $CURRENT_FINDINGS properly
-  CHALLENGEABLE_INDICES=$(echo "$CURRENT_FINDINGS" | jq --argjson threshold "$CHALLENGE_THRESHOLD" '
-    [range(length)] | [.[] | select(
-      . as $i |
-      (input[$i] |
-        ((.models | length) <= 1) or
-        ((.confidence // 50) < $threshold)
-      )
-    )]
-  ' 2>/dev/null || echo "[]")
-
-  # Simpler approach: iterate through findings
+  # Iterate through findings and challenge those with low confidence or single-model
   UPDATED_FINDINGS="$CURRENT_FINDINGS"
   idx=0
 

@@ -13,11 +13,16 @@
 set -uo pipefail
 
 # --- Constants ---
-SESSION_DIR="/tmp/ai-review-arena"
-PENDING_FILE="${SESSION_DIR}/pending-changes.txt"
-COUNTER_FILE="${SESSION_DIR}/change-counter"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Project-specific session directory (prevents cross-project state leakage)
+_PROJECT_TOPLEVEL=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+_PROJECT_HASH=$(echo -n "$_PROJECT_TOPLEVEL" | shasum -a 256 | cut -c1-12)
+SESSION_DIR="/tmp/ai-review-arena-${_PROJECT_HASH}"
+PENDING_FILE="${SESSION_DIR}/pending-changes.txt"
+COUNTER_FILE="${SESSION_DIR}/change-counter"
+LOCK_FILE="${SESSION_DIR}/.lock"
 
 # --- Ensure session directory ---
 mkdir -p "$SESSION_DIR"
@@ -63,19 +68,32 @@ fi
 # Read Config Values (with environment variable overrides)
 # =============================================================================
 
-hook_enabled="${MULTI_REVIEW_HOOK_ENABLED:-$(jq -r '.hook_mode.enabled // true' "$CONFIG_FILE" 2>/dev/null)}"
+# Batch all config reads into a single jq call (was 7 separate invocations)
+_CFG_VALUES=$(jq -r '[
+  (.hook_mode.enabled // true),
+  (.hook_mode.batch_size // 5),
+  (.review.intensity // "standard"),
+  (.review.max_file_lines // 500),
+  (.hook_mode.min_lines_changed // 10),
+  (.review.confidence_threshold // 75)
+] | @tsv' "$CONFIG_FILE" 2>/dev/null) || _CFG_VALUES=""
+
+if [ -n "$_CFG_VALUES" ]; then
+  IFS=$'\t' read -r _cfg_hook_enabled _cfg_batch _cfg_intensity _cfg_max_lines _cfg_min_lines _cfg_conf_threshold <<< "$_CFG_VALUES"
+fi
+
+hook_enabled="${MULTI_REVIEW_HOOK_ENABLED:-${_cfg_hook_enabled:-true}}"
 if [ "$hook_enabled" != "true" ]; then
   exit 0
 fi
 
-BATCH_SIZE="${MULTI_REVIEW_BATCH_SIZE:-$(jq -r '.hook_mode.batch_size // 5' "$CONFIG_FILE" 2>/dev/null)}"
-INTENSITY="${MULTI_REVIEW_INTENSITY:-$(jq -r '.review.intensity // "standard"' "$CONFIG_FILE" 2>/dev/null)}"
-MAX_LINES=$(jq -r '.review.max_file_lines // 500' "$CONFIG_FILE" 2>/dev/null)
-MIN_LINES=$(jq -r '.hook_mode.min_lines_changed // 10' "$CONFIG_FILE" 2>/dev/null)
-CONFIDENCE_THRESHOLD=$(jq -r '.review.confidence_threshold // 75' "$CONFIG_FILE" 2>/dev/null)
+BATCH_SIZE="${MULTI_REVIEW_BATCH_SIZE:-${_cfg_batch:-5}}"
+INTENSITY="${MULTI_REVIEW_INTENSITY:-${_cfg_intensity:-standard}}"
+MAX_LINES="${_cfg_max_lines:-500}"
+MIN_LINES="${_cfg_min_lines:-10}"
+CONFIDENCE_THRESHOLD="${_cfg_conf_threshold:-75}"
 
 # Allowed extensions: config stores without dots (e.g., "ts"), we add dots for matching
-# Try review.file_extensions first, then hook_mode.allowed_extensions for backward compat
 RAW_EXTENSIONS=$(jq -r '(.review.file_extensions[]? // empty)' "$CONFIG_FILE" 2>/dev/null)
 if [ -z "$RAW_EXTENSIONS" ]; then
   RAW_EXTENSIONS=$(jq -r '(.hook_mode.allowed_extensions[]? // empty)' "$CONFIG_FILE" 2>/dev/null)
@@ -104,10 +122,15 @@ if [ -z "$HOOK_INPUT" ]; then
   exit 0
 fi
 
-TOOL_NAME=$(echo "$HOOK_INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-TOOL_INPUT=$(echo "$HOOK_INPUT" | jq -r '.tool_input // empty' 2>/dev/null)
+# Parse tool_name + file_path in a single jq call (was 2-7 separate calls)
+_HOOK_PARSED=$(echo "$HOOK_INPUT" | jq -r '[
+  (.tool_name // ""),
+  (.tool_input.file_path // "")
+] | @tsv' 2>/dev/null) || _HOOK_PARSED=""
 
-if [ -z "$TOOL_NAME" ] || [ -z "$TOOL_INPUT" ]; then
+IFS=$'\t' read -r TOOL_NAME _TOOL_FILE_PATH <<< "$_HOOK_PARSED"
+
+if [ -z "$TOOL_NAME" ]; then
   exit 0
 fi
 
@@ -115,16 +138,14 @@ fi
 # Extract File Path Based on Tool Type
 # =============================================================================
 
-FILE_PATH=""
+FILE_PATH="$_TOOL_FILE_PATH"
 CHANGE_TYPE=""
 CHANGE_DETAIL=""
 
 case "$TOOL_NAME" in
   Write)
-    FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.file_path // empty' 2>/dev/null)
     CHANGE_TYPE="write"
-    # Extract content (max MAX_LINES lines)
-    CONTENT=$(echo "$TOOL_INPUT" | jq -r '.content // empty' 2>/dev/null)
+    CONTENT=$(echo "$HOOK_INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null)
     if [ -n "$CONTENT" ]; then
       LINE_COUNT=$(echo "$CONTENT" | wc -l | tr -d ' ')
       if [ "$LINE_COUNT" -lt "$MIN_LINES" ]; then
@@ -134,17 +155,14 @@ case "$TOOL_NAME" in
     fi
     ;;
   Edit)
-    FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.file_path // empty' 2>/dev/null)
     CHANGE_TYPE="edit"
-    OLD_STR=$(echo "$TOOL_INPUT" | jq -r '.old_string // empty' 2>/dev/null)
-    NEW_STR=$(echo "$TOOL_INPUT" | jq -r '.new_string // empty' 2>/dev/null)
+    _EDIT_PARSED=$(echo "$HOOK_INPUT" | jq -r '[(.tool_input.old_string // ""), (.tool_input.new_string // "")] | @tsv' 2>/dev/null)
+    IFS=$'\t' read -r OLD_STR NEW_STR <<< "$_EDIT_PARSED"
     CHANGE_DETAIL=$(printf "--- OLD ---\n%s\n--- NEW ---\n%s" "$OLD_STR" "$NEW_STR")
     ;;
   MultiEdit)
-    FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.file_path // empty' 2>/dev/null)
     CHANGE_TYPE="multiedit"
-    # Extract all edits
-    EDITS=$(echo "$TOOL_INPUT" | jq -r '.edits[]? | "--- OLD ---\n" + .old_string + "\n--- NEW ---\n" + .new_string' 2>/dev/null)
+    EDITS=$(echo "$HOOK_INPUT" | jq -r '.tool_input.edits[]? | "--- OLD ---\n" + .old_string + "\n--- NEW ---\n" + .new_string' 2>/dev/null)
     CHANGE_DETAIL="$EDITS"
     ;;
   *)
@@ -192,6 +210,31 @@ if [ ! -f "$COUNTER_FILE" ]; then
   echo "0" > "$COUNTER_FILE"
 fi
 
+# Atomic batch accumulation with flock (prevents race condition on rapid edits)
+# Uses portable mkdir-based lock as fallback if flock unavailable
+_arena_lock() {
+  if command -v flock &>/dev/null; then
+    exec 200>"$LOCK_FILE"
+    flock -n 200 || return 1
+  else
+    mkdir "${LOCK_FILE}.d" 2>/dev/null || return 1
+    trap 'rmdir "${LOCK_FILE}.d" 2>/dev/null' EXIT
+  fi
+}
+
+_arena_unlock() {
+  if command -v flock &>/dev/null; then
+    exec 200>&-
+  else
+    rmdir "${LOCK_FILE}.d" 2>/dev/null || true
+  fi
+}
+
+if ! _arena_lock; then
+  # Another hook instance is running — skip this invocation
+  exit 0
+fi
+
 # Append change to pending file
 {
   echo "===CHANGE_START==="
@@ -203,13 +246,14 @@ fi
   echo "===CHANGE_END==="
 } >> "$PENDING_FILE"
 
-# Increment counter
+# Increment counter (now atomic under lock)
 CURRENT_COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo "0")
 CURRENT_COUNT=$((CURRENT_COUNT + 1))
 echo "$CURRENT_COUNT" > "$COUNTER_FILE"
 
 # --- Check if batch is full ---
 if [ "$CURRENT_COUNT" -lt "$BATCH_SIZE" ]; then
+  _arena_unlock
   exit 0
 fi
 
@@ -267,11 +311,26 @@ fi
 
 REVIEW_PIDS=()
 FINDINGS_INDEX=0
+MAX_FILE_SIZE=1048576  # 1MB — skip files larger than this
+
+# Cleanup trap: kill background review processes on interruption
+cleanup_reviews() {
+  for pid in "${REVIEW_PIDS[@]+${REVIEW_PIDS[@]}}"; do
+    kill "$pid" 2>/dev/null || true
+  done
+}
+trap cleanup_reviews EXIT INT TERM
 
 # For each changed file, launch reviews with each enabled model+role
 while IFS= read -r changed_file; do
   [ -z "$changed_file" ] && continue
   [ ! -f "$changed_file" ] && continue
+
+  # Skip files exceeding size limit (prevents OOM on large files)
+  FILE_SIZE=$(wc -c < "$changed_file" 2>/dev/null | tr -d ' ')
+  if [ "${FILE_SIZE:-0}" -gt "$MAX_FILE_SIZE" ]; then
+    continue
+  fi
 
   FILE_CONTENT=$(cat "$changed_file" 2>/dev/null) || continue
   if [ -z "$FILE_CONTENT" ]; then

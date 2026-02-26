@@ -104,7 +104,9 @@ cmd_record() {
   local ts
   ts=$(iso_timestamp)
 
-  # Build and append JSONL record
+  # Build JSONL record to a temp file, then atomically append (prevents corruption on concurrent writes)
+  local tmp_record
+  tmp_record=$(mktemp "${FEEDBACK_DIR}/.record.XXXXXX")
   jq -cn \
     --arg ts "$ts" \
     --arg sid "$session_id" \
@@ -121,7 +123,15 @@ cmd_record() {
       category: $category,
       severity: $severity,
       verdict: $verdict
-    }' >> "$FEEDBACK_LOG"
+    }' > "$tmp_record"
+
+  # Atomic append: flock if available, otherwise direct append (small write is effectively atomic)
+  if command -v flock &>/dev/null; then
+    flock "$FEEDBACK_LOG" sh -c "cat '$tmp_record' >> '$FEEDBACK_LOG'"
+  else
+    cat "$tmp_record" >> "$FEEDBACK_LOG"
+  fi
+  rm -f "$tmp_record"
 
   # Confirmation output
   jq -n \

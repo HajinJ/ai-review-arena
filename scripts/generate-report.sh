@@ -195,50 +195,35 @@ render_findings() {
     return
   fi
 
-  local i=0
-  while [ "$i" -lt "$count" ]; do
-    local finding
-    finding=$(echo "$findings_json" | jq ".[$i]" 2>/dev/null)
+  # Batch-extract all finding fields in a single jq call (was 8 calls per finding)
+  local rendered
+  rendered=$(echo "$findings_json" | jq -r --arg show_conf "$SHOW_CONFIDENCE" --arg show_mod "$SHOW_MODELS" \
+    --arg l_conf "$L_CONFIDENCE" --arg l_mod "$L_MODELS_LABEL" --arg l_sug "$L_SUGGESTION" --arg l_cross "$L_CROSS_AGREE" '
+    to_entries[] |
+    .key as $idx |
+    .value |
+    (.file // "?") as $file |
+    (.line // "?") as $line |
+    (.title // "Untitled") as $title |
+    (.description // "") as $desc |
+    (.suggestion // "") as $sug |
+    (.confidence // "?") as $conf |
+    ((.models // []) | join(", ")) as $models |
+    (.cross_model_agreement // false) as $cross |
+    ($file | split("/") | last) as $short_file |
+    "\($idx + 1). **\($short_file):\($line)** - \($title)" +
+    (if $show_conf == "true" then
+      "\n   \($l_conf): \($conf)%" + (if $cross then " | \($l_cross)" else "" end)
+    else "" end) +
+    (if $show_mod == "true" and ($models | length) > 0 then "\n   \($l_mod): \($models)" else "" end) +
+    (if $desc != "" then "\n   \($desc)" else "" end) +
+    (if $sug != "" and $sug != "null" then "\n   \($l_sug): \($sug)" else "" end) +
+    "\n"
+  ' 2>/dev/null)
 
-    local file line title desc suggestion confidence models cross_agree
-    file=$(echo "$finding" | jq -r '.file // "?"' 2>/dev/null)
-    line=$(echo "$finding" | jq -r '.line // "?"' 2>/dev/null)
-    title=$(echo "$finding" | jq -r '.title // "Untitled"' 2>/dev/null)
-    desc=$(echo "$finding" | jq -r '.description // ""' 2>/dev/null)
-    suggestion=$(echo "$finding" | jq -r '.suggestion // ""' 2>/dev/null)
-    confidence=$(echo "$finding" | jq -r '.confidence // "?"' 2>/dev/null)
-    models=$(echo "$finding" | jq -r '(.models // []) | join(", ")' 2>/dev/null)
-    cross_agree=$(echo "$finding" | jq -r '.cross_model_agreement // false' 2>/dev/null)
-
-    # Shorten file path for readability
-    local short_file
-    short_file=$(basename "$file" 2>/dev/null || echo "$file")
-
-    echo "$((i + 1)). **${short_file}:${line}** - ${title}"
-
-    if [ "$SHOW_CONFIDENCE" = "true" ]; then
-      local agree_tag=""
-      if [ "$cross_agree" = "true" ]; then
-        agree_tag=" | ${L_CROSS_AGREE}"
-      fi
-      echo "   ${L_CONFIDENCE}: ${confidence}%${agree_tag}"
-    fi
-
-    if [ "$SHOW_MODELS" = "true" ] && [ -n "$models" ]; then
-      echo "   ${L_MODELS_LABEL}: ${models}"
-    fi
-
-    if [ -n "$desc" ]; then
-      echo "   ${desc}"
-    fi
-
-    if [ -n "$suggestion" ] && [ "$suggestion" != "null" ]; then
-      echo "   ${L_SUGGESTION}: ${suggestion}"
-    fi
-
-    echo ""
-    i=$((i + 1))
-  done
+  if [ -n "$rendered" ]; then
+    echo "$rendered"
+  fi
 }
 
 # --- Render sections by severity ---

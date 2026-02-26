@@ -135,119 +135,104 @@ format_cost() {
 # Code pipeline phase costs: [input_tokens, output_tokens]
 # Business pipeline phase costs: [input_tokens, output_tokens]
 
-declare -A PHASE_INPUT PHASE_OUTPUT PHASE_LABEL_EN PHASE_LABEL_KO
+# Bash 3.2 compatible: use prefixed variables + indirect expansion instead of declare -A
+# Prefixes: _pi_ (phase input), _po_ (phase output), _le_ (label EN), _lk_ (label KO)
 
 if [ "$PIPELINE" = "code" ]; then
-  # Phase 0.1: Intensity Decision (4 agents debate)
-  PHASE_INPUT[intensity]=6000;   PHASE_OUTPUT[intensity]=4000
-  PHASE_LABEL_EN[intensity]="Intensity Decision (4 agents)";  PHASE_LABEL_KO[intensity]="강도 결정 (4 에이전트)"
+  _pi_intensity=6000;   _po_intensity=4000
+  _le_intensity="Intensity Decision (4 agents)";  _lk_intensity="강도 결정 (4 에이전트)"
 
-  # Phase 0.2: Cost Estimation
-  PHASE_INPUT[cost]=2000;        PHASE_OUTPUT[cost]=1000
-  PHASE_LABEL_EN[cost]="Cost Estimation";                     PHASE_LABEL_KO[cost]="비용 추정"
+  _pi_cost=2000;        _po_cost=1000
+  _le_cost="Cost Estimation";                     _lk_cost="비용 추정"
 
-  # Phase 0.5: Codebase Analysis
-  PHASE_INPUT[codebase]=5000;    PHASE_OUTPUT[codebase]=3000
-  PHASE_LABEL_EN[codebase]="Codebase Analysis";               PHASE_LABEL_KO[codebase]="코드베이스 분석"
+  _pi_codebase=5000;    _po_codebase=3000
+  _le_codebase="Codebase Analysis";               _lk_codebase="코드베이스 분석"
 
-  # Phase 1: Stack Detection
-  PHASE_INPUT[stack]=2000;       PHASE_OUTPUT[stack]=1000
-  PHASE_LABEL_EN[stack]="Stack Detection";                    PHASE_LABEL_KO[stack]="스택 감지"
+  _pi_stack=2000;       _po_stack=1000
+  _le_stack="Stack Detection";                    _lk_stack="스택 감지"
 
-  # Phase 2: Research
-  PHASE_INPUT[research]=10000;   PHASE_OUTPUT[research]=5000
-  PHASE_LABEL_EN[research]="Pre-Implementation Research";     PHASE_LABEL_KO[research]="사전 리서치"
+  _pi_research=10000;   _po_research=5000
+  _le_research="Pre-Implementation Research";     _lk_research="사전 리서치"
 
-  # Phase 2 Research Direction Debate
-  PHASE_INPUT[research_debate]=8000;  PHASE_OUTPUT[research_debate]=4000
-  PHASE_LABEL_EN[research_debate]="Research Direction Debate"; PHASE_LABEL_KO[research_debate]="리서치 방향 토론"
+  _pi_research_debate=8000;  _po_research_debate=4000
+  _le_research_debate="Research Direction Debate"; _lk_research_debate="리서치 방향 토론"
 
-  # Phase 3: Compliance
-  PHASE_INPUT[compliance]=8000;  PHASE_OUTPUT[compliance]=4000
-  PHASE_LABEL_EN[compliance]="Compliance Detection";          PHASE_LABEL_KO[compliance]="컴플라이언스 감지"
+  _pi_compliance=8000;  _po_compliance=4000
+  _le_compliance="Compliance Detection";          _lk_compliance="컴플라이언스 감지"
 
-  # Phase 3 Compliance Scope Debate
-  PHASE_INPUT[compliance_debate]=6000; PHASE_OUTPUT[compliance_debate]=3000
-  PHASE_LABEL_EN[compliance_debate]="Compliance Scope Debate"; PHASE_LABEL_KO[compliance_debate]="컴플라이언스 범위 토론"
+  _pi_compliance_debate=6000; _po_compliance_debate=3000
+  _le_compliance_debate="Compliance Scope Debate"; _lk_compliance_debate="컴플라이언스 범위 토론"
 
-  # Phase 4: Model Benchmarking
-  PHASE_INPUT[benchmark]=25000;  PHASE_OUTPUT[benchmark]=15000
-  PHASE_LABEL_EN[benchmark]="Model Benchmarking";             PHASE_LABEL_KO[benchmark]="모델 벤치마킹"
+  _pi_benchmark=25000;  _po_benchmark=15000
+  _le_benchmark="Model Benchmarking";             _lk_benchmark="모델 벤치마킹"
 
-  # Phase 5: Figma Analysis
-  PHASE_INPUT[figma]=15000;      PHASE_OUTPUT[figma]=5000
-  PHASE_LABEL_EN[figma]="Figma Analysis";                     PHASE_LABEL_KO[figma]="Figma 분석"
+  _pi_figma=15000;      _po_figma=5000
+  _le_figma="Figma Analysis";                     _lk_figma="Figma 분석"
 
-  # Phase 5.5: Implementation Strategy Debate
-  PHASE_INPUT[strategy]=15000;   PHASE_OUTPUT[strategy]=10000
-  PHASE_LABEL_EN[strategy]="Strategy Debate (4 agents)";      PHASE_LABEL_KO[strategy]="전략 토론 (4 에이전트)"
+  _pi_strategy=15000;   _po_strategy=10000
+  _le_strategy="Strategy Debate (4 agents)";      _lk_strategy="전략 토론 (4 에이전트)"
 
-  # Phase 6: Review per Claude agent
-  PHASE_INPUT[review_agent]=8000; PHASE_OUTPUT[review_agent]=4000
-  PHASE_LABEL_EN[review_agent]="Review (per Claude agent)";   PHASE_LABEL_KO[review_agent]="리뷰 (Claude 에이전트당)"
+  _pi_review_agent=8000; _po_review_agent=4000
+  _le_review_agent="Review (per Claude agent)";   _lk_review_agent="리뷰 (Claude 에이전트당)"
 
-  # Phase 6: External CLI per call
-  PHASE_INPUT[review_cli]=6000;  PHASE_OUTPUT[review_cli]=2000
-  PHASE_LABEL_EN[review_cli]="Review (per external CLI)";     PHASE_LABEL_KO[review_cli]="리뷰 (외부 CLI당)"
+  _pi_review_cli=6000;  _po_review_cli=2000
+  _le_review_cli="Review (per external CLI)";     _lk_review_cli="리뷰 (외부 CLI당)"
 
-  # Phase 6: Debate Rounds 2+3
-  PHASE_INPUT[debate]=40000;     PHASE_OUTPUT[debate]=20000
-  PHASE_LABEL_EN[debate]="Adversarial Debate (rounds 2-3)";   PHASE_LABEL_KO[debate]="적대적 토론 (라운드 2-3)"
+  _pi_debate=40000;     _po_debate=20000
+  _le_debate="Adversarial Debate (rounds 2-3)";   _lk_debate="적대적 토론 (라운드 2-3)"
 
-  # Phase 6.5: Auto-Fix
-  PHASE_INPUT[autofix]=6000;     PHASE_OUTPUT[autofix]=4000
-  PHASE_LABEL_EN[autofix]="Auto-Fix Loop";                    PHASE_LABEL_KO[autofix]="자동 수정"
+  _pi_autofix=6000;     _po_autofix=4000
+  _le_autofix="Auto-Fix Loop";                    _lk_autofix="자동 수정"
 
-  # Phase 7: Report
-  PHASE_INPUT[report]=3000;      PHASE_OUTPUT[report]=2000
-  PHASE_LABEL_EN[report]="Final Report";                      PHASE_LABEL_KO[report]="최종 리포트"
+  _pi_report=3000;      _po_report=2000
+  _le_report="Final Report";                      _lk_report="최종 리포트"
 
 else
   # Business pipeline phases
-  PHASE_INPUT[intensity]=6000;   PHASE_OUTPUT[intensity]=4000
-  PHASE_LABEL_EN[intensity]="Intensity Decision (4 agents)";  PHASE_LABEL_KO[intensity]="강도 결정 (4 에이전트)"
+  _pi_intensity=6000;   _po_intensity=4000
+  _le_intensity="Intensity Decision (4 agents)";  _lk_intensity="강도 결정 (4 에이전트)"
 
-  PHASE_INPUT[cost]=2000;        PHASE_OUTPUT[cost]=1000
-  PHASE_LABEL_EN[cost]="Cost Estimation";                     PHASE_LABEL_KO[cost]="비용 추정"
+  _pi_cost=2000;        _po_cost=1000
+  _le_cost="Cost Estimation";                     _lk_cost="비용 추정"
 
-  PHASE_INPUT[context]=7000;     PHASE_OUTPUT[context]=3000
-  PHASE_LABEL_EN[context]="Business Context Analysis";        PHASE_LABEL_KO[context]="비즈니스 컨텍스트 분석"
+  _pi_context=7000;     _po_context=3000
+  _le_context="Business Context Analysis";        _lk_context="비즈니스 컨텍스트 분석"
 
-  PHASE_INPUT[market]=10000;     PHASE_OUTPUT[market]=5000
-  PHASE_LABEL_EN[market]="Market Research";                   PHASE_LABEL_KO[market]="시장 리서치"
+  _pi_market=10000;     _po_market=5000
+  _le_market="Market Research";                   _lk_market="시장 리서치"
 
-  PHASE_INPUT[research]=12000;   PHASE_OUTPUT[research]=8000
-  PHASE_LABEL_EN[research]="Best Practices Research";         PHASE_LABEL_KO[research]="베스트 프랙티스 리서치"
+  _pi_research=12000;   _po_research=8000
+  _le_research="Best Practices Research";         _lk_research="베스트 프랙티스 리서치"
 
-  PHASE_INPUT[research_debate]=8000; PHASE_OUTPUT[research_debate]=4000
-  PHASE_LABEL_EN[research_debate]="Research Direction Debate"; PHASE_LABEL_KO[research_debate]="리서치 방향 토론"
+  _pi_research_debate=8000; _po_research_debate=4000
+  _le_research_debate="Research Direction Debate"; _lk_research_debate="리서치 방향 토론"
 
-  PHASE_INPUT[accuracy]=12000;   PHASE_OUTPUT[accuracy]=6000
-  PHASE_LABEL_EN[accuracy]="Accuracy Audit";                  PHASE_LABEL_KO[accuracy]="정확성 감사"
+  _pi_accuracy=12000;   _po_accuracy=6000
+  _le_accuracy="Accuracy Audit";                  _lk_accuracy="정확성 감사"
 
-  PHASE_INPUT[accuracy_debate]=6000; PHASE_OUTPUT[accuracy_debate]=3000
-  PHASE_LABEL_EN[accuracy_debate]="Accuracy Scope Debate";    PHASE_LABEL_KO[accuracy_debate]="정확성 범위 토론"
+  _pi_accuracy_debate=6000; _po_accuracy_debate=3000
+  _le_accuracy_debate="Accuracy Scope Debate";    _lk_accuracy_debate="정확성 범위 토론"
 
-  PHASE_INPUT[benchmark]=25000;  PHASE_OUTPUT[benchmark]=15000
-  PHASE_LABEL_EN[benchmark]="Model Benchmarking";             PHASE_LABEL_KO[benchmark]="모델 벤치마킹"
+  _pi_benchmark=25000;  _po_benchmark=15000
+  _le_benchmark="Model Benchmarking";             _lk_benchmark="모델 벤치마킹"
 
-  PHASE_INPUT[strategy]=15000;   PHASE_OUTPUT[strategy]=10000
-  PHASE_LABEL_EN[strategy]="Content Strategy Debate";         PHASE_LABEL_KO[strategy]="콘텐츠 전략 토론"
+  _pi_strategy=15000;   _po_strategy=10000
+  _le_strategy="Content Strategy Debate";         _lk_strategy="콘텐츠 전략 토론"
 
-  PHASE_INPUT[review_agent]=10000; PHASE_OUTPUT[review_agent]=5000
-  PHASE_LABEL_EN[review_agent]="Review (per business agent)"; PHASE_LABEL_KO[review_agent]="리뷰 (비즈니스 에이전트당)"
+  _pi_review_agent=10000; _po_review_agent=5000
+  _le_review_agent="Review (per business agent)"; _lk_review_agent="리뷰 (비즈니스 에이전트당)"
 
-  PHASE_INPUT[review_cli]=6000;  PHASE_OUTPUT[review_cli]=2000
-  PHASE_LABEL_EN[review_cli]="Review (per external CLI)";     PHASE_LABEL_KO[review_cli]="리뷰 (외부 CLI당)"
+  _pi_review_cli=6000;  _po_review_cli=2000
+  _le_review_cli="Review (per external CLI)";     _lk_review_cli="리뷰 (외부 CLI당)"
 
-  PHASE_INPUT[debate]=35000;     PHASE_OUTPUT[debate]=15000
-  PHASE_LABEL_EN[debate]="Business Review Debate";            PHASE_LABEL_KO[debate]="비즈니스 리뷰 토론"
+  _pi_debate=35000;     _po_debate=15000
+  _le_debate="Business Review Debate";            _lk_debate="비즈니스 리뷰 토론"
 
-  PHASE_INPUT[autofix]=10000;    PHASE_OUTPUT[autofix]=5000
-  PHASE_LABEL_EN[autofix]="Auto-Revision";                    PHASE_LABEL_KO[autofix]="자동 수정"
+  _pi_autofix=10000;    _po_autofix=5000
+  _le_autofix="Auto-Revision";                    _lk_autofix="자동 수정"
 
-  PHASE_INPUT[report]=5000;      PHASE_OUTPUT[report]=3000
-  PHASE_LABEL_EN[report]="Final Report";                      PHASE_LABEL_KO[report]="최종 리포트"
+  _pi_report=5000;      _po_report=3000
+  _le_report="Final Report";                      _lk_report="최종 리포트"
 fi
 
 # =============================================================================
@@ -312,8 +297,8 @@ if [ "$INTENSITY" != "quick" ]; then
 fi
 
 for phase in "${PHASES[@]}"; do
-  input_t="${PHASE_INPUT[$phase]:-0}"
-  output_t="${PHASE_OUTPUT[$phase]:-0}"
+  _pi_var="_pi_${phase}"; input_t="${!_pi_var:-0}"
+  _po_var="_po_${phase}"; output_t="${!_po_var:-0}"
 
   # Scale review_agent by agent count
   if [ "$phase" = "review_agent" ]; then
@@ -350,9 +335,9 @@ for phase in "${PHASES[@]}"; do
   TOTAL_COST_VAL=$(awk -v t="$TOTAL_COST_VAL" -v p="$phase_cost" 'BEGIN { printf "%.4f", t + p }')
 
   if [ "$OUTPUT_LANG" = "ko" ]; then
-    label="${PHASE_LABEL_KO[$phase]:-$phase}"
+    _lk_var="_lk_${phase}"; label="${!_lk_var:-$phase}"
   else
-    label="${PHASE_LABEL_EN[$phase]:-$phase}"
+    _le_var="_le_${phase}"; label="${!_le_var:-$phase}"
   fi
 
   BREAKDOWN="${BREAKDOWN}  ${label}: ~${phase_tokens} tokens, $(format_cost "$phase_cost")\n"

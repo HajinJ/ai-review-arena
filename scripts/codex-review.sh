@@ -30,6 +30,7 @@ esac
 # --- Resolve paths ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/utils.sh"
 PROMPT_FILE="${PLUGIN_DIR}/config/review-prompts/${ROLE}.txt"
 
 # --- Check dependencies ---
@@ -187,42 +188,7 @@ if [ -z "$RAW_OUTPUT" ] && [ -z "$PARSED_JSON" ]; then
   exit 0
 fi
 
-# --- Extract JSON from response ---
-# The model may wrap JSON in markdown code blocks. Strip them.
-extract_json() {
-  local input="$1"
-
-  # Try 1: Input is already valid JSON
-  if echo "$input" | jq . &>/dev/null 2>&1; then
-    echo "$input"
-    return 0
-  fi
-
-  # Try 2: Extract from ```json ... ``` blocks
-  local extracted
-  extracted=$(echo "$input" | sed -n '/^```json/,/^```$/p' | sed '1d;$d')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  # Try 3: Extract from ``` ... ``` blocks (no language tag)
-  extracted=$(echo "$input" | sed -n '/^```/,/^```$/p' | sed '1d;$d')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  # Try 4: Find first { to last } on a best-effort basis
-  extracted=$(echo "$input" | sed -n '/^[[:space:]]*{/,/}[[:space:]]*$/p')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  return 1
-}
-
+# --- Extract JSON from response (uses shared extract_json from utils.sh) ---
 # Skip extraction if structured output already provided clean JSON
 if [ -z "$PARSED_JSON" ]; then
   PARSED_JSON=$(extract_json "$RAW_OUTPUT") || {

@@ -163,7 +163,10 @@ calculate_metrics() {
     local found=false
     if [ -n "$keywords" ]; then
       for keyword in $keywords; do
-        if jq -e ".. | strings | test(\"$keyword\"; \"i\")" "$findings_file" &>/dev/null 2>&1; then
+        # Escape regex metacharacters to prevent jq regex injection
+        local escaped_keyword
+        escaped_keyword=$(printf '%s' "$keyword" | sed 's/[.[\(*+?{|^$\\]/\\&/g')
+        if jq -e --arg kw "$escaped_keyword" '.. | strings | test($kw; "i")' "$findings_file" &>/dev/null 2>&1; then
           found=true
           break
         fi

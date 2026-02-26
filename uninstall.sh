@@ -32,10 +32,11 @@ fi
 rm -f "$CLAUDE_DIR/ARENA-ROUTER.md.bak"
 
 # Remove reference from CLAUDE.md
-if [ -f "$CLAUDE_DIR/CLAUDE.md" ] && grep -q "@ARENA-ROUTER.md" "$CLAUDE_DIR/CLAUDE.md"; then
-  sed -i.tmp '/@ARENA-ROUTER.md/d' "$CLAUDE_DIR/CLAUDE.md"
+if [ -f "$CLAUDE_DIR/CLAUDE.md" ] && grep -q "ARENA-ROUTER.md" "$CLAUDE_DIR/CLAUDE.md"; then
+  # Remove any line referencing ARENA-ROUTER.md (both old @ARENA-ROUTER.md and new @plugins/... paths)
+  sed -i.tmp '/ARENA-ROUTER\.md/d' "$CLAUDE_DIR/CLAUDE.md"
   rm -f "$CLAUDE_DIR/CLAUDE.md.tmp"
-  echo -e "${GREEN}✓${NC} Removed @ARENA-ROUTER.md from CLAUDE.md"
+  echo -e "${GREEN}✓${NC} Removed ARENA-ROUTER.md reference from CLAUDE.md"
 fi
 
 # Remove Gemini hooks

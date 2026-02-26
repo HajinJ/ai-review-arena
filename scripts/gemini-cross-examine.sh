@@ -28,6 +28,7 @@ esac
 # --- Resolve paths ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/utils.sh"
 
 if [ "$ROUND" = "cross-examine" ]; then
   PROMPT_FILE="${PLUGIN_DIR}/config/review-prompts/cross-examine.txt"
@@ -126,37 +127,7 @@ if [ -z "$RAW_OUTPUT" ]; then
   exit 0
 fi
 
-# --- Extract JSON from response ---
-extract_json() {
-  local input="$1"
-
-  if echo "$input" | jq . &>/dev/null 2>&1; then
-    echo "$input"
-    return 0
-  fi
-
-  local extracted
-  extracted=$(echo "$input" | sed -n '/^```json/,/^```$/p' | sed '1d;$d')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  extracted=$(echo "$input" | sed -n '/^```/,/^```$/p' | sed '1d;$d')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  extracted=$(echo "$input" | sed -n '/^[[:space:]]*{/,/}[[:space:]]*$/p')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  return 1
-}
-
+# --- Extract JSON from response (uses shared extract_json from utils.sh) ---
 PARSED_JSON=""
 PARSED_JSON=$(extract_json "$RAW_OUTPUT") || {
   echo "{\"model\":\"gemini\",\"round\":\"$ROUND\",\"error\":\"Failed to parse JSON from gemini response\",\"raw_output\":$(echo "$RAW_OUTPUT" | head -c 2000 | jq -Rs .),\"responses\":[],\"defenses\":[]}"

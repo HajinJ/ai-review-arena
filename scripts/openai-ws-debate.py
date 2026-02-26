@@ -103,21 +103,45 @@ def run_debate_ws(findings, code_context, model, store, connection_timeout,
     except ImportError:
         raise ImportError("websocket-client package not installed. Run: pip install websocket-client")
 
-    ws = websocket.create_connection(
-        ws_url,
-        header=[
-            f"Authorization: Bearer {api_key}",
-            "OpenAI-Beta: realtime=v1"
-        ],
-        timeout=connection_timeout
-    )
+    max_retries = 3
+    last_error = None
 
-    try:
-        return _run_debate_rounds(ws, findings, code_context, model, store,
-                                  connection_timeout, max_rounds,
-                                  challenge_threshold, consensus_threshold)
-    finally:
-        ws.close()
+    for attempt in range(max_retries):
+        try:
+            ws = websocket.create_connection(
+                ws_url,
+                header=[
+                    f"Authorization: Bearer {api_key}",
+                    "OpenAI-Beta: realtime=v1"
+                ],
+                timeout=connection_timeout
+            )
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                backoff = min(2 ** attempt, 8)
+                time.sleep(backoff)
+                continue
+            raise RuntimeError(f"WebSocket connection failed after {max_retries} attempts: {last_error}")
+
+        try:
+            return _run_debate_rounds(ws, findings, code_context, model, store,
+                                      connection_timeout, max_rounds,
+                                      challenge_threshold, consensus_threshold)
+        except (ConnectionError, OSError) as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                backoff = min(2 ** attempt, 8)
+                time.sleep(backoff)
+                continue
+            raise
+        finally:
+            try:
+                ws.close()
+            except Exception:
+                pass
+
+    raise RuntimeError(f"WebSocket debate failed after {max_retries} attempts: {last_error}")
 
 
 def run_debate_http(findings, code_context, model, store, connection_timeout,

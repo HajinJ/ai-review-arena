@@ -270,23 +270,23 @@ cmd_cleanup() {
 
   if [ "$total_size" -gt "$max_size_bytes" ]; then
     # Remove oldest entries until under limit
-    find "$base" -name '*.timestamp' -type f -print0 2>/dev/null | \
-      xargs -0 -I{} sh -c 'echo "$(cat "{}" 2>/dev/null || echo 0) {}"' | \
-      sort -n | \
-      while IFS=' ' read -r _ts ts_path; do
-        [ -f "$ts_path" ] || continue
-        local data_file="${ts_path%.timestamp}"
-        if [ -f "$data_file" ]; then
-          local file_size
-          file_size=$(wc -c < "$data_file" 2>/dev/null | tr -d ' ')
-          rm -f "$data_file" "$ts_path" 2>/dev/null
-          total_size=$((total_size - file_size))
-          removed=$((removed + 1))
-          if [ "$total_size" -le "$max_size_bytes" ]; then
-            break
-          fi
+    # Use process substitution to keep while-loop in main shell (not subshell)
+    while IFS=' ' read -r _ts ts_path; do
+      [ -f "$ts_path" ] || continue
+      local data_file="${ts_path%.timestamp}"
+      if [ -f "$data_file" ]; then
+        local file_size
+        file_size=$(wc -c < "$data_file" 2>/dev/null | tr -d ' ')
+        rm -f "$data_file" "$ts_path" 2>/dev/null
+        total_size=$((total_size - file_size))
+        removed=$((removed + 1))
+        if [ "$total_size" -le "$max_size_bytes" ]; then
+          break
         fi
-      done
+      fi
+    done < <(find "$base" -maxdepth 3 -name '*.timestamp' -type f -print0 2>/dev/null | \
+      xargs -0 -I{} sh -c 'echo "$(cat "{}" 2>/dev/null || echo 0) {}"' | \
+      sort -n)
   fi
 
   # Remove empty directories
