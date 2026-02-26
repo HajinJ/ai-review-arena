@@ -54,7 +54,9 @@ CI_CD=()
 PLATFORM=""
 
 # --- Helper: add unique (bash 3.2 compatible, no nameref) ---
-# Uses eval for dynamic array names — validated against allowlist for safety
+# Uses eval for dynamic array names — validated against allowlist for safety.
+# NOTE: eval is required for bash 3.2 (macOS default) which lacks declare -n (namerefs).
+# When bash 4+ is the minimum, replace with: local -n arr="$target_var"; arr+=("$value")
 add_unique() {
   local target_var="$1"
   local value="$2"
@@ -62,6 +64,10 @@ add_unique() {
   case "$target_var" in
     LANGUAGES|FRAMEWORKS|DATABASES|INFRASTRUCTURE|BUILD_TOOLS|TESTING|CI_CD|ALL_TECHNOLOGIES) ;;
     *) return 1 ;;
+  esac
+  # Safety: reject values with shell metacharacters (defense-in-depth)
+  case "$value" in
+    *['`$();&|']*) return 1 ;;
   esac
   # Check if value already exists in array
   eval "local _items=(\"\${${target_var}[@]+\"\${${target_var}[@]}\"}\")"

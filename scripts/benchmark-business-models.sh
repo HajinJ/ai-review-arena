@@ -302,100 +302,74 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
     continue
   fi
 
-  # --- Codex ---
+  # --- Codex & Gemini (parallel) ---
+  CODEX_RESULT_FILE="${SESSION_DIR:-/tmp}/bench-codex-${TEST_ID}.json"
+  GEMINI_RESULT_FILE="${SESSION_DIR:-/tmp}/bench-gemini-${TEST_ID}.json"
+  _bench_pids=()
+
   if has_model "codex" && [ -x "$SCRIPT_DIR/codex-business-review.sh" ]; then
     log_info "  Running Codex for $TEST_ID..."
+    (
+      echo "$CONTENT" | timeout "$TIMEOUT" "$SCRIPT_DIR/codex-business-review.sh" "${CONFIG_FILE:-/dev/null}" --mode round1 --category "$BENCH_CATEGORY" > "$CODEX_RESULT_FILE" 2>/dev/null || echo '{"findings":[]}' > "$CODEX_RESULT_FILE"
+    ) &
+    _bench_pids+=($!)
+  fi
 
-    CODEX_RESPONSE=$(echo "$CONTENT" | timeout "$TIMEOUT" "$SCRIPT_DIR/codex-business-review.sh" "${CONFIG_FILE:-/dev/null}" --mode round1 --category "$BENCH_CATEGORY" 2>/dev/null || echo '{"findings":[]}')
+  if has_model "gemini" && [ -x "$SCRIPT_DIR/gemini-business-review.sh" ]; then
+    log_info "  Running Gemini for $TEST_ID..."
+    (
+      echo "$CONTENT" | timeout "$TIMEOUT" "$SCRIPT_DIR/gemini-business-review.sh" "${CONFIG_FILE:-/dev/null}" --mode round1 --category "$BENCH_CATEGORY" > "$GEMINI_RESULT_FILE" 2>/dev/null || echo '{"findings":[]}' > "$GEMINI_RESULT_FILE"
+    ) &
+    _bench_pids+=($!)
+  fi
 
+  # Wait for both models to finish
+  for _bpid in "${_bench_pids[@]+${_bench_pids[@]}}"; do
+    wait "$_bpid" 2>/dev/null || true
+  done
+
+  # Process Codex results
+  if [ -f "$CODEX_RESULT_FILE" ]; then
+    CODEX_RESPONSE=$(cat "$CODEX_RESULT_FILE" 2>/dev/null || echo '{"findings":[]}')
+    rm -f "$CODEX_RESULT_FILE"
     CODEX_FINDINGS=$(echo "$CODEX_RESPONSE" | jq '.findings // []' 2>/dev/null || echo "[]")
 
     read -r correct found expected <<< "$(score_findings "$CODEX_FINDINGS" "$GROUND_TRUTH")"
-
     f1=$(compute_f1 "$correct" "$found" "$expected")
-
-    precision=0
-    if [ "$found" -gt 0 ]; then
-      precision=$((correct * 100 / found))
-    fi
-
-    recall=0
-    if [ "$expected" -gt 0 ]; then
-      recall=$((correct * 100 / expected))
-    fi
+    precision=0; [ "$found" -gt 0 ] && precision=$((correct * 100 / found))
+    recall=0; [ "$expected" -gt 0 ] && recall=$((correct * 100 / expected))
 
     RESULTS=$(echo "$RESULTS" | jq \
-      --arg model "codex" \
-      --arg cat "$BENCH_CATEGORY" \
-      --arg test_id "$TEST_ID" \
-      --argjson f1 "$f1" \
-      --argjson precision "$precision" \
-      --argjson recall "$recall" \
-      --argjson correct "$correct" \
-      --argjson found "$found" \
-      --argjson expected "$expected" \
-      '
-      .[$model] //= {} |
-      .[$model][$cat] //= [] |
-      .[$model][$cat] += [{
-        test_id: $test_id,
-        f1: $f1,
-        precision: $precision,
-        recall: $recall,
-        correct: $correct,
-        found: $found,
-        expected: $expected
-      }]
-      ')
+      --arg model "codex" --arg cat "$BENCH_CATEGORY" --arg test_id "$TEST_ID" \
+      --argjson f1 "$f1" --argjson precision "$precision" --argjson recall "$recall" \
+      --argjson correct "$correct" --argjson found "$found" --argjson expected "$expected" \
+      '.[$model] //= {} | .[$model][$cat] //= [] | .[$model][$cat] += [{
+        test_id: $test_id, f1: $f1, precision: $precision, recall: $recall,
+        correct: $correct, found: $found, expected: $expected
+      }]')
 
     log_info "    Codex: F1=$f1, P=$precision, R=$recall ($correct/$found found, $expected expected)"
   fi
 
-  # --- Gemini ---
-  if has_model "gemini" && [ -x "$SCRIPT_DIR/gemini-business-review.sh" ]; then
-    log_info "  Running Gemini for $TEST_ID..."
-
-    GEMINI_RESPONSE=$(echo "$CONTENT" | timeout "$TIMEOUT" "$SCRIPT_DIR/gemini-business-review.sh" "${CONFIG_FILE:-/dev/null}" --mode round1 --category "$BENCH_CATEGORY" 2>/dev/null || echo '{"findings":[]}')
-
+  # Process Gemini results
+  if [ -f "$GEMINI_RESULT_FILE" ]; then
+    GEMINI_RESPONSE=$(cat "$GEMINI_RESULT_FILE" 2>/dev/null || echo '{"findings":[]}')
+    rm -f "$GEMINI_RESULT_FILE"
     GEMINI_FINDINGS=$(echo "$GEMINI_RESPONSE" | jq '.findings // []' 2>/dev/null || echo "[]")
 
     read -r correct found expected <<< "$(score_findings "$GEMINI_FINDINGS" "$GROUND_TRUTH")"
-
     f1=$(compute_f1 "$correct" "$found" "$expected")
-
-    precision=0
-    if [ "$found" -gt 0 ]; then
-      precision=$((correct * 100 / found))
-    fi
-
-    recall=0
-    if [ "$expected" -gt 0 ]; then
-      recall=$((correct * 100 / expected))
-    fi
+    precision=0; [ "$found" -gt 0 ] && precision=$((correct * 100 / found))
+    recall=0; [ "$expected" -gt 0 ] && recall=$((correct * 100 / expected))
 
     RESULTS=$(echo "$RESULTS" | jq \
-      --arg model "gemini" \
-      --arg cat "$BENCH_CATEGORY" \
-      --arg test_id "$TEST_ID" \
-      --argjson f1 "$f1" \
-      --argjson precision "$precision" \
-      --argjson recall "$recall" \
-      --argjson correct "$correct" \
-      --argjson found "$found" \
-      --argjson expected "$expected" \
-      '
-      .[$model] //= {} |
-      .[$model][$cat] //= [] |
-      .[$model][$cat] += [{
-        test_id: $test_id,
-        f1: $f1,
-        precision: $precision,
-        recall: $recall,
-        correct: $correct,
-        found: $found,
-        expected: $expected
-      }]
-      ')
+      --arg model "gemini" --arg cat "$BENCH_CATEGORY" --arg test_id "$TEST_ID" \
+      --argjson f1 "$f1" --argjson precision "$precision" --argjson recall "$recall" \
+      --argjson correct "$correct" --argjson found "$found" --argjson expected "$expected" \
+      '.[$model] //= {} | .[$model][$cat] //= [] | .[$model][$cat] += [{
+        test_id: $test_id, f1: $f1, precision: $precision, recall: $recall,
+        correct: $correct, found: $found, expected: $expected
+      }]')
 
     log_info "    Gemini: F1=$f1, P=$precision, R=$recall ($correct/$found found, $expected expected)"
   fi

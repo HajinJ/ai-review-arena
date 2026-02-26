@@ -253,39 +253,40 @@ if [ "$DISPUTED_COUNT" -gt 0 ]; then
   echo "### ${L_DISPUTED_SECTION} (${DISPUTED_COUNT})"
   echo ""
 
-  i=0
-  while [ "$i" -lt "$DISPUTED_COUNT" ]; do
-    finding=$(echo "$DISPUTED" | jq ".[$i]" 2>/dev/null)
+  # Batch-extract all disputed finding fields in a single jq call
+  echo "$DISPUTED" | jq -r '.[] | [
+    (.file // "?"),
+    (.line // "?"),
+    (.title // "Untitled"),
+    (.description // ""),
+    (.confidence // "?"),
+    ((.models // []) | join(", ")),
+    (.challenger // ""),
+    (.debate_status // "")
+  ] | @tsv' 2>/dev/null | {
+    i=0
+    while IFS=$'\t' read -r file line title desc confidence models challenger debate_status; do
+      i=$((i + 1))
+      short_file=$(basename "$file" 2>/dev/null || echo "$file")
 
-    file=$(echo "$finding" | jq -r '.file // "?"' 2>/dev/null)
-    line=$(echo "$finding" | jq -r '.line // "?"' 2>/dev/null)
-    title=$(echo "$finding" | jq -r '.title // "Untitled"' 2>/dev/null)
-    desc=$(echo "$finding" | jq -r '.description // ""' 2>/dev/null)
-    confidence=$(echo "$finding" | jq -r '.confidence // "?"' 2>/dev/null)
-    models=$(echo "$finding" | jq -r '(.models // []) | join(", ")' 2>/dev/null)
-    challenger=$(echo "$finding" | jq -r '.challenger // ""' 2>/dev/null)
-    debate_status=$(echo "$finding" | jq -r '.debate_status // ""' 2>/dev/null)
+      echo "${i}. **${short_file}:${line}** - ${title}"
+      echo "   ${L_CONFIDENCE}: ${confidence}% | ${L_MANUAL_REVIEW}"
 
-    short_file=$(basename "$file" 2>/dev/null || echo "$file")
+      if [ -n "$models" ]; then
+        echo "   ${L_MODELS_LABEL}: ${models}"
+      fi
 
-    echo "$((i + 1)). **${short_file}:${line}** - ${title}"
-    echo "   ${L_CONFIDENCE}: ${confidence}% | ${L_MANUAL_REVIEW}"
+      if [ -n "$desc" ]; then
+        echo "   ${desc}"
+      fi
 
-    if [ -n "$models" ]; then
-      echo "   ${L_MODELS_LABEL}: ${models}"
-    fi
+      if [ -n "$challenger" ] && [ "$challenger" != "null" ]; then
+        echo "   Challenger: ${challenger} (${debate_status})"
+      fi
 
-    if [ -n "$desc" ]; then
-      echo "   ${desc}"
-    fi
-
-    if [ -n "$challenger" ] && [ "$challenger" != "null" ]; then
-      echo "   Challenger: ${challenger} (${debate_status})"
-    fi
-
-    echo ""
-    i=$((i + 1))
-  done
+      echo ""
+    done
+  }
 fi
 
 # =============================================================================

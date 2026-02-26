@@ -88,13 +88,21 @@ if [ -f "$CONFIG_FILE" ]; then
   fi
 fi
 
-# --- Read config ---
-OUTPUT_LANG=$(jq -r '.output.language // "ko"' "$CONFIG_FILE" 2>/dev/null)
-claude_enabled=$(jq -r '.models.claude.enabled // false' "$CONFIG_FILE" 2>/dev/null)
-codex_enabled=$(jq -r '.models.codex.enabled // false' "$CONFIG_FILE" 2>/dev/null)
-gemini_enabled=$(jq -r '.models.gemini.enabled // false' "$CONFIG_FILE" 2>/dev/null)
-debate_enabled=$(jq -r '.debate.enabled // false' "$CONFIG_FILE" 2>/dev/null)
-debate_rounds=$(jq -r '.debate.max_rounds // 3' "$CONFIG_FILE" 2>/dev/null)
+# --- Read config (batched into single jq call) ---
+_COST_CFG=$(jq -r '[
+  (.output.language // "ko"),
+  (.models.claude.enabled // false),
+  (.models.codex.enabled // false),
+  (.models.gemini.enabled // false),
+  (.debate.enabled // false),
+  (.debate.max_rounds // 3)
+] | @tsv' "$CONFIG_FILE" 2>/dev/null) || _COST_CFG=""
+
+if [ -n "$_COST_CFG" ]; then
+  IFS=$'\t' read -r OUTPUT_LANG claude_enabled codex_enabled gemini_enabled debate_enabled debate_rounds <<< "$_COST_CFG"
+else
+  OUTPUT_LANG="ko"; claude_enabled="false"; codex_enabled="false"; gemini_enabled="false"; debate_enabled="false"; debate_rounds=3
+fi
 
 # Check external CLI availability
 codex_available="false"

@@ -182,7 +182,8 @@ cmd_list() {
     return 0
   fi
 
-  local entries="[]"
+  # Collect entries as JSONL (one per line), then combine with single jq -s
+  local entries_jsonl=""
   # Walk cache directories
   for category_dir in "$base"/*/; do
     [ -d "$category_dir" ] || continue
@@ -207,16 +208,21 @@ cmd_list() {
       fi
       size_bytes=$(wc -c < "$entry" 2>/dev/null | tr -d ' ')
 
-      entries=$(echo "$entries" | jq \
+      entries_jsonl="${entries_jsonl}$(jq -cn \
         --arg cat "$category" \
         --arg key "$key" \
         --argjson ts "$stored_epoch" \
         --argjson size "$size_bytes" \
-        '. + [{"category": $cat, "key": $key, "timestamp": $ts, "size_bytes": $size}]')
+        '{"category": $cat, "key": $key, "timestamp": $ts, "size_bytes": $size}')
+"
     done
   done
 
-  echo "$entries"
+  if [ -n "$entries_jsonl" ]; then
+    echo "$entries_jsonl" | jq -s '.'
+  else
+    echo "[]"
+  fi
   return 0
 }
 
@@ -285,8 +291,9 @@ cmd_cleanup() {
         fi
       fi
     done < <(find "$base" -maxdepth 3 -name '*.timestamp' -type f -print0 2>/dev/null | \
-      xargs -0 -I{} sh -c 'echo "$(cat "{}" 2>/dev/null || echo 0) {}"' | \
-      sort -n)
+      while IFS= read -r -d '' ts_file; do
+        echo "$(cat "$ts_file" 2>/dev/null || echo 0) $ts_file"
+      done | sort -n)
   fi
 
   # Remove empty directories
@@ -430,7 +437,7 @@ cmd_memory_list() {
       return 0
     fi
 
-    local entries="[]"
+    local entries_jsonl=""
     for entry in "$dir"/*; do
       [ -f "$entry" ] || continue
       case "$entry" in *.timestamp) continue ;; esac
@@ -441,16 +448,21 @@ cmd_memory_list() {
       local stored_epoch="0"
       [ -f "$ts_file" ] && stored_epoch=$(cat "$ts_file" 2>/dev/null || echo "0")
 
-      entries=$(echo "$entries" | jq \
+      entries_jsonl="${entries_jsonl}$(jq -cn \
         --arg tier "$tier" \
         --arg key "$key" \
         --argjson ts "$stored_epoch" \
-        '. + [{"tier": $tier, "key": $key, "timestamp": $ts}]')
+        '{"tier": $tier, "key": $key, "timestamp": $ts}')
+"
     done
-    echo "$entries"
+    if [ -n "$entries_jsonl" ]; then
+      echo "$entries_jsonl" | jq -s '.'
+    else
+      echo "[]"
+    fi
   else
-    # List all tiers
-    local all_entries="[]"
+    # List all tiers — collect as JSONL, combine once
+    local all_entries_jsonl=""
     for t in short-term long-term permanent; do
       local category
       category=$(_tier_category "$t")
@@ -467,14 +479,19 @@ cmd_memory_list() {
         local stored_epoch="0"
         [ -f "$ts_file" ] && stored_epoch=$(cat "$ts_file" 2>/dev/null || echo "0")
 
-        all_entries=$(echo "$all_entries" | jq \
+        all_entries_jsonl="${all_entries_jsonl}$(jq -cn \
           --arg tier "$t" \
           --arg key "$key" \
           --argjson ts "$stored_epoch" \
-          '. + [{"tier": $tier, "key": $key, "timestamp": $ts}]')
+          '{"tier": $tier, "key": $key, "timestamp": $ts}')
+"
       done
     done
-    echo "$all_entries"
+    if [ -n "$all_entries_jsonl" ]; then
+      echo "$all_entries_jsonl" | jq -s '.'
+    else
+      echo "[]"
+    fi
   fi
   return 0
 }

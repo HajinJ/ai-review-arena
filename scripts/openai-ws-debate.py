@@ -453,6 +453,9 @@ def main():
     store = ws_config.get("store", False)
     connection_timeout = ws_config.get("connection_timeout_seconds", 30)
     ws_url = ws_config.get("url", "wss://api.openai.com/v1/responses")
+    # Security: only allow OpenAI endpoints (prevents API key exfiltration via project config)
+    if not ws_url.startswith("wss://api.openai.com/"):
+        ws_url = "wss://api.openai.com/v1/responses"
     max_rounds = debate_config.get("max_rounds", 3)
     challenge_threshold = debate_config.get("challenge_threshold", 60)
     consensus_threshold = debate_config.get("consensus_threshold", 80)
@@ -472,7 +475,7 @@ def main():
             max_rounds, challenge_threshold, consensus_threshold, api_key, ws_url
         )
         print(json.dumps(result))
-    except (ImportError, Exception) as ws_error:
+    except (ImportError, ConnectionError, TimeoutError, RuntimeError, OSError) as ws_error:
         # WebSocket failed — fall back to HTTP Responses API
         try:
             result = run_debate_http(

@@ -24,8 +24,8 @@ PENDING_FILE="${SESSION_DIR}/pending-changes.txt"
 COUNTER_FILE="${SESSION_DIR}/change-counter"
 LOCK_FILE="${SESSION_DIR}/.lock"
 
-# --- Ensure session directory ---
-mkdir -p "$SESSION_DIR"
+# --- Ensure session directory (restrictive permissions on shared systems) ---
+mkdir -p -m 700 "$SESSION_DIR"
 
 # --- Store commit hash for stale review detection (Code Factory pattern) ---
 git rev-parse HEAD > "${SESSION_DIR}/.review_commit_hash" 2>/dev/null || true
@@ -312,6 +312,7 @@ fi
 REVIEW_PIDS=()
 FINDINGS_INDEX=0
 MAX_FILE_SIZE=1048576  # 1MB — skip files larger than this
+MAX_PARALLEL=8  # Cap concurrent review processes to prevent resource exhaustion
 
 # Cleanup trap: kill background review processes on interruption
 cleanup_reviews() {
@@ -320,6 +321,22 @@ cleanup_reviews() {
   done
 }
 trap cleanup_reviews EXIT INT TERM
+
+# Throttle: wait until running process count drops below MAX_PARALLEL
+_throttle_parallel() {
+  while [ ${#REVIEW_PIDS[@]} -ge "$MAX_PARALLEL" ]; do
+    local new_pids=()
+    for pid in "${REVIEW_PIDS[@]}"; do
+      if kill -0 "$pid" 2>/dev/null; then
+        new_pids+=("$pid")
+      fi
+    done
+    REVIEW_PIDS=("${new_pids[@]+${new_pids[@]}}")
+    if [ ${#REVIEW_PIDS[@]} -ge "$MAX_PARALLEL" ]; then
+      sleep 0.5
+    fi
+  done
+}
 
 # For each changed file, launch reviews with each enabled model+role
 while IFS= read -r changed_file; do
@@ -337,10 +354,11 @@ while IFS= read -r changed_file; do
     continue
   fi
 
-  # Launch codex reviews
+  # Launch codex reviews (throttled to MAX_PARALLEL)
   if [ "$codex_enabled" = "true" ] && [ -n "$codex_roles" ]; then
     while IFS= read -r role; do
       [ -z "$role" ] && continue
+      _throttle_parallel
       FINDINGS_FILE="${SESSION_DIR}/findings_${FINDINGS_INDEX}.json"
       FINDINGS_INDEX=$((FINDINGS_INDEX + 1))
       (
@@ -350,10 +368,11 @@ while IFS= read -r changed_file; do
     done <<< "$codex_roles"
   fi
 
-  # Launch gemini reviews
+  # Launch gemini reviews (throttled to MAX_PARALLEL)
   if [ "$gemini_enabled" = "true" ] && [ -n "$gemini_roles" ]; then
     while IFS= read -r role; do
       [ -z "$role" ] && continue
+      _throttle_parallel
       FINDINGS_FILE="${SESSION_DIR}/findings_${FINDINGS_INDEX}.json"
       FINDINGS_INDEX=$((FINDINGS_INDEX + 1))
       (
@@ -417,17 +436,11 @@ else
   FEEDBACK_SUFFIX="The above feedback is a review of recent code changes. Only address issues directly related to your current task."
 fi
 
-# Escape the report for JSON embedding
-ESCAPED_REPORT=$(echo "$REPORT" | jq -Rs . | sed 's/^"//;s/"$//')
-
-# Output hook feedback JSON
-cat <<HOOK_JSON
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PostToolUse",
-    "additionalContext": "${FEEDBACK_PREFIX}\n${ESCAPED_REPORT}\n\n${FEEDBACK_SUFFIX}"
-  }
-}
-HOOK_JSON
+# Build hook feedback JSON safely using jq (avoids string interpolation injection)
+jq -n \
+  --arg prefix "$FEEDBACK_PREFIX" \
+  --arg report "$REPORT" \
+  --arg suffix "$FEEDBACK_SUFFIX" \
+  '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: ($prefix + "\n" + $report + "\n\n" + $suffix)}}'
 
 exit 0

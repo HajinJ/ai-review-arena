@@ -17,9 +17,10 @@
 set -uo pipefail
 
 # --- Arguments ---
-FINDINGS_FILE="${1:?Usage: run-debate.sh <findings_json> <config_file> <session_dir>}"
-CONFIG_FILE="${2:?Usage: run-debate.sh <findings_json> <config_file> <session_dir>}"
-SESSION_DIR="${3:?Usage: run-debate.sh <findings_json> <config_file> <session_dir>}"
+FINDINGS_FILE="${1:?Usage: run-debate.sh <findings_json> <config_file> <session_dir> [code_context_json]}"
+CONFIG_FILE="${2:?Usage: run-debate.sh <findings_json> <config_file> <session_dir> [code_context_json]}"
+SESSION_DIR="${3:?Usage: run-debate.sh <findings_json> <config_file> <session_dir> [code_context_json]}"
+CODE_CONTEXT="${4:-}"  # Optional 4th arg: JSON string with code context for WebSocket debate
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
@@ -89,9 +90,14 @@ if [ "$WS_ENABLED" = "true" ] && command -v python3 &>/dev/null; then
     WS_SCRIPT="${PLUGIN_DIR}/scripts/openai-ws-debate.py"
     if [ -f "$WS_SCRIPT" ]; then
       # Build input JSON for WebSocket client (include code_context)
+      # Validate CODE_CONTEXT is valid JSON; default to empty object
+      local _ws_code_ctx="null"
+      if [ -n "$CODE_CONTEXT" ] && echo "$CODE_CONTEXT" | jq . &>/dev/null; then
+        _ws_code_ctx="$CODE_CONTEXT"
+      fi
       WS_INPUT=$(jq -n \
         --argjson findings "$FINDINGS" \
-        --argjson code_context "${CODE_CONTEXT:-null}" \
+        --argjson code_context "$_ws_code_ctx" \
         --slurpfile config "$CONFIG_FILE" \
         '{ findings: $findings, code_context: ($code_context // {}), config: $config[0] }')
 
@@ -153,18 +159,19 @@ run_challenge() {
   local finding_json="$2"
   local code_snippet="$3"
 
-  local file_path
-  file_path=$(echo "$finding_json" | jq -r '.file // "unknown"')
-  local line
-  line=$(echo "$finding_json" | jq -r '.line // 0')
-  local title
-  title=$(echo "$finding_json" | jq -r '.title // "unknown"')
-  local description
-  description=$(echo "$finding_json" | jq -r '.description // ""')
-  local severity
-  severity=$(echo "$finding_json" | jq -r '.severity // "medium"')
-  local original_model
-  original_model=$(echo "$finding_json" | jq -r '.models[0] // "unknown"')
+  # Batch-extract all finding fields in a single jq call
+  local _challenge_fields
+  _challenge_fields=$(echo "$finding_json" | jq -r '[
+    (.file // "unknown"),
+    (.line // 0),
+    (.title // "unknown"),
+    (.description // ""),
+    (.severity // "medium"),
+    (.models[0] // "unknown")
+  ] | @tsv' 2>/dev/null) || _challenge_fields=""
+
+  local file_path line title description severity original_model
+  IFS=$'\t' read -r file_path line title description severity original_model <<< "$_challenge_fields"
 
   # Build challenge prompt
   local challenge_prompt
@@ -245,15 +252,32 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
   idx=0
 
   while [ "$idx" -lt "$FINDINGS_COUNT" ]; do
+    # Batch-extract all needed fields from finding in a single jq call
+    _FINDING_FIELDS=$(echo "$CURRENT_FINDINGS" | jq -r --argjson i "$idx" '
+      .[$i] | [
+        ((.models // []) | length),
+        (.confidence // 50 | floor),
+        (.models[0] // "unknown"),
+        (.file // ""),
+        (.line // 0)
+      ] | @tsv
+    ' 2>/dev/null) || _FINDING_FIELDS=""
+
+    if [ -z "$_FINDING_FIELDS" ]; then
+      idx=$((idx + 1))
+      continue
+    fi
+
+    IFS=$'\t' read -r MODEL_COUNT CONFIDENCE FINDING_MODEL FILE_TO_READ LINE_NUM <<< "$_FINDING_FIELDS"
     FINDING=$(echo "$CURRENT_FINDINGS" | jq ".[$idx]" 2>/dev/null)
     if [ -z "$FINDING" ] || [ "$FINDING" = "null" ]; then
       idx=$((idx + 1))
       continue
     fi
 
-    # Check if challengeable
-    MODEL_COUNT=$(echo "$FINDING" | jq '(.models // []) | length' 2>/dev/null || echo "1")
-    CONFIDENCE=$(echo "$FINDING" | jq '.confidence // 50' 2>/dev/null || echo "50")
+    # Ensure integer values for arithmetic (handles float from Python WebSocket path)
+    CONFIDENCE=${CONFIDENCE%%.*}
+    MODEL_COUNT=${MODEL_COUNT%%.*}
 
     is_challengeable=false
     if [ "$MODEL_COUNT" -le 1 ] || [ "$CONFIDENCE" -lt "$CHALLENGE_THRESHOLD" ]; then
@@ -265,8 +289,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
       continue
     fi
 
-    # Get the finding's model
-    FINDING_MODEL=$(echo "$FINDING" | jq -r '.models[0] // "unknown"' 2>/dev/null)
+    # FINDING_MODEL already extracted above in batch
     CHALLENGER=$(pick_challenger "$FINDING_MODEL")
 
     if [ -z "$CHALLENGER" ]; then
@@ -274,9 +297,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
       continue
     fi
 
-    # Read code snippet from the actual file
-    FILE_TO_READ=$(echo "$FINDING" | jq -r '.file // ""' 2>/dev/null)
-    LINE_NUM=$(echo "$FINDING" | jq -r '.line // 0' 2>/dev/null)
+    # FILE_TO_READ and LINE_NUM already extracted above in batch
     CODE_SNIPPET=""
 
     if [ -n "$FILE_TO_READ" ] && [ -f "$FILE_TO_READ" ] && [ "$LINE_NUM" -gt 0 ]; then
@@ -293,17 +314,28 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
     # Run the challenge
     CHALLENGE_RESULT=$(run_challenge "$CHALLENGER" "$FINDING" "$CODE_SNIPPET")
 
-    AGREE=$(echo "$CHALLENGE_RESULT" | jq -r '.agree // true' 2>/dev/null)
-    CONF_ADJ=$(echo "$CHALLENGE_RESULT" | jq -r '.confidence_adjustment // 0' 2>/dev/null)
-    EVIDENCE=$(echo "$CHALLENGE_RESULT" | jq -r '.evidence // ""' 2>/dev/null)
+    # Batch-extract challenge result fields in single jq call
+    _CHAL_FIELDS=$(echo "$CHALLENGE_RESULT" | jq -r '[
+      (if .agree then "true" else "false" end),
+      (.confidence_adjustment // 0 | floor),
+      (.evidence // "")
+    ] | @tsv' 2>/dev/null) || _CHAL_FIELDS=""
+    IFS=$'\t' read -r AGREE CONF_ADJ EVIDENCE <<< "$_CHAL_FIELDS"
+    AGREE="${AGREE:-true}"
+    CONF_ADJ="${CONF_ADJ:-0}"
+    CONF_ADJ=${CONF_ADJ%%.*}  # Ensure integer
 
-    # Apply confidence adjustment
+    # Apply confidence adjustment (integer arithmetic safe)
     NEW_CONFIDENCE=$((CONFIDENCE + CONF_ADJ))
     [ "$NEW_CONFIDENCE" -gt 100 ] && NEW_CONFIDENCE=100
     [ "$NEW_CONFIDENCE" -lt 0 ] && NEW_CONFIDENCE=0
 
+    # Normalize AGREE to valid JSON boolean for --argjson
+    local _agree_bool="true"
+    [ "$AGREE" = "false" ] && _agree_bool="false"
+
     # Update finding
-    UPDATED_FINDINGS=$(echo "$UPDATED_FINDINGS" | jq --argjson idx "$idx" --argjson conf "$NEW_CONFIDENCE" --arg challenger "$CHALLENGER" --argjson agree "$AGREE" '
+    UPDATED_FINDINGS=$(echo "$UPDATED_FINDINGS" | jq --argjson idx "$idx" --argjson conf "$NEW_CONFIDENCE" --arg challenger "$CHALLENGER" --argjson agree "$_agree_bool" '
       .[$idx].confidence = $conf |
       .[$idx].debate_status = (if $agree then "confirmed" else "challenged") |
       .[$idx].challenger = $challenger |

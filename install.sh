@@ -53,11 +53,24 @@ echo -e "  ${GREEN}✓${NC} $PLUGIN_DIR"
 echo ""
 echo -e "${YELLOW}[3/6] Installing plugin files...${NC}"
 
-# Remove old installation if exists
+# Remove old installation if exists (preserve cache/feedback data)
 if [ -d "$PLUGIN_DIR" ] && [ "$(ls -A "$PLUGIN_DIR" 2>/dev/null)" ]; then
   echo -e "  ${YELLOW}!${NC} Existing installation found, updating..."
+  # Backup user data directories before removal
+  _CACHE_BACKUP=""
+  if [ -d "$PLUGIN_DIR/cache" ]; then
+    _CACHE_BACKUP=$(mktemp -d)
+    cp -a "$PLUGIN_DIR/cache" "$_CACHE_BACKUP/" 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Cache data backed up"
+  fi
   rm -rf "$PLUGIN_DIR"
   mkdir -p "$PLUGIN_DIR"
+  # Restore cached data
+  if [ -n "$_CACHE_BACKUP" ] && [ -d "$_CACHE_BACKUP/cache" ]; then
+    mv "$_CACHE_BACKUP/cache" "$PLUGIN_DIR/cache" 2>/dev/null || true
+    rm -rf "$_CACHE_BACKUP"
+    echo -e "  ${GREEN}✓${NC} Cache data restored"
+  fi
 fi
 
 # Copy all plugin files

@@ -158,9 +158,10 @@ load_config() {
   fi
 
   # Merge into a deterministic temp file keyed by project hash (avoids orphan accumulation)
+  # Use $TMPDIR (per-user on macOS /var/folders/...) to avoid /tmp symlink attacks
   local config_hash
   config_hash=$(echo -n "${configs_to_merge[*]}" | shasum -a 256 | cut -c1-12)
-  local merged_tmp="/tmp/arena-config-merged.${config_hash}.json"
+  local merged_tmp="${TMPDIR:-/tmp}/arena-config-merged.${config_hash}.json"
 
   # Only regenerate if missing or source configs are newer
   local needs_regen=false
@@ -176,6 +177,8 @@ load_config() {
   fi
 
   if [ "$needs_regen" = "true" ]; then
+    # Safety: refuse to write through symlinks (prevents symlink attack)
+    [ -L "$merged_tmp" ] && rm -f "$merged_tmp"
     merge_configs "${configs_to_merge[@]}" > "$merged_tmp"
   fi
 
