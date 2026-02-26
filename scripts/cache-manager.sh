@@ -364,13 +364,129 @@ cmd_cleanup_sessions() {
 }
 
 # =============================================================================
+# Memory Tier Commands
+# =============================================================================
+
+# Memory tiers map to specific cache categories with tier-specific TTLs:
+#   short-term (7 days): recurring_findings, recent_review_patterns, session_decisions
+#   long-term (90 days): model_accuracy_by_category, accepted_vs_rejected_findings, feedback_trends
+#   permanent (-1/never): team_coding_standards, project_architecture_decisions, known_acceptable_patterns
+
+_tier_ttl() {
+  local tier="$1"
+  case "$tier" in
+    short-term) echo "7" ;;
+    long-term)  echo "90" ;;
+    permanent)  echo "36500" ;; # ~100 years = effectively permanent
+    *) echo "$DEFAULT_TTL_DAYS" ;;
+  esac
+}
+
+_tier_category() {
+  local tier="$1"
+  echo "memory/${tier}"
+}
+
+cmd_memory_read() {
+  local project_root="${1:?Usage: cache-manager.sh memory-read <project-root> <tier> <key>}"
+  local tier="${2:?Usage: cache-manager.sh memory-read <project-root> <tier> <key>}"
+  local key="${3:?Usage: cache-manager.sh memory-read <project-root> <tier> <key>}"
+
+  local ttl
+  ttl=$(_tier_ttl "$tier")
+  local category
+  category=$(_tier_category "$tier")
+
+  cmd_read "$project_root" "$category" "$key" --ttl "$ttl"
+}
+
+cmd_memory_write() {
+  local project_root="${1:?Usage: cache-manager.sh memory-write <project-root> <tier> <key>}"
+  local tier="${2:?Usage: cache-manager.sh memory-write <project-root> <tier> <key>}"
+  local key="${3:?Usage: cache-manager.sh memory-write <project-root> <tier> <key>}"
+
+  local category
+  category=$(_tier_category "$tier")
+
+  cmd_write "$project_root" "$category" "$key"
+}
+
+cmd_memory_list() {
+  local project_root="${1:?Usage: cache-manager.sh memory-list <project-root> [<tier>]}"
+  local tier="${2:-}"
+
+  ensure_jq
+
+  local base
+  base=$(cache_base_dir "$project_root")
+
+  if [ -n "$tier" ]; then
+    local category
+    category=$(_tier_category "$tier")
+    local dir="${base}/${category}"
+
+    if [ ! -d "$dir" ]; then
+      echo "[]"
+      return 0
+    fi
+
+    local entries="[]"
+    for entry in "$dir"/*; do
+      [ -f "$entry" ] || continue
+      case "$entry" in *.timestamp) continue ;; esac
+
+      local key
+      key=$(basename "$entry")
+      local ts_file="${entry}.timestamp"
+      local stored_epoch="0"
+      [ -f "$ts_file" ] && stored_epoch=$(cat "$ts_file" 2>/dev/null || echo "0")
+
+      entries=$(echo "$entries" | jq \
+        --arg tier "$tier" \
+        --arg key "$key" \
+        --argjson ts "$stored_epoch" \
+        '. + [{"tier": $tier, "key": $key, "timestamp": $ts}]')
+    done
+    echo "$entries"
+  else
+    # List all tiers
+    local all_entries="[]"
+    for t in short-term long-term permanent; do
+      local category
+      category=$(_tier_category "$t")
+      local dir="${base}/${category}"
+      [ -d "$dir" ] || continue
+
+      for entry in "$dir"/*; do
+        [ -f "$entry" ] || continue
+        case "$entry" in *.timestamp) continue ;; esac
+
+        local key
+        key=$(basename "$entry")
+        local ts_file="${entry}.timestamp"
+        local stored_epoch="0"
+        [ -f "$ts_file" ] && stored_epoch=$(cat "$ts_file" 2>/dev/null || echo "0")
+
+        all_entries=$(echo "$all_entries" | jq \
+          --arg tier "$t" \
+          --arg key "$key" \
+          --argjson ts "$stored_epoch" \
+          '. + [{"tier": $tier, "key": $key, "timestamp": $ts}]')
+      done
+    done
+    echo "$all_entries"
+  fi
+  return 0
+}
+
+# =============================================================================
 # Main Dispatch
 # =============================================================================
 
 COMMAND="${1:-}"
 
 if [ -z "$COMMAND" ]; then
-  log_error "Usage: cache-manager.sh <read|write|check|list|cleanup|cleanup-sessions|hash> ..."
+  log_error "Usage: cache-manager.sh <read|write|check|list|cleanup|cleanup-sessions|hash|memory-read|memory-write|memory-list> ..."
   exit 0
 fi
 
@@ -384,6 +500,9 @@ case "$COMMAND" in
   cleanup)          cmd_cleanup "$@" ;;
   cleanup-sessions) cmd_cleanup_sessions "$@" ;;
   hash)             cmd_hash "$@" ;;
+  memory-read)      cmd_memory_read "$@" ;;
+  memory-write)     cmd_memory_write "$@" ;;
+  memory-list)      cmd_memory_list "$@" ;;
   *)
     log_error "Unknown command: $COMMAND"
     exit 0

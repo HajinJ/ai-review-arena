@@ -68,17 +68,33 @@ if [ -f ".ai-review-arena.json" ]; then
   CONFIG_FILE=".ai-review-arena.json"
 elif [ -f "$HOME/.claude/.ai-review-arena.json" ]; then
   CONFIG_FILE="$HOME/.claude/.ai-review-arena.json"
+else
+  CONFIG_FILE="${PLUGIN_DIR}/config/default-config.json"
 fi
 
 # Check if gemini hooks are enabled in config
-if [ -n "$CONFIG_FILE" ]; then
+if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
   GEMINI_HOOKS_ENABLED=$(jq -r '.gemini_hooks.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
   if [ "$GEMINI_HOOKS_ENABLED" != "true" ]; then
     exit 0
   fi
+else
+  # No config found — cannot verify opt-in, skip
+  exit 0
 fi
 
-# --- Call orchestrate-review.sh ---
+# --- Call orchestrate-review.sh via stdin (matching its expected JSON input) ---
 if [ -f "$PLUGIN_DIR/scripts/orchestrate-review.sh" ]; then
-  "$PLUGIN_DIR/scripts/orchestrate-review.sh" "$FILE_PATH" "$CONFIG_FILE" 2>/dev/null || true
+  # Translate Gemini hook format to Claude Code PostToolUse format
+  TRANSLATED_JSON=$(jq -n \
+    --arg tool_name "$TOOL_NAME" \
+    --arg file_path "$FILE_PATH" \
+    '{
+      tool_name: (if $tool_name == "write_file" then "Write"
+                  elif $tool_name == "replace_in_file" then "Edit"
+                  elif $tool_name == "patch" then "Edit"
+                  else $tool_name end),
+      tool_input: { file_path: $file_path }
+    }')
+  echo "$TRANSLATED_JSON" | "$PLUGIN_DIR/scripts/orchestrate-review.sh" 2>/dev/null || true
 fi

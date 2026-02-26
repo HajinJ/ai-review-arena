@@ -76,9 +76,9 @@ if [ "$CATEGORY" = "all" ]; then
     [ -f "$f" ] && BENCHMARK_FILES+=("$f")
   done
 else
-  if [ -f "$BENCHMARKS_DIR/${CATEGORY}.json" ]; then
-    BENCHMARK_FILES+=("$BENCHMARKS_DIR/${CATEGORY}.json")
-  fi
+  for f in "$BENCHMARKS_DIR"/${CATEGORY}*.json "$BENCHMARKS_DIR"/${CATEGORY}-*.json; do
+    [ -f "$f" ] && BENCHMARK_FILES+=("$f")
+  done
 fi
 
 if [ ${#BENCHMARK_FILES[@]} -eq 0 ]; then

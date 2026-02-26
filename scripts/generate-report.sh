@@ -29,14 +29,14 @@ if ! command -v jq &>/dev/null; then
 fi
 
 # --- Read config ---
-LANG="ko"
+OUTPUT_LANG="ko"
 SHOW_COST=true
 SHOW_MODELS=true
 SHOW_CONFIDENCE=true
 INTENSITY="standard"
 
 if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
-  LANG=$(jq -r '.output.language // "ko"' "$CONFIG_FILE" 2>/dev/null)
+  OUTPUT_LANG=$(jq -r '.output.language // "ko"' "$CONFIG_FILE" 2>/dev/null)
   SHOW_COST=$(jq -r '.output.show_cost_estimate // true' "$CONFIG_FILE" 2>/dev/null)
   SHOW_MODELS=$(jq -r '.output.show_model_attribution // true' "$CONFIG_FILE" 2>/dev/null)
   SHOW_CONFIDENCE=$(jq -r '.output.show_confidence_scores // true' "$CONFIG_FILE" 2>/dev/null)
@@ -114,7 +114,7 @@ fi
 # Localization Labels
 # =============================================================================
 
-if [ "$LANG" = "ko" ]; then
+if [ "$OUTPUT_LANG" = "ko" ]; then
   L_TITLE="## AI Review Arena Report"
   L_MODELS="Models"
   L_INTENSITY="Intensity"

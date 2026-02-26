@@ -179,7 +179,7 @@ OUTPUT FORMAT (JSON):
   "findings": [
     {
       "severity": "critical|high|medium|low",
-      "confidence": 0.0-1.0,
+      "confidence": 0-100,
       "section": "section name or line reference",
       "title": "brief title",
       "category": "CATEGORY_PLACEHOLDER",
@@ -198,7 +198,7 @@ CONTENT_PLACEHOLDER
 
 ---
 [CORE INSTRUCTION REPEAT]
-Review the business content above for CATEGORY_PLACEHOLDER issues. Return findings as structured JSON with fields: severity (critical|high|medium|low), confidence (0.0-1.0), section, title, category, description, and suggestion. Output must be valid JSON only.
+Review the business content above for CATEGORY_PLACEHOLDER issues. Return findings as structured JSON with fields: severity (critical|high|medium|low), confidence (0-100), section, title, category, description, and suggestion. Output must be valid JSON only.
 PROMPT_EOF
 )
   FULL_PROMPT="${FULL_PROMPT//CATEGORY_PLACEHOLDER/$CATEGORY}"
@@ -228,7 +228,7 @@ OUTPUT FORMAT (JSON):
     {
       "finding_id": "string (model-role-N format, e.g., claude-accuracy-1)",
       "action": "challenge|support",
-      "confidence_adjustment": -0.3 to +0.3,
+      "confidence_adjustment": -30 to +30,
       "reasoning": "specific explanation of why you challenge or support this finding"
     }
   ]
@@ -242,7 +242,7 @@ CONTENT_PLACEHOLDER
 
 ---
 [CORE INSTRUCTION REPEAT]
-Cross-review the findings above. For each finding, provide action (challenge|support), confidence_adjustment (-0.3 to +0.3), and reasoning. Return structured JSON with a responses array. Output must be valid JSON only.
+Cross-review the findings above. For each finding, provide action (challenge|support), confidence_adjustment (-30 to +30), and reasoning. Return structured JSON with a responses array. Output must be valid JSON only.
 PROMPT_EOF
 )
   FULL_PROMPT="${FULL_PROMPT//CONTENT_PLACEHOLDER/$CONTENT}"

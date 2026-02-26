@@ -98,7 +98,7 @@ if [ -f "$CONFIG_FILE" ]; then
   fi
 
   # Read model variant
-  cfg_model=$(jq -r '.gemini.model_variant // .config.gemini.model_variant // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_model=$(jq -r '.models.gemini.model_variant // .gemini.model_variant // empty' "$CONFIG_FILE" 2>/dev/null || true)
   if [ -n "$cfg_model" ]; then
     MODEL_VARIANT="$cfg_model"
   fi
@@ -190,7 +190,7 @@ Return a JSON object with this structure:
   "findings": [
     {
       "severity": "critical|high|medium|low",
-      "confidence": 0.0-1.0,
+      "confidence": 0-100,
       "section": "section name or line reference",
       "title": "Brief title",
       "category": "${CATEGORY}",
@@ -209,7 +209,7 @@ Return only valid JSON. No markdown formatting.
 
 ---
 [CORE INSTRUCTION REPEAT]
-Review the business content above for ${CATEGORY} issues. Return findings as structured JSON with fields: severity (critical|high|medium|low), confidence (0.0-1.0), section, title, category, description, and suggestion. Output must be valid JSON only.
+Review the business content above for ${CATEGORY} issues. Return findings as structured JSON with fields: severity (critical|high|medium|low), confidence (0-100), section, title, category, description, and suggestion. Output must be valid JSON only.
 PROMPT_EOF
 )
 
@@ -242,7 +242,7 @@ Return a JSON object with this structure:
     {
       "finding_id": "reference to the finding (by title or section)",
       "action": "challenge|support",
-      "confidence_adjustment": -0.3 to +0.3,
+      "confidence_adjustment": -30 to +30,
       "reasoning": "Detailed explanation of why you challenge or support this finding"
     }
   ]
@@ -252,7 +252,7 @@ Return only valid JSON. No markdown formatting.
 
 ---
 [CORE INSTRUCTION REPEAT]
-Cross-review the findings above. For each finding, provide action (challenge|support), confidence_adjustment (-0.3 to +0.3), and reasoning. Return structured JSON with a responses array. Output must be valid JSON only.
+Cross-review the findings above. For each finding, provide action (challenge|support), confidence_adjustment (-30 to +30), and reasoning. Return structured JSON with a responses array. Output must be valid JSON only.
 PROMPT_EOF
 )
 

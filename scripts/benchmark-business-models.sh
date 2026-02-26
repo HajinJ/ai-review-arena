@@ -246,6 +246,10 @@ compute_f1() {
       return
     fi
 
+    if [ "$correct" -eq 0 ]; then
+      echo "0"
+      return
+    fi
     local f1=$((200 * correct * correct / (total_found * correct + total_expected * correct)))
     echo "$f1"
   else

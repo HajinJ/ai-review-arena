@@ -86,18 +86,18 @@ if [ "$ROUND" = "cross-examine" ]; then
   FINDINGS_JSON=$(echo "$CONTEXT_JSON" | jq -r '.findings_from // empty' 2>/dev/null || echo "{}")
   CODE_CONTEXT=$(echo "$CONTEXT_JSON" | jq -r '.code_context // empty' 2>/dev/null || echo "{}")
 
-  FULL_PROMPT=$(echo "$PROMPT_TEMPLATE" \
-    | sed "s|{FINDINGS_JSON}|${FINDINGS_JSON}|g" \
-    | sed "s|{CODE_CONTEXT}|${CODE_CONTEXT}|g")
+  # Use bash parameter expansion instead of sed to avoid injection from JSON content
+  FULL_PROMPT="${PROMPT_TEMPLATE//\{FINDINGS_JSON\}/$FINDINGS_JSON}"
+  FULL_PROMPT="${FULL_PROMPT//\{CODE_CONTEXT\}/$CODE_CONTEXT}"
 else
   CHALLENGES_JSON=$(echo "$CONTEXT_JSON" | jq -r 'to_entries | map(select(.key | startswith("challenges_against"))) | from_entries // empty' 2>/dev/null || echo "{}")
   ORIGINAL_JSON=$(echo "$CONTEXT_JSON" | jq -r '.original_findings // empty' 2>/dev/null || echo "[]")
   CODE_CONTEXT=$(echo "$CONTEXT_JSON" | jq -r '.code_context // empty' 2>/dev/null || echo "{}")
 
-  FULL_PROMPT=$(echo "$PROMPT_TEMPLATE" \
-    | sed "s|{ORIGINAL_FINDINGS_JSON}|${ORIGINAL_JSON}|g" \
-    | sed "s|{CHALLENGES_JSON}|${CHALLENGES_JSON}|g" \
-    | sed "s|{CODE_CONTEXT}|${CODE_CONTEXT}|g")
+  # Use bash parameter expansion instead of sed to avoid injection from JSON content
+  FULL_PROMPT="${PROMPT_TEMPLATE//\{ORIGINAL_FINDINGS_JSON\}/$ORIGINAL_JSON}"
+  FULL_PROMPT="${FULL_PROMPT//\{CHALLENGES_JSON\}/$CHALLENGES_JSON}"
+  FULL_PROMPT="${FULL_PROMPT//\{CODE_CONTEXT\}/$CODE_CONTEXT}"
 fi
 
 # --- Execute gemini cross-examination ---

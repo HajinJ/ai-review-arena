@@ -76,13 +76,15 @@ if [ "$WS_ENABLED" = "true" ] && command -v python3 &>/dev/null; then
   if python3 -c "import openai" &>/dev/null 2>&1; then
     WS_SCRIPT="${PLUGIN_DIR}/scripts/openai-ws-debate.py"
     if [ -f "$WS_SCRIPT" ]; then
-      # Build input JSON for WebSocket client
+      # Build input JSON for WebSocket client (include code_context)
       WS_INPUT=$(jq -n \
         --argjson findings "$FINDINGS" \
+        --argjson code_context "${CODE_CONTEXT:-null}" \
         --slurpfile config "$CONFIG_FILE" \
-        '{ findings: $findings, config: $config[0] }')
+        '{ findings: $findings, code_context: ($code_context // {}), config: $config[0] }')
 
-      WS_RESULT=$(echo "$WS_INPUT" | timeout 300s python3 "$WS_SCRIPT" 2>/dev/null) || true
+      WS_TIMEOUT=$(jq -r '.fallback.external_cli_debate_timeout_seconds // 300' "$CONFIG_FILE" 2>/dev/null || echo "300")
+      WS_RESULT=$(echo "$WS_INPUT" | timeout "${WS_TIMEOUT}s" python3 "$WS_SCRIPT" 2>/dev/null) || true
 
       if [ -n "$WS_RESULT" ] && echo "$WS_RESULT" | jq -e '.accepted' &>/dev/null 2>&1; then
         # WebSocket debate succeeded — output result and exit

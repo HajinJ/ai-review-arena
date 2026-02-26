@@ -140,8 +140,8 @@ if [ "$MULTI_AGENT" = "true" ] && [ -f "$AGENT_CONFIG" ]; then
   rm -f "$OUTPUT_FILE"
 fi
 
-# Try structured output first
-if [ "$STRUCTURED_OUTPUT" = "true" ] && [ -f "$SCHEMA_FILE" ]; then
+# Try structured output (skip if multi-agent already produced valid JSON)
+if [ -z "$PARSED_JSON" ] && [ "$STRUCTURED_OUTPUT" = "true" ] && [ -f "$SCHEMA_FILE" ]; then
   OUTPUT_FILE=$(mktemp)
   RAW_OUTPUT=$(
     timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" \

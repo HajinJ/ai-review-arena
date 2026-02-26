@@ -66,10 +66,12 @@ for keyword in "${KEYWORDS[@]}"; do
 
   # Search feature_patterns for this keyword
   MATCHES=$(jq --arg kw "$keyword" --arg platform "$PLATFORM" '
-    .rules // [] |
+    .feature_patterns // {} |
+    to_entries |
     map(select(
-      (.feature_patterns // []) | any(. | ascii_downcase | contains($kw | ascii_downcase))
+      .value.keywords // [] | any(. | ascii_downcase | contains($kw | ascii_downcase))
     )) |
+    map(.value.guidelines // []) | flatten |
     map(select(
       $platform == "all" or
       (.platform // "all") == "all" or
@@ -94,10 +96,9 @@ if [ -n "$ALL_MATCHED_RULE_NAMES" ]; then
   while IFS= read -r rule_name; do
     [ -z "$rule_name" ] && continue
 
-    # Get rule details
+    # Get rule details from feature_patterns guidelines
     RULE_DETAIL=$(jq --arg name "$rule_name" '
-      .rules // [] |
-      map(select(.name == $name)) |
+      [.feature_patterns // {} | .[] | .guidelines // [] | .[] | select(.name == $name)] |
       first // null
     ' "$RULES_FILE" 2>/dev/null)
 

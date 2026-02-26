@@ -12,7 +12,7 @@
         "properties": {
           "finding_id": { "type": "string" },
           "action": { "type": "string", "enum": ["challenge", "support"] },
-          "confidence_adjustment": { "type": "number", "minimum": -0.3, "maximum": 0.3 },
+          "confidence_adjustment": { "type": "number", "minimum": -30, "maximum": 30 },
           "reasoning": { "type": "string" }
         },
         "required": ["finding_id", "action", "confidence_adjustment", "reasoning"]

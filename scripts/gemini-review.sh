@@ -58,7 +58,7 @@ if [ -f "$CONFIG_FILE" ]; then
     TIMEOUT="$cfg_timeout"
   fi
 
-  cfg_model=$(jq -r '.gemini.model_variant // .model_variant // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_model=$(jq -r '.models.gemini.model_variant // .gemini.model_variant // empty' "$CONFIG_FILE" 2>/dev/null || true)
   if [ -n "$cfg_model" ]; then
     MODEL_VARIANT="$cfg_model"
   fi

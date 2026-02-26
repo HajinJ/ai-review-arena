@@ -11,7 +11,7 @@
         "type": "object",
         "properties": {
           "severity": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
-          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 100 },
           "section": { "type": "string" },
           "title": { "type": "string" },
           "category": { "type": "string" },

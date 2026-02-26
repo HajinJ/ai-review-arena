@@ -48,12 +48,33 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 # --- Pricing (USD per 1M tokens) ---
+# Defaults; overridden by config cost_estimation.token_cost_per_1k (per-1K → multiply by 1000)
 CLAUDE_INPUT_PRICE="3.00"
 CLAUDE_OUTPUT_PRICE="15.00"
-CODEX_INPUT_PRICE="2.50"
-CODEX_OUTPUT_PRICE="10.00"
+CODEX_INPUT_PRICE="3.00"
+CODEX_OUTPUT_PRICE="12.00"
 GEMINI_INPUT_PRICE="1.25"
-GEMINI_OUTPUT_PRICE="10.00"
+GEMINI_OUTPUT_PRICE="5.00"
+
+# Read prices from config if available (config stores per-1K, we need per-1M)
+if [ -f "$CONFIG_FILE" ]; then
+  _read_price() {
+    local key="$1" default="$2"
+    local val
+    val=$(jq -r ".cost_estimation.token_cost_per_1k.${key} // empty" "$CONFIG_FILE" 2>/dev/null || true)
+    if [ -n "$val" ]; then
+      awk -v v="$val" 'BEGIN { printf "%.2f", v * 1000 }'
+    else
+      echo "$default"
+    fi
+  }
+  CLAUDE_INPUT_PRICE=$(_read_price "claude_input" "$CLAUDE_INPUT_PRICE")
+  CLAUDE_OUTPUT_PRICE=$(_read_price "claude_output" "$CLAUDE_OUTPUT_PRICE")
+  CODEX_INPUT_PRICE=$(_read_price "codex_input" "$CODEX_INPUT_PRICE")
+  CODEX_OUTPUT_PRICE=$(_read_price "codex_output" "$CODEX_OUTPUT_PRICE")
+  GEMINI_INPUT_PRICE=$(_read_price "gemini_input" "$GEMINI_INPUT_PRICE")
+  GEMINI_OUTPUT_PRICE=$(_read_price "gemini_output" "$GEMINI_OUTPUT_PRICE")
+fi
 
 # --- Prompt cache awareness ---
 # Claude prompt caching: cached input tokens billed at ~10% of base price (90% discount).

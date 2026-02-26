@@ -29,24 +29,25 @@ git rev-parse HEAD > "${SESSION_DIR}/.review_commit_hash" 2>/dev/null || true
 # Config Loading
 # =============================================================================
 
-find_config() {
-  # Check project root first
-  local project_config
-  project_config=$(git rev-parse --show-toplevel 2>/dev/null)
-  if [ -n "$project_config" ] && [ -f "$project_config/.ai-review-arena.json" ]; then
-    echo "$project_config/.ai-review-arena.json"
-    return
-  fi
-  # Check ~/.claude/
-  if [ -f "$HOME/.claude/.ai-review-arena.json" ]; then
-    echo "$HOME/.claude/.ai-review-arena.json"
-    return
-  fi
-  # Use default
-  echo "${PLUGIN_DIR}/config/default-config.json"
-}
+# Source utils for load_config (deep-merges default → global → project)
+if [ -f "$PLUGIN_DIR/scripts/utils.sh" ]; then
+  source "$PLUGIN_DIR/scripts/utils.sh"
+fi
 
-CONFIG_FILE="$(find_config)"
+# Use load_config for proper 3-level merge; fallback to find_config_file for single file
+if command -v load_config &>/dev/null; then
+  PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+  CONFIG_FILE=$(load_config "$PROJECT_ROOT" 2>/dev/null) || CONFIG_FILE="${PLUGIN_DIR}/config/default-config.json"
+else
+  # Fallback: find single config file (no merge)
+  CONFIG_FILE="${PLUGIN_DIR}/config/default-config.json"
+  project_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+  if [ -n "$project_root" ] && [ -f "$project_root/.ai-review-arena.json" ]; then
+    CONFIG_FILE="$project_root/.ai-review-arena.json"
+  elif [ -f "$HOME/.claude/.ai-review-arena.json" ]; then
+    CONFIG_FILE="$HOME/.claude/.ai-review-arena.json"
+  fi
+fi
 
 # --- Verify jq is available ---
 if ! command -v jq &>/dev/null; then

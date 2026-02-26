@@ -61,7 +61,7 @@ if [ -d "$PLUGIN_DIR" ] && [ "$(ls -A "$PLUGIN_DIR" 2>/dev/null)" ]; then
 fi
 
 # Copy all plugin files
-for item in .claude-plugin agents commands config hooks scripts CLAUDE.md; do
+for item in .claude-plugin agents commands config hooks scripts shared-phases docs requirements.txt CLAUDE.md; do
   if [ -e "$SCRIPT_DIR/$item" ]; then
     cp -r "$SCRIPT_DIR/$item" "$PLUGIN_DIR/"
     echo -e "  ${GREEN}✓${NC} $item"
@@ -119,10 +119,17 @@ if command -v gemini &>/dev/null; then
         # Replace $PLUGIN_DIR placeholder with actual path
         RESOLVED_HOOKS=$(sed "s|\$PLUGIN_DIR|$PLUGIN_DIR|g" "$HOOK_CONFIG")
 
-        # Merge hooks into settings
+        # Merge hooks into settings (append to AfterTool array instead of clobbering)
         MERGED=$(echo "$RESOLVED_HOOKS" | jq --slurpfile existing "$GEMINI_SETTINGS" '
-          ($existing[0] // {}) * { hooks: (($existing[0].hooks // {}) * .hooks) }
-        ' 2>/dev/null)
+          ($existing[0] // {}) |
+          .hooks.AfterTool = ((.hooks.AfterTool // []) + $ARGS.positional[0].hooks.AfterTool)
+        ' --jsonargs "$(echo "$RESOLVED_HOOKS")" 2>/dev/null)
+        # Simpler fallback if jsonargs fails
+        if [ -z "$MERGED" ] || ! echo "$MERGED" | jq . &>/dev/null; then
+          MERGED=$(jq --slurpfile new <(echo "$RESOLVED_HOOKS") '
+            .hooks.AfterTool = ((.hooks.AfterTool // []) + ($new[0].hooks.AfterTool // []))
+          ' "$GEMINI_SETTINGS" 2>/dev/null)
+        fi
 
         if [ -n "$MERGED" ] && echo "$MERGED" | jq . &>/dev/null; then
           cp "$GEMINI_SETTINGS" "${GEMINI_SETTINGS}.bak"
