@@ -243,6 +243,14 @@ At `standard` and `deep` intensity (no benchmarking data), external models alway
 
 ## Design Philosophy
 
+Arena is built on the premise that **the structure around a model matters more than the model itself**. Every design decision below traces back to one idea: optimize the harness, not the model.
+
+### Why the harness matters more than the model
+
+LangChain improved a coding benchmark from 30th place to 5th by changing only the harness — zero model training. Can Bölük improved coding accuracy 10x by changing only the edit format. Google Research improved accuracy from 21% to 97% by repeating the prompt. Arena applies this principle systematically: the same pipeline structure orchestrates Claude, Codex, and Gemini identically. Model choice affects individual findings; pipeline structure determines overall quality.
+
+Concretely, Arena's harness contributions include: structured output schemas that force valid JSON from all models, benchmark-driven role assignment that puts each model where it performs best, a 6-level fallback framework that maintains value when individual models fail, and the duplicate prompt technique that specifically helps weaker models without any model-side changes.
+
 ### Why agents debate instead of rules deciding
 
 Early versions used keyword matching: if a request mentioned "auth" or "security," intensity went to `deep`. This broke constantly. A request like "fix the deadlock in production" has no security keywords, but it's a concurrency bug where a bad fix creates new race conditions. No keyword list handles that.
@@ -282,9 +290,31 @@ Also from Karpathy (Surgical Changes). AI implementations tend to sprawl. You as
 
 If everything is in scope, the verdict is `CLEAN`.
 
+### Why context density beats context volume
+
+Arena doesn't dump the full codebase to every agent. Each of the 12 code review agents receives only the code patterns relevant to its role — the security-reviewer sees `auth`, `token`, `session`, `inject` patterns; the performance-reviewer sees `for`, `cache`, `query`, `pool` patterns. This role-based filtering (implemented in `context-filter.sh`) produces denser, more relevant context within each agent's 8,000-token budget.
+
+This follows the finding from the [AGENTS.md benchmark](https://arxiv.org/abs/2602.11988) (ETH Zurich) that LLM-generated comprehensive context files actually *hurt* agent performance by 0.5-2%. More context is not better context. Arena's approach: send less, but send exactly what matters for each agent's task.
+
+### Why the pipeline uses progressive disclosure
+
+Arena loads context incrementally, not all at once. Quick intensity loads almost nothing — just codebase conventions. Standard adds strategy debate and review agents. Deep adds research, compliance, and threat modeling. Comprehensive adds benchmarking and Figma analysis. Each intensity level is a strict superset of the previous one.
+
+This is the same principle behind Claude Code's Skill architecture: load the minimum context needed, expand only when warranted. The Phase 2.9 intensity checkpoint even allows *mid-pipeline* re-evaluation — if research reveals hidden complexity, the pipeline upgrades; if the task proves simpler, it downgrades. Both directions are supported.
+
 ### Why codebase analysis runs first
 
 Before writing any code, Arena scans your project for naming conventions, directory patterns, import styles, error handling approaches, and existing utilities. Generated code matches what's already there. No `camelCase` in a `snake_case` project. No reinventing a utility that already exists in `src/utils/`.
+
+### Why verification is built into every layer
+
+The most common failure mode in AI coding agents: the agent writes code, reads its own code, decides it looks fine, and stops — without ever running tests. Arena builds verification into the pipeline structure itself, not as an optional afterthought:
+
+- **Pre-execution**: Intensity debate (Phase 0.1), cost gate (Phase 0.2), intensity checkpoint (Phase 2.9)
+- **During execution**: 3-round cross-examination, scope verification, CVE/OWASP lookup for security findings
+- **Post-execution**: Test suite verification for auto-fixes (revert all on failure), success criteria PASS/FAIL table, consistency validation
+
+No finding ships without being challenged by at least one other model or verification step.
 
 ### Why fallback exists at every level
 
@@ -893,7 +923,7 @@ Arena is distributed as a Claude Code plugin. Two installation methods are suppo
 
 | Method | Command | Auto-Update |
 |--------|---------|-------------|
-| **Marketplace** | `/install-plugin HajinJ/ai-review-arena` | Yes |
+| **Marketplace** | `/plugin marketplace add HajinJ/ai-review-arena` | Yes |
 | **From Source** | `git clone` + `./install.sh` | Manual (`git pull`) |
 
 The marketplace method is recommended for most users. Source installation gives you access to development tools (`make test`, `make lint`, `make benchmark`).
