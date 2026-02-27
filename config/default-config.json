@@ -83,6 +83,7 @@
       "focus_areas_max": 2,
       "debate_rounds": 0,
       "file_lines_max": 200,
+      "reviewer_roles": [],
       "description_ko": "코드베이스 분석 + Claude 단독 처리, Agent Team 없음",
       "description_en": "Codebase analysis + Claude solo, no Agent Team"
     },
@@ -91,24 +92,27 @@
       "focus_areas_max": 4,
       "debate_rounds": 3,
       "file_lines_max": 500,
-      "description_ko": "표준 리뷰 - 2개 모델, 3라운드 교차심문",
-      "description_en": "Standard review - 2 models, 3-round cross-examination"
+      "reviewer_roles": ["security-reviewer", "bug-detector", "performance-reviewer", "scope-reviewer", "test-coverage-reviewer", "observability-reviewer"],
+      "description_ko": "표준 리뷰 - 6 에이전트, 2개 모델, 3라운드 교차심문",
+      "description_en": "Standard review - 6 agents, 2 models, 3-round cross-examination"
     },
     "deep": {
       "models_active": 3,
       "focus_areas_max": 5,
       "debate_rounds": 3,
       "file_lines_max": 1000,
-      "description_ko": "심층 리뷰 - 3개 모델, 3라운드 교차심문",
-      "description_en": "Deep review - 3 models, 3-round cross-examination"
+      "reviewer_roles": ["security-reviewer", "bug-detector", "performance-reviewer", "scope-reviewer", "test-coverage-reviewer", "observability-reviewer", "architecture-reviewer", "dependency-reviewer", "api-contract-reviewer", "data-integrity-reviewer"],
+      "description_ko": "심층 리뷰 - 10 에이전트, 3개 모델, 3라운드 교차심문",
+      "description_en": "Deep review - 10 agents, 3 models, 3-round cross-examination"
     },
     "comprehensive": {
       "models_active": 3,
       "focus_areas_max": 5,
       "debate_rounds": 3,
       "file_lines_max": 2000,
-      "description_ko": "종합 리뷰 - 3개 모델, 전체 포커스, 3라운드 토론",
-      "description_en": "Comprehensive review - 3 models, all focus areas, 3 debate rounds"
+      "reviewer_roles": ["security-reviewer", "bug-detector", "performance-reviewer", "scope-reviewer", "test-coverage-reviewer", "observability-reviewer", "architecture-reviewer", "dependency-reviewer", "api-contract-reviewer", "data-integrity-reviewer", "accessibility-reviewer", "configuration-reviewer"],
+      "description_ko": "종합 리뷰 - 12 에이전트, 3개 모델, 전체 포커스, 3라운드 토론",
+      "description_en": "Comprehensive review - 12 agents, 3 models, all focus areas, 3 debate rounds"
     }
   },
   "arena": {
@@ -156,7 +160,7 @@
     "default_type": "content",
     "default_audience": "general",
     "default_tone": "formal",
-    "focus_areas": ["accuracy", "audience-fit", "competitive-positioning", "communication-clarity", "data-evidence"],
+    "focus_areas": ["accuracy-evidence", "audience-fit", "competitive-positioning", "communication-narrative", "market-fit"],
     "confidence_threshold": 70
   },
   "business_intensity_presets": {
@@ -165,6 +169,7 @@
       "agent_team": false,
       "review_agents": 0,
       "debate_rounds": 0,
+      "reviewer_roles": [],
       "description_ko": "비즈니스 컨텍스트 분석 + Claude 단독 처리",
       "description_en": "Business context analysis + Claude solo"
     },
@@ -172,6 +177,7 @@
       "phases": ["context", "market", "strategy", "review", "report"],
       "agent_team": true,
       "review_agents": 5,
+      "reviewer_roles": ["accuracy-evidence-reviewer", "audience-fit-reviewer", "communication-narrative-reviewer", "competitive-positioning-reviewer", "market-fit-reviewer"],
       "external_models_cross_review": true,
       "debate_rounds": 3,
       "description_ko": "표준 비즈니스 리뷰 - 5 에이전트 + 외부 모델 교차검토, 3라운드 토론",
@@ -180,20 +186,22 @@
     "deep": {
       "phases": ["context", "market", "research", "accuracy", "strategy", "review", "report"],
       "agent_team": true,
-      "review_agents": 5,
+      "review_agents": 9,
+      "reviewer_roles": ["accuracy-evidence-reviewer", "audience-fit-reviewer", "communication-narrative-reviewer", "competitive-positioning-reviewer", "market-fit-reviewer", "financial-credibility-reviewer", "legal-compliance-reviewer", "localization-reviewer", "investor-readiness-reviewer"],
       "external_models_cross_review": true,
       "debate_rounds": 3,
-      "description_ko": "심층 비즈니스 리뷰 - 5 에이전트 + 외부 모델 교차검토, 리서치+정확성 감사",
-      "description_en": "Deep business review - 5 agents + external model cross-review, research + accuracy audit"
+      "description_ko": "심층 비즈니스 리뷰 - 9 에이전트 + 외부 모델 교차검토, 리서치+정확성 감사",
+      "description_en": "Deep business review - 9 agents + external model cross-review, research + accuracy audit"
     },
     "comprehensive": {
       "phases": ["context", "market", "research", "accuracy", "benchmark", "strategy", "review", "report"],
       "agent_team": true,
-      "review_agents": 5,
+      "review_agents": 10,
+      "reviewer_roles": ["accuracy-evidence-reviewer", "audience-fit-reviewer", "communication-narrative-reviewer", "competitive-positioning-reviewer", "market-fit-reviewer", "financial-credibility-reviewer", "legal-compliance-reviewer", "localization-reviewer", "investor-readiness-reviewer", "conversion-impact-reviewer"],
       "external_models": true,
       "debate_rounds": 3,
-      "description_ko": "종합 비즈니스 리뷰 - 5 에이전트 + 외부 모델, 벤치마크 기반 역할 배정, 전체 토론",
-      "description_en": "Comprehensive business review - 5 agents + external models, benchmark-driven role assignment, full debates"
+      "description_ko": "종합 비즈니스 리뷰 - 10 에이전트 + 외부 모델, 벤치마크 기반 역할 배정, 전체 토론",
+      "description_en": "Comprehensive business review - 10 agents + external models, benchmark-driven role assignment, full debates"
     }
   },
   "business_debate": {
@@ -297,14 +305,14 @@
         "priority": "input_validation_and_auth_flows"
       },
       "bugs": {
-        "include_patterns": ["catch", "throw", "error", "null", "undefined", "async", "await", "promise", "race", "lock", "mutex", "==" , "!=", "switch", "break", "return"],
+        "include_patterns": ["catch", "throw", "error", "Error", "null", "undefined", "async", "await", "promise", "Promise", "race", "lock", "mutex", "atomic", "try", "reject", "finally", "fallback", "retry", "abort", "fail", "semaphore", "channel", "concurrent", "thread", "worker", "typeof", "instanceof", "optional"],
         "include_file_patterns": ["*"],
-        "priority": "error_handling_and_control_flow"
+        "priority": "error_handling_concurrency_and_control_flow"
       },
       "performance": {
-        "include_patterns": ["for", "while", "map", "filter", "reduce", "query", "select", "join", "index", "cache", "memo", "async", "await", "Promise.all", "setTimeout", "setInterval", "buffer", "stream"],
-        "include_file_patterns": ["*service*", "*repository*", "*handler*", "*controller*", "*route*"],
-        "priority": "hot_paths_and_data_operations"
+        "include_patterns": ["for", "while", "map", "filter", "reduce", "query", "select", "join", "index", "cache", "memo", "async", "await", "Promise.all", "setTimeout", "setInterval", "buffer", "stream", "circuit", "breaker", "retry", "timeout", "health", "ready", "trace", "metric", "pool", "drain", "graceful", "shutdown"],
+        "include_file_patterns": ["*service*", "*repository*", "*handler*", "*controller*", "*route*", "*health*", "*metrics*", "*middleware*"],
+        "priority": "hot_paths_data_operations_and_production_readiness"
       },
       "architecture": {
         "include_patterns": ["import", "export", "class", "interface", "extends", "implements", "module", "inject", "provider", "factory", "singleton", "abstract"],
@@ -315,7 +323,49 @@
         "include_patterns": ["describe", "it", "test", "expect", "assert", "mock", "spy", "stub", "before", "after", "jest", "vitest", "pytest"],
         "include_file_patterns": ["*test*", "*spec*", "*.test.*", "*.spec.*"],
         "priority": "test_files_and_tested_code"
+      },
+      "dependency": {
+        "include_patterns": ["import", "require", "from", "dependency", "package", "version", "module"],
+        "include_file_patterns": ["package.json", "package-lock.json", "yarn.lock", "requirements.txt", "Pipfile", "go.mod", "Cargo.toml", "pom.xml", "build.gradle", "Gemfile"],
+        "priority": "dependency_declarations_and_versions"
+      },
+      "scope": {
+        "include_patterns": ["function", "class", "def", "module", "export"],
+        "include_file_patterns": ["*"],
+        "priority": "git_diff_and_strategy_document"
+      },
+      "api_contract": {
+        "include_patterns": ["route", "endpoint", "handler", "controller", "request", "response", "status", "header", "param", "query", "body", "schema", "validate", "middleware", "swagger", "openapi", "graphql", "grpc", "proto", "version", "deprecat"],
+        "include_file_patterns": ["*route*", "*controller*", "*handler*", "*endpoint*", "*api*", "*schema*", "*.proto", "*.graphql"],
+        "priority": "api_routes_and_schema_definitions"
+      },
+      "observability": {
+        "include_patterns": ["log", "logger", "logging", "trace", "tracing", "span", "metric", "metrics", "monitor", "alert", "health", "readiness", "liveness", "probe", "sentry", "datadog", "prometheus", "grafana", "correlation", "request_id", "console.log", "console.error", "winston", "pino", "bunyan", "debug"],
+        "include_file_patterns": ["*logger*", "*logging*", "*trace*", "*metric*", "*monitor*", "*health*", "*middleware*"],
+        "priority": "logging_tracing_and_monitoring"
+      },
+      "data_integrity": {
+        "include_patterns": ["schema", "validate", "validation", "transform", "serialize", "deserialize", "migration", "migrate", "constraint", "foreign", "reference", "integrity", "transaction", "commit", "rollback", "zod", "joi", "yup", "prisma", "typeorm", "sequelize", "knex", "model", "entity"],
+        "include_file_patterns": ["*model*", "*schema*", "*migration*", "*entity*", "*validator*", "*transform*", "*repository*", "*dao*"],
+        "priority": "data_validation_migration_and_consistency"
+      },
+      "accessibility": {
+        "include_patterns": ["aria", "role", "tabindex", "alt", "label", "labelledby", "describedby", "focus", "keyboard", "screen-reader", "a11y", "wcag", "contrast", "semantic", "nav", "heading", "button", "input", "form", "dialog", "modal", "sr-only", "visually-hidden"],
+        "include_file_patterns": ["*.tsx", "*.jsx", "*.vue", "*.svelte", "*.html", "*component*", "*page*", "*layout*"],
+        "priority": "wcag_compliance_and_assistive_technology"
+      },
+      "configuration": {
+        "include_patterns": ["env", "config", "secret", "credential", "token", "key", "password", "connection", "database", "redis", "port", "host", "url", "endpoint", "feature_flag", "toggle", "docker", "kubernetes", "k8s", "helm", "terraform", "ansible", "ci", "cd", "pipeline", "deploy"],
+        "include_file_patterns": ["*.env*", "*.yml", "*.yaml", "*.toml", "*.ini", "*.cfg", "*config*", "*setting*", "Dockerfile*", "docker-compose*", ".github/*", "*.tf"],
+        "priority": "environment_secrets_and_infrastructure"
       }
+    },
+    "chunking": {
+      "enabled": true,
+      "threshold_multiplier": 2.0,
+      "max_chunks_per_role": 4,
+      "overlap_lines": 10,
+      "merge_dedup_line_proximity": 3
     },
     "compression_strategy": "role_relevant_extract",
     "fallback_on_small_files": true,

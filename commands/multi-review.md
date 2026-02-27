@@ -19,12 +19,11 @@ Team Lead (You - this session)
 ├── Aggregate findings & generate report
 └── Shutdown teammates & cleanup team
 
-Claude Reviewer Teammates (independent Claude Code instances)
-├── security-reviewer    ─┐
-├── bug-detector         ─┤── SendMessage ⇄ each other (debate)
-├── architecture-reviewer─┤── SendMessage → debate-arbitrator
-├── performance-reviewer ─┤── SendMessage → team lead (findings)
-└── test-reviewer        ─┘
+Claude Reviewer Teammates (dynamic, from config intensity_presets.{INTENSITY}.reviewer_roles)
+├── {role-1}             ─┐
+├── {role-2}             ─┤── SendMessage ⇄ each other (debate)
+├── {role-3}             ─┤── SendMessage → debate-arbitrator
+├── {role-N}             ─┘── SendMessage → team lead (findings)
 
 Debate Arbitrator (teammate)
 └── Receives challenges/supports → synthesizes consensus → reports to lead
@@ -208,11 +207,67 @@ TaskCreate(
 # ... one TaskCreate per active Claude role
 ```
 
+### Step 4.2.5: Context Density Filtering
+
+Apply role-based context filtering to reduce token usage per agent. Each reviewer receives only code relevant to their domain, staying within the configured token budget.
+
+**Prerequisites**: `context_density.enabled` must be true in config (default: true). If false or if `context-filter.sh` is missing, skip this step and fall back to full content truncated at `file_lines_max` from the intensity preset.
+
+**Steps:**
+
+1. Build the file list from the review scope (all files to be reviewed):
+   ```bash
+   FILE_LIST="${SESSION_DIR}/review-file-list.txt"
+   # Populate from diff or direct file paths collected in Phase 1
+   ```
+
+2. For each role in REVIEWER_ROLES, run context-filter.sh:
+   ```bash
+   for role in $REVIEWER_ROLES; do
+     if [ -f "${SCRIPTS_DIR}/context-filter.sh" ]; then
+       cat "${FILE_LIST}" | bash "${SCRIPTS_DIR}/context-filter.sh" \
+         "${role}" "${CONFIG_FILE}" \
+         > "${SESSION_DIR}/filtered-${role}.txt" \
+         2>"${SESSION_DIR}/filter-${role}.log"
+     else
+       # Fallback: truncate full content to intensity preset limit
+       for file in $(cat "${FILE_LIST}"); do
+         head -n ${FILE_LINES_MAX} "$file"
+       done > "${SESSION_DIR}/filtered-${role}.txt"
+     fi
+   done
+   ```
+
+3. Check stderr logs for `CHUNKING_NEEDED`:
+   ```bash
+   for role in $REVIEWER_ROLES; do
+     if grep -q "CHUNKING_NEEDED" "${SESSION_DIR}/filter-${role}.log" 2>/dev/null; then
+       CHUNK_BUDGET=$((AGENT_CONTEXT_BUDGET / MAX_CHUNKS_PER_ROLE))
+       CHUNK_LINES=$((CHUNK_BUDGET / 4))
+       split -l ${CHUNK_LINES} "${SESSION_DIR}/filtered-${role}.txt" \
+         "${SESSION_DIR}/filtered-${role}-chunk-"
+       echo "${role}" >> "${SESSION_DIR}/chunked-roles.txt"
+     fi
+   done
+   ```
+
+4. Display filtering summary:
+   ```
+   ## Context Density Filtering (Step 4.2.5)
+   | Role | Files In | Matched | Lines Extracted | Est. Tokens | Chunked |
+   |------|----------|---------|-----------------|-------------|---------|
+   | security-reviewer | 24 | 8 | 450 | ~1,800 | No |
+   ...
+   ```
+
 ### Step 4.3: Spawn Claude Reviewer Teammates
 
 For each active Claude role, read the agent definition file and spawn a teammate. **Spawn ALL teammates in parallel** by making multiple Task tool calls in a single message.
 
-For each role (security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer):
+Read reviewer_roles from config intensity_presets.{INTENSITY}.reviewer_roles.
+Fallback if missing: ["security-reviewer", "bug-detector", "performance-reviewer", "scope-reviewer", "test-coverage-reviewer"]
+
+For each role in REVIEWER_ROLES:
 
 1. Read the agent definition:
    ```
@@ -231,19 +286,43 @@ For each role (security-reviewer, bug-detector, architecture-reviewer, performan
    Task ID: {task_id}
    Scope: {scope_description}
 
-   CODE TO REVIEW:
-   {diff_content_or_file_contents}
+   CODE TO REVIEW (filtered for {role}, {filtered_lines} lines from {filtered_files} files):
+   {contents of SESSION_DIR/filtered-{role}.txt}
    --- END CODE ---
+
+   NOTE: Code filtered for your review domain ({agent_context_budget_tokens} token budget).
+   Use Read tool to examine files outside your filtered view if needed.
 
    INSTRUCTIONS:
    1. Review the code above following your agent instructions
-   2. Send your findings JSON to the team lead using SendMessage
-   3. Mark your task as completed using TaskUpdate
-   4. Stay active - you will participate in the debate phase next"
+   2. If the filtered view is insufficient, use the Read tool to examine specific files directly
+   3. Send your findings JSON to the team lead using SendMessage
+   4. Mark your task as completed using TaskUpdate
+   5. Stay active - you will participate in the debate phase next"
    )
    ```
 
 **CRITICAL: Launch ALL Claude reviewer teammates simultaneously.** Use multiple Task tool calls in a single message to maximize parallelism. Do NOT wait for one teammate to finish before spawning the next.
+
+**Chunked Roles**: For roles listed in `${SESSION_DIR}/chunked-roles.txt` (from Step 4.2.5), spawn sub-agents instead of a single teammate:
+
+```
+For each chunked role:
+  For each chunk file (filtered-{role}-chunk-aa, filtered-{role}-chunk-ab, ...):
+    Task(
+      subagent_type: "general-purpose",
+      team_name: "review-{session_id}",
+      name: "{role}-chunk-{N}",
+      prompt: "{same agent definition as above}
+
+      CODE TO REVIEW (chunk {N}/{total_chunks} for {role}):
+      {contents of chunk file}
+      --- END CODE ---
+
+      NOTE: This is chunk {N} of {total_chunks}. Review only this portion.
+      Send findings to team lead. Mark task as completed."
+    )
+```
 
 ### Step 4.4: Assign Tasks to Teammates
 
@@ -257,20 +336,25 @@ TaskUpdate(taskId: "{bug_task_id}", owner: "bug-detector")
 
 ### Step 4.5: Launch External CLI Reviews (Parallel)
 
-While Claude teammates work, run Codex and Gemini CLI reviews in parallel via Bash:
+While Claude teammates work, run Codex and Gemini CLI reviews in parallel via Bash. **Apply per-file budget** from context density filtering to cap external CLI input.
 
 ```bash
+# Calculate per-file line budget for external CLIs
+FILE_COUNT=$(cat "${FILE_LIST}" | wc -l | tr -d ' ')
+PER_FILE_BUDGET=$((AGENT_CONTEXT_BUDGET / 4 / (FILE_COUNT > 0 ? FILE_COUNT : 1)))
+[ "$PER_FILE_BUDGET" -lt 50 ] && PER_FILE_BUDGET=50
+
 # Launch all external reviews in background
 for role in $CODEX_ROLES; do
   for file in $FILES; do
-    cat "$file" | "${SCRIPTS_DIR}/codex-review.sh" "$file" "$CONFIG" "$role" \
+    head -n "$PER_FILE_BUDGET" "$file" | "${SCRIPTS_DIR}/codex-review.sh" "$file" "$CONFIG" "$role" \
       > "${SESSION_DIR}/findings/codex-${role}-$(basename $file).json" 2>/dev/null &
   done
 done
 
 for role in $GEMINI_ROLES; do
   for file in $FILES; do
-    cat "$file" | "${SCRIPTS_DIR}/gemini-review.sh" "$file" "$CONFIG" "$role" \
+    head -n "$PER_FILE_BUDGET" "$file" | "${SCRIPTS_DIR}/gemini-review.sh" "$file" "$CONFIG" "$role" \
       > "${SESSION_DIR}/findings/gemini-${role}-$(basename $file).json" 2>/dev/null &
   done
 done
@@ -291,6 +375,23 @@ Wait for all results from both sources:
    ```
 
 3. Parse and validate all findings. Skip invalid JSON with a warning.
+
+### Step 4.5.5: Merge Chunk Findings
+
+For roles that were chunked in Step 4.2.5, merge sub-agent findings before aggregation.
+
+```
+For each role in chunked-roles.txt:
+  1. Collect findings from all chunk sub-agents: {role}-chunk-1, {role}-chunk-2, ...
+  2. Flatten into a single findings array
+  3. Deduplicate by file + line proximity (within +/- merge_dedup_line_proximity lines,
+     default 3 from context_density.chunking.merge_dedup_line_proximity)
+  4. If chunks overlap (overlap_lines > 0), check for duplicate findings at chunk boundaries
+  5. Relabel source from "{role}-chunk-N" to "{role}" for consistent downstream processing
+  6. Merge into the main findings collection alongside non-chunked role findings
+```
+
+Skip this step if no roles were chunked (chunked-roles.txt is empty or missing).
 
 ## Phase 5: Findings Aggregation
 
@@ -549,11 +650,8 @@ Build the report in the configured language (`output.language`):
 Send shutdown requests to ALL active teammates. Wait for each confirmation before proceeding.
 
 ```
-SendMessage(type: "shutdown_request", recipient: "security-reviewer", content: "Review session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "bug-detector", content: "Review session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "architecture-reviewer", content: "Review session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "performance-reviewer", content: "Review session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "test-coverage-reviewer", content: "Review session complete. Thank you.")
+For each role in REVIEWER_ROLES (the roles that were spawned in Phase 4):
+  SendMessage(type: "shutdown_request", recipient: "{role}", content: "Review session complete. Thank you.")
 SendMessage(type: "shutdown_request", recipient: "debate-arbitrator", content: "Review session complete. Thank you.")
 ```
 

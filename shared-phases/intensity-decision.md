@@ -113,6 +113,9 @@
      - Is this a minor revision to already-reviewed content?
      - Will the content go through additional human review?
 
+     IMPORTANT: Only recommend quick or standard when you have CLEAR, SPECIFIC evidence that the task is simple.
+     When ambiguous, lean toward a HIGHER intensity rather than lower.
+
      Present your argument to intensity-arbitrator via SendMessage.
      Engage with intensity-advocate's counter-arguments.
      Continue until intensity-arbitrator makes a decision."
@@ -172,16 +175,16 @@
      4. Provide clear justification
 
      ## Code Intensity Guidelines:
-     - quick: Single element, obvious change, no risk
-     - standard: Multi-file, moderate complexity, low-medium risk
-     - deep: Complex logic, security-sensitive, high risk, compliance needed
-     - comprehensive: System-wide, critical security (auth/payment), needs model benchmarking
+     - quick: 단순 타이포, 1줄 수정, 변수명 변경 등 명백히 사소한 변경만
+     - standard: 단일 파일 수정, 기존 패턴 따르는 변경, 낮은 리스크
+     - deep: 2개 이상 파일 수정, 새 로직 추가, 외부 API 연동, 에러 처리 변경, 데이터 모델 변경
+     - comprehensive: 3개 이상 모듈 영향, 인증/결제/보안 관련, 아키텍처 변경, 새 서비스/시스템 추가
 
      ## Business Intensity Guidelines:
-     - quick: Internal notes, minor text edits, simple email drafts
-     - standard: Individual documents, standard proposals, blog posts
-     - deep: Strategic documents, investor decks, public-facing content
-     - comprehensive: Full business plans, regulatory filings, fundraising materials
+     - quick: 내부 메모, 단순 텍스트 수정만
+     - standard: 블로그 포스트, 단일 문서 작성, 내부 프레젠테이션
+     - deep: 외부 노출 문서, 투자자 대면 자료, 제품 소개서, 마케팅 카피
+     - comprehensive: 비즈니스 플랜, 펀드레이징 자료, 규제 제출물, 전략 문서, 경쟁 분석
 
      Send your final decision to the team lead via SendMessage:
      INTENSITY_DECISION: {level}

@@ -122,14 +122,15 @@ Claude Agent Team          Codex CLI            Gemini CLI
   architecture-reviewer
   performance-reviewer
   test-coverage-reviewer
-  scale-advisor
   scope-reviewer
+  + observability, dependency, api-contract, data-integrity,
+    accessibility, configuration (높은 인텐시티에서)
          |                       |                     |
          v                       v                     v
   findings-claude.json    findings-codex.json   findings-gemini.json
 ```
 
-비즈니스 리뷰도 같은 구조로, 5개 도메인별 리뷰어(정확성, 오디언스, 포지셔닝, 명확성, 증거) + 외부 CLI가 참여합니다. `comprehensive` 강도에서는 벤치마크 점수가 외부 모델의 역할(1라운드 주 리뷰어 vs 2라운드 교차 리뷰어)을 결정합니다.
+비즈니스 리뷰도 같은 구조로, 도메인별 리뷰어(정확성-증거, 오디언스, 커뮤니케이션-내러티브, 경쟁 포지셔닝, 시장 적합성, 높은 인텐시티에서 추가 리뷰어) + 외부 CLI가 참여합니다. `comprehensive` 강도에서는 벤치마크 점수가 외부 모델의 역할(1라운드 주 리뷰어 vs 2라운드 교차 리뷰어)을 결정합니다.
 
 ### 2라운드: 교차 심문
 
@@ -555,22 +556,33 @@ ai-review-arena/
 |   +-- multi-review-config.md   # 설정 관리
 |   +-- multi-review-status.md   # 상태 대시보드
 |
-+-- agents/                      # 에이전트 역할 정의 (16개 에이전트)
++-- agents/                      # 에이전트 역할 정의 (27개 에이전트)
 |   +-- security-reviewer.md     # OWASP, 인증, 인젝션, 데이터 노출
-|   +-- bug-detector.md          # 로직 오류, null 처리, 엣지 케이스
+|   +-- bug-detector.md          # 로직 오류, null 처리, 에러 핸들링, 동시성
 |   +-- architecture-reviewer.md # SOLID, 패턴, 결합도
-|   +-- performance-reviewer.md  # 복잡도, 메모리, I/O
+|   +-- performance-reviewer.md  # 복잡도, 메모리, I/O, 장애 복구, 스케일
 |   +-- test-coverage-reviewer.md # 누락된 테스트, 테스트 품질
-|   +-- scale-advisor.md         # 동시성, 부하, 병목
+|   +-- scope-reviewer.md        # 변경 범위 검증
+|   +-- dependency-reviewer.md   # 의존성 건강성, 버전 관리
+|   +-- api-contract-reviewer.md # API 스키마, 버전관리, 브레이킹 체인지
+|   +-- observability-reviewer.md # 로깅, 트레이싱, 모니터링
+|   +-- data-integrity-reviewer.md # 데이터 유효성, 마이그레이션 안전성
+|   +-- accessibility-reviewer.md # WCAG, ARIA, 키보드 네비게이션
+|   +-- configuration-reviewer.md # 환경설정, 시크릿, IaC
 |   +-- debate-arbitrator.md     # 코드 리뷰 3라운드 합의
 |   +-- research-coordinator.md  # 구현 전 리서치
 |   +-- design-analyzer.md       # Figma 디자인 추출
 |   +-- compliance-checker.md    # OWASP, WCAG, GDPR 컴플라이언스
-|   +-- domain-accuracy-reviewer.md        # 비즈니스: 사실 정확성
+|   +-- accuracy-evidence-reviewer.md      # 비즈니스: 사실 정확성 + 데이터 증거
 |   +-- audience-fit-reviewer.md           # 비즈니스: 오디언스 적합성
 |   +-- competitive-positioning-reviewer.md # 비즈니스: 시장 포지셔닝
-|   +-- communication-clarity-reviewer.md  # 비즈니스: 작문 품질
-|   +-- data-evidence-reviewer.md          # 비즈니스: 데이터/증거 품질
+|   +-- communication-narrative-reviewer.md # 비즈니스: 작문 품질 + 내러티브
+|   +-- market-fit-reviewer.md             # 비즈니스: 제품-시장 적합성, TAM/SAM/SOM
+|   +-- financial-credibility-reviewer.md  # 비즈니스: 재무 모델 신뢰성
+|   +-- legal-compliance-reviewer.md       # 비즈니스: 법률/규제 컴플라이언스
+|   +-- localization-reviewer.md           # 비즈니스: 다국어/다문화 현지화
+|   +-- investor-readiness-reviewer.md     # 비즈니스: 투자 유치 준비도
+|   +-- conversion-impact-reviewer.md      # 비즈니스: 전환율 최적화
 |   +-- business-debate-arbitrator.md      # 비즈니스: 3라운드 합의 + 외부 모델 처리
 |
 +-- scripts/                     # 셸/Python 스크립트 (24개)

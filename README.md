@@ -124,14 +124,15 @@ Claude Agent Team          Codex CLI            Gemini CLI
   architecture-reviewer
   performance-reviewer
   test-coverage-reviewer
-  scale-advisor
   scope-reviewer
+  + observability, dependency, api-contract, data-integrity,
+    accessibility, configuration (at higher intensities)
          |                       |                     |
          v                       v                     v
   findings-claude.json    findings-codex.json   findings-gemini.json
 ```
 
-For business reviews, the same structure applies with 5 domain-specific reviewers (accuracy, audience, positioning, clarity, evidence) plus external CLIs. At `comprehensive` intensity, benchmark scores determine whether external models serve as Round 1 primary reviewers or Round 2 cross-reviewers.
+For business reviews, the same structure applies with domain-specific reviewers (accuracy-evidence, audience-fit, communication-narrative, competitive-positioning, market-fit, and more at higher intensities) plus external CLIs. At `comprehensive` intensity, benchmark scores determine whether external models serve as Round 1 primary reviewers or Round 2 cross-reviewers.
 
 ### Round 2: Cross-Examination
 
@@ -557,22 +558,33 @@ ai-review-arena/
 |   +-- multi-review-config.md   # Config management
 |   +-- multi-review-status.md   # Status dashboard
 |
-+-- agents/                      # Agent role definitions (16 agents)
++-- agents/                      # Agent role definitions (27 agents)
 |   +-- security-reviewer.md     # OWASP, auth, injection, data exposure
-|   +-- bug-detector.md          # Logic errors, null handling, edge cases
+|   +-- bug-detector.md          # Logic errors, null handling, error handling, concurrency
 |   +-- architecture-reviewer.md # SOLID, patterns, coupling
-|   +-- performance-reviewer.md  # Complexity, memory, I/O
+|   +-- performance-reviewer.md  # Complexity, memory, I/O, failover, scale
 |   +-- test-coverage-reviewer.md # Missing tests, test quality
-|   +-- scale-advisor.md         # Concurrency, load, bottlenecks
+|   +-- scope-reviewer.md        # Change scope validation
+|   +-- dependency-reviewer.md   # Dependency health, versioning
+|   +-- api-contract-reviewer.md # API schema, versioning, breaking changes
+|   +-- observability-reviewer.md # Logging, tracing, monitoring
+|   +-- data-integrity-reviewer.md # Data validation, migration safety
+|   +-- accessibility-reviewer.md # WCAG, ARIA, keyboard navigation
+|   +-- configuration-reviewer.md # Environment, secrets, IaC
 |   +-- debate-arbitrator.md     # Code review 3-round consensus
 |   +-- research-coordinator.md  # Pre-implementation research
 |   +-- design-analyzer.md       # Figma design extraction
 |   +-- compliance-checker.md    # OWASP, WCAG, GDPR compliance
-|   +-- domain-accuracy-reviewer.md        # Business: factual accuracy
+|   +-- accuracy-evidence-reviewer.md      # Business: factual accuracy + data evidence
 |   +-- audience-fit-reviewer.md           # Business: audience match
 |   +-- competitive-positioning-reviewer.md # Business: market positioning
-|   +-- communication-clarity-reviewer.md  # Business: writing quality
-|   +-- data-evidence-reviewer.md          # Business: data/evidence quality
+|   +-- communication-narrative-reviewer.md # Business: writing quality + narrative
+|   +-- market-fit-reviewer.md             # Business: product-market fit, TAM/SAM/SOM
+|   +-- financial-credibility-reviewer.md  # Business: financial model credibility
+|   +-- legal-compliance-reviewer.md       # Business: legal/regulatory compliance
+|   +-- localization-reviewer.md           # Business: multilingual/cultural adaptation
+|   +-- investor-readiness-reviewer.md     # Business: investor readiness
+|   +-- conversion-impact-reviewer.md      # Business: conversion optimization
 |   +-- business-debate-arbitrator.md      # Business: 3-round consensus + external model handling
 |
 +-- scripts/                     # Shell/Python scripts (24 scripts)

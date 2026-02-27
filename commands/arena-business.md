@@ -58,12 +58,11 @@ Team Lead (You - this session)
 |   +-- Cleanup team
 +-- Fallback Framework (structured 5-level graceful degradation)
 
-Business Reviewer Teammates (independent Claude Code instances)
-+-- domain-accuracy-reviewer    --+
-+-- audience-fit-reviewer       --+-- SendMessage <-> each other (debate)
-+-- competitive-positioning-reviewer --+-- SendMessage -> business-debate-arbitrator
-+-- communication-clarity-reviewer --+-- SendMessage -> team lead (findings)
-+-- data-evidence-reviewer      --+
+Business Reviewer Teammates (dynamic, from config business_intensity_presets.{INTENSITY}.reviewer_roles)
++-- {role-1}                    --+
++-- {role-2}                    --+-- SendMessage <-> each other (debate)
++-- {role-3}                    --+-- SendMessage -> business-debate-arbitrator
++-- {role-N}                    --+-- SendMessage -> team lead (findings)
 +-- business-debate-arbitrator  ------ Receives challenges/supports -> synthesizes consensus
 
 External CLI Models (intensity-dependent roles)
@@ -136,21 +135,21 @@ Establish business context, load configuration, and prepare the session environm
      - Phase B2 (deep+): Content writing best practices
      - Phase B3 (deep+): Full accuracy audit
      - Phase B5.5: Messaging-first strategy debate
-     - Phase B6: All 5 reviewers with emphasis scoring on domain-accuracy-reviewer and audience-fit-reviewer
+     - Phase B6: All reviewers with emphasis scoring on accuracy-evidence-reviewer and audience-fit-reviewer
    - `strategy`: market research + data evidence + competitive positioning emphasis
      - Phase B0.5: Full context extraction with emphasis on competitive data
      - Phase B1: Deep market research (extended search queries)
      - Phase B2 (deep+): Strategy framework best practices
      - Phase B3 (deep+): Data and evidence audit
      - Phase B5.5: Positioning-first strategy debate
-     - Phase B6: All 5 reviewers with emphasis scoring on competitive-positioning-reviewer and data-evidence-reviewer
+     - Phase B6: All reviewers with emphasis scoring on competitive-positioning-reviewer and market-fit-reviewer
    - `communication`: tone + clarity + audience fit emphasis
      - Phase B0.5: Full context extraction with brand voice emphasis
      - Phase B1: Industry communication norms
      - Phase B2 (deep+): Communication style best practices
      - Phase B3 (deep+): Tone consistency audit
      - Phase B5.5: Audience-first strategy debate
-     - Phase B6: All 5 reviewers with emphasis scoring on communication-clarity-reviewer and audience-fit-reviewer
+     - Phase B6: All reviewers with emphasis scoring on communication-narrative-reviewer and audience-fit-reviewer
 
 7. Determine which phases to execute based on intensity:
 
@@ -397,10 +396,10 @@ Establish business context, load configuration, and prepare the session environm
      4. Provide clear justification for your decision
 
      Intensity guidelines for business content:
-     - quick: Internal notes, minor text edits, simple email drafts, routine meeting agendas, simple translations of already-reviewed content
-     - standard: Individual documents, standard proposals, email campaigns, blog posts, customer support templates, FAQ updates
-     - deep: Strategic documents, investor presentation decks, public-facing content, partnership proposals, competitive analysis reports, pricing strategy documents
-     - comprehensive: Full business plans, market entry strategies, regulatory filings, annual reports, M&A documents, fundraising materials, IPO prospectus drafts
+     - quick: 내부 메모, 단순 텍스트 수정만
+     - standard: 블로그 포스트, 단일 문서 작성, 내부 프레젠테이션
+     - deep: 외부 노출 문서, 투자자 대면 자료, 제품 소개서, 마케팅 카피
+     - comprehensive: 비즈니스 플랜, 펀드레이징 자료, 규제 제출물, 전략 문서, 경쟁 분석
 
      Send your final decision to the team lead via SendMessage in this format:
      INTENSITY_DECISION: {level}
@@ -1839,7 +1838,7 @@ TaskCreate(
 
 ### Step B6.3: Spawn Business Reviewer Teammates + External CLI Round 1
 
-For each of the 5 reviewers, read the agent definition file and spawn a teammate with ENRICHED business context. **Spawn ALL 5 reviewers + arbitrator in parallel** by making multiple Task tool calls in a single message.
+For each reviewer in REVIEWER_ROLES, read the agent definition file and spawn a teammate with ENRICHED business context. **Spawn ALL reviewers + arbitrator in parallel** by making multiple Task tool calls in a single message.
 
 **External CLI Round 1 (if assigned as primary):**
 
@@ -1866,257 +1865,65 @@ Where `$BUSINESS_CONTENT_WITH_CONTEXT` includes the business content plus enrich
 
 **NOTE**: When an external model is Round 1 primary for a category, the corresponding Claude reviewer for that category still runs independently. Both sets of findings are included in Round 2 cross-review and debate. This provides redundancy — if the external CLI fails, the Claude reviewer's findings are still available.
 
-**Spawn domain-accuracy-reviewer:**
-```
-Read(file_path: "${AGENTS_DIR}/domain-accuracy-reviewer.md")
+Read REVIEWER_ROLES from config business_intensity_presets.{INTENSITY}.reviewer_roles.
+Fallback if missing: ["accuracy-evidence-reviewer", "audience-fit-reviewer", "communication-narrative-reviewer", "competitive-positioning-reviewer", "market-fit-reviewer"]
 
-Task(
-  subagent_type: "general-purpose",
-  team_name: "biz-review-{session_id}",
-  name: "domain-accuracy-reviewer",
-  prompt: "{contents of agents/domain-accuracy-reviewer.md}
+For each role in REVIEWER_ROLES:
 
-  --- REVIEW TASK ---
-  Task ID: {task_id}
-  Content Type: {type}
-  Target Audience: {audience}
-  Tone: {tone}
+1. Read the agent definition:
+   ```
+   Read(file_path: "${AGENTS_DIR}/{role}.md")
+   ```
 
-  === ENRICHED CONTEXT (from Arena Business Lifecycle) ===
+2. Spawn as teammate with ENRICHED context:
+   ```
+   Task(
+     subagent_type: "general-purpose",
+     team_name: "biz-review-{session_id}",
+     name: "{role}",
+     prompt: "{contents of agents/{role}.md}
 
-  BUSINESS CONTEXT BRIEF:
-  {business_context_brief_from_phase_b0_5}
+     --- REVIEW TASK ---
+     Task ID: {task_id}
+     Content Type: {type}
+     Target Audience: {audience}
+     Tone: {tone}
 
-  MARKET CONTEXT:
-  {market_context_summary_from_phase_b1}
+     === ENRICHED CONTEXT (from Arena Business Lifecycle) ===
 
-  BEST PRACTICES:
-  {best_practices_brief_from_phase_b2_if_available}
+     BUSINESS CONTEXT BRIEF:
+     {business_context_brief_from_phase_b0_5}
 
-  ACCURACY AUDIT:
-  {accuracy_audit_results_from_phase_b3_if_available}
+     MARKET CONTEXT:
+     {market_context_summary_from_phase_b1}
 
-  CONTENT STRATEGY:
-  {content_strategy_from_phase_b5_5}
+     BEST PRACTICES:
+     {best_practices_brief_from_phase_b2_if_available}
 
-  === END ENRICHED CONTEXT ===
+     ACCURACY AUDIT:
+     {accuracy_audit_results_from_phase_b3_if_available}
 
-  CONTENT TO REVIEW:
-  {the_business_content_being_reviewed}
-  --- END CONTENT ---
+     CONTENT STRATEGY:
+     {content_strategy_from_phase_b5_5}
 
-  INSTRUCTIONS:
-  1. Review the content above following your agent instructions
-  2. USE the enriched context to inform your review — check claims against business context, market data, and accuracy audit
-  3. Send your findings JSON to the team lead using SendMessage
-  4. Mark your task as completed using TaskUpdate
-  5. Stay active for the 3-round debate:
-     Round 2: You will receive other reviewers' findings and provide challenge/support responses
-     Round 3: You will defend your challenged findings or withdraw/revise them"
-)
-```
+     === END ENRICHED CONTEXT ===
 
-**Spawn audience-fit-reviewer:**
-```
-Read(file_path: "${AGENTS_DIR}/audience-fit-reviewer.md")
+     CONTENT TO REVIEW:
+     {the_business_content_being_reviewed}
+     --- END CONTENT ---
 
-Task(
-  subagent_type: "general-purpose",
-  team_name: "biz-review-{session_id}",
-  name: "audience-fit-reviewer",
-  prompt: "{contents of agents/audience-fit-reviewer.md}
+     INSTRUCTIONS:
+     1. Review the content above following your agent instructions
+     2. USE the enriched context to inform your review
+     3. Send your findings JSON to the team lead using SendMessage
+     4. Mark your task as completed using TaskUpdate
+     5. Stay active for the 3-round debate:
+        Round 2: You will receive other reviewers' findings and provide challenge/support responses
+        Round 3: You will defend your challenged findings or withdraw/revise them"
+   )
+   ```
 
-  --- REVIEW TASK ---
-  Task ID: {task_id}
-  Content Type: {type}
-  Target Audience: {audience}
-  Tone: {tone}
-
-  === ENRICHED CONTEXT (from Arena Business Lifecycle) ===
-
-  BUSINESS CONTEXT BRIEF:
-  {business_context_brief_from_phase_b0_5}
-
-  MARKET CONTEXT:
-  {market_context_summary_from_phase_b1}
-
-  BEST PRACTICES:
-  {best_practices_brief_from_phase_b2_if_available}
-
-  ACCURACY AUDIT:
-  {accuracy_audit_results_from_phase_b3_if_available}
-
-  CONTENT STRATEGY:
-  {content_strategy_from_phase_b5_5}
-
-  === END ENRICHED CONTEXT ===
-
-  CONTENT TO REVIEW:
-  {the_business_content_being_reviewed}
-  --- END CONTENT ---
-
-  INSTRUCTIONS:
-  1. Review the content above following your agent instructions
-  2. USE the enriched context — especially the business context brief for brand voice and the content strategy for tone guidelines
-  3. Send your findings JSON to the team lead using SendMessage
-  4. Mark your task as completed using TaskUpdate
-  5. Stay active for the 3-round debate:
-     Round 2: You will receive other reviewers' findings and provide challenge/support responses
-     Round 3: You will defend your challenged findings or withdraw/revise them"
-)
-```
-
-**Spawn competitive-positioning-reviewer:**
-```
-Read(file_path: "${AGENTS_DIR}/competitive-positioning-reviewer.md")
-
-Task(
-  subagent_type: "general-purpose",
-  team_name: "biz-review-{session_id}",
-  name: "competitive-positioning-reviewer",
-  prompt: "{contents of agents/competitive-positioning-reviewer.md}
-
-  --- REVIEW TASK ---
-  Task ID: {task_id}
-  Content Type: {type}
-  Target Audience: {audience}
-  Tone: {tone}
-
-  === ENRICHED CONTEXT (from Arena Business Lifecycle) ===
-
-  BUSINESS CONTEXT BRIEF:
-  {business_context_brief_from_phase_b0_5}
-
-  MARKET CONTEXT:
-  {market_context_summary_from_phase_b1}
-
-  BEST PRACTICES:
-  {best_practices_brief_from_phase_b2_if_available}
-
-  ACCURACY AUDIT:
-  {accuracy_audit_results_from_phase_b3_if_available}
-
-  CONTENT STRATEGY:
-  {content_strategy_from_phase_b5_5}
-
-  === END ENRICHED CONTEXT ===
-
-  CONTENT TO REVIEW:
-  {the_business_content_being_reviewed}
-  --- END CONTENT ---
-
-  INSTRUCTIONS:
-  1. Review the content above following your agent instructions
-  2. USE the enriched context — especially market context for competitive landscape verification and business context for positioning claims
-  3. Use WebSearch actively to verify competitive claims and find current competitor data
-  4. Send your findings JSON to the team lead using SendMessage
-  5. Mark your task as completed using TaskUpdate
-  6. Stay active for the 3-round debate:
-     Round 2: You will receive other reviewers' findings and provide challenge/support responses
-     Round 3: You will defend your challenged findings or withdraw/revise them"
-)
-```
-
-**Spawn communication-clarity-reviewer:**
-```
-Read(file_path: "${AGENTS_DIR}/communication-clarity-reviewer.md")
-
-Task(
-  subagent_type: "general-purpose",
-  team_name: "biz-review-{session_id}",
-  name: "communication-clarity-reviewer",
-  prompt: "{contents of agents/communication-clarity-reviewer.md}
-
-  --- REVIEW TASK ---
-  Task ID: {task_id}
-  Content Type: {type}
-  Target Audience: {audience}
-  Tone: {tone}
-
-  === ENRICHED CONTEXT (from Arena Business Lifecycle) ===
-
-  BUSINESS CONTEXT BRIEF:
-  {business_context_brief_from_phase_b0_5}
-
-  MARKET CONTEXT:
-  {market_context_summary_from_phase_b1}
-
-  BEST PRACTICES:
-  {best_practices_brief_from_phase_b2_if_available}
-
-  ACCURACY AUDIT:
-  {accuracy_audit_results_from_phase_b3_if_available}
-
-  CONTENT STRATEGY:
-  {content_strategy_from_phase_b5_5}
-
-  === END ENRICHED CONTEXT ===
-
-  CONTENT TO REVIEW:
-  {the_business_content_being_reviewed}
-  --- END CONTENT ---
-
-  INSTRUCTIONS:
-  1. Review the content above following your agent instructions
-  2. USE the enriched context — especially the content strategy for structure and tone guidelines, and best practices for writing standards
-  3. Send your findings JSON to the team lead using SendMessage
-  4. Mark your task as completed using TaskUpdate
-  5. Stay active for the 3-round debate:
-     Round 2: You will receive other reviewers' findings and provide challenge/support responses
-     Round 3: You will defend your challenged findings or withdraw/revise them"
-)
-```
-
-**Spawn data-evidence-reviewer:**
-```
-Read(file_path: "${AGENTS_DIR}/data-evidence-reviewer.md")
-
-Task(
-  subagent_type: "general-purpose",
-  team_name: "biz-review-{session_id}",
-  name: "data-evidence-reviewer",
-  prompt: "{contents of agents/data-evidence-reviewer.md}
-
-  --- REVIEW TASK ---
-  Task ID: {task_id}
-  Content Type: {type}
-  Target Audience: {audience}
-  Tone: {tone}
-
-  === ENRICHED CONTEXT (from Arena Business Lifecycle) ===
-
-  BUSINESS CONTEXT BRIEF:
-  {business_context_brief_from_phase_b0_5}
-
-  MARKET CONTEXT:
-  {market_context_summary_from_phase_b1}
-
-  BEST PRACTICES:
-  {best_practices_brief_from_phase_b2_if_available}
-
-  ACCURACY AUDIT:
-  {accuracy_audit_results_from_phase_b3_if_available}
-
-  CONTENT STRATEGY:
-  {content_strategy_from_phase_b5_5}
-
-  === END ENRICHED CONTEXT ===
-
-  CONTENT TO REVIEW:
-  {the_business_content_being_reviewed}
-  --- END CONTENT ---
-
-  INSTRUCTIONS:
-  1. Review the content above following your agent instructions
-  2. USE the enriched context — especially accuracy audit results for pre-verified data and market context for benchmark comparisons
-  3. Use WebSearch actively to verify data claims against authoritative sources
-  4. Send your findings JSON to the team lead using SendMessage
-  5. Mark your task as completed using TaskUpdate
-  6. Stay active for the 3-round debate:
-     Round 2: You will receive other reviewers' findings and provide challenge/support responses
-     Round 3: You will defend your challenged findings or withdraw/revise them"
-)
-```
+**CRITICAL: Launch ALL reviewers simultaneously.** Use multiple Task tool calls in a single message to maximize parallelism. Do NOT wait for one teammate to finish before spawning the next.
 
 **Spawn business-debate-arbitrator:**
 ```
@@ -2132,14 +1939,14 @@ Task(
   Session: {session_id}
   Content Type: {type}
   Target Audience: {audience}
-  Active reviewers: domain-accuracy-reviewer, audience-fit-reviewer, competitive-positioning-reviewer, communication-clarity-reviewer, data-evidence-reviewer
+  Active reviewers: {REVIEWER_ROLES list — the roles spawned for this session}
   Cross-review rounds: 3
 
   CONTENT STRATEGY (from Phase B5.5):
   {content_strategy_from_phase_b5_5}
 
   You will receive:
-  1. Round 1 findings from all 5 reviewers (forwarded by team lead)
+  1. Round 1 findings from all reviewers (forwarded by team lead)
   2. Round 2 cross-review responses from all 5 reviewers (sent directly to you)
   3. A 'ROUND 2 COMPLETE' signal from the team lead
   4. Round 3 defense responses from reviewers whose findings were challenged
@@ -2157,11 +1964,11 @@ Task(
 After spawning, assign each task to its corresponding teammate:
 
 ```
-TaskUpdate(taskId: "{accuracy_task_id}", owner: "domain-accuracy-reviewer")
+TaskUpdate(taskId: "{accuracy_task_id}", owner: "accuracy-evidence-reviewer")
 TaskUpdate(taskId: "{audience_task_id}", owner: "audience-fit-reviewer")
 TaskUpdate(taskId: "{positioning_task_id}", owner: "competitive-positioning-reviewer")
-TaskUpdate(taskId: "{clarity_task_id}", owner: "communication-clarity-reviewer")
-TaskUpdate(taskId: "{evidence_task_id}", owner: "data-evidence-reviewer")
+TaskUpdate(taskId: "{narrative_task_id}", owner: "communication-narrative-reviewer")
+TaskUpdate(taskId: "{market_fit_task_id}", owner: "market-fit-reviewer")
 ```
 
 ### Step B6.5: Collect Round 1 Results
@@ -2169,11 +1976,11 @@ TaskUpdate(taskId: "{evidence_task_id}", owner: "data-evidence-reviewer")
 Wait for all 5 reviewers to send their findings via SendMessage. Messages are delivered to you (the team lead) as they complete. Wait for all active reviewer teammates to report.
 
 For each reviewer, expect:
-- domain-accuracy-reviewer: findings JSON with accuracy issues
+- accuracy-evidence-reviewer: findings JSON with accuracy issues
 - audience-fit-reviewer: findings JSON with audience fit issues + audience_scorecard
 - competitive-positioning-reviewer: findings JSON with positioning issues + positioning_scorecard
-- communication-clarity-reviewer: findings JSON with clarity issues + clarity_scorecard
-- data-evidence-reviewer: findings JSON with evidence issues + evidence_scorecard
+- communication-narrative-reviewer: findings JSON with clarity issues + narrative_scorecard
+- market-fit-reviewer: findings JSON with evidence issues + market_fit_scorecard
 
 Parse and validate all findings. Skip invalid JSON with a warning.
 
@@ -2198,7 +2005,7 @@ Merge and deduplicate findings from all 5 reviewers:
    ## Findings Summary (Pre-Debate)
    - Total findings: {N}
    - By severity: {X} critical, {Y} high, {Z} medium, {W} low
-   - By category: Accuracy: {A}, Audience: {B}, Positioning: {C}, Clarity: {D}, Evidence: {E}
+   - By category: Accuracy: {A}, Audience: {B}, Positioning: {C}, Narrative: {D}, Market Fit: {E}
    - Cross-validated: {M} findings confirmed by 2+ reviewers
    ```
 
@@ -2211,11 +2018,11 @@ Merge and deduplicate findings from all 5 reviewers:
      {aggregated_findings_json}
 
      ROUND 1 FINDINGS BY REVIEWER:
-     domain-accuracy-reviewer: {accuracy_findings_json}
+     accuracy-evidence-reviewer: {accuracy_findings_json}
      audience-fit-reviewer: {audience_findings_json}
      competitive-positioning-reviewer: {positioning_findings_json}
-     communication-clarity-reviewer: {clarity_findings_json}
-     data-evidence-reviewer: {evidence_findings_json}",
+     communication-narrative-reviewer: {narrative_findings_json}
+     market-fit-reviewer: {market_fit_findings_json}",
      summary: "Round 1 complete - {N} total findings from 5 reviewers"
    )
    ```
@@ -2228,11 +2035,11 @@ Merge and deduplicate findings from all 5 reviewers:
 
 Send each reviewer the OTHER four reviewers' findings:
 
-**Send to domain-accuracy-reviewer:**
+**Send to accuracy-evidence-reviewer:**
 ```
 SendMessage(
   type: "message",
-  recipient: "domain-accuracy-reviewer",
+  recipient: "accuracy-evidence-reviewer",
   content: "CROSS-REVIEW -- Round 2 of 3
 
   Evaluate findings from the other 4 business reviewers from your ACCURACY expertise perspective.
@@ -2244,10 +2051,10 @@ SendMessage(
   {positioning_findings_json}
 
   COMMUNICATION-CLARITY-REVIEWER FINDINGS:
-  {clarity_findings_json}
+  {narrative_findings_json}
 
   DATA-EVIDENCE-REVIEWER FINDINGS:
-  {evidence_findings_json}
+  {market_fit_findings_json}
 
   For EACH finding relevant to your domain:
   1. SUPPORT if the finding is valid from an accuracy perspective -- cite corroborating evidence, confidence_adjustment (+N)
@@ -2258,7 +2065,7 @@ SendMessage(
   Send each response to business-debate-arbitrator via SendMessage as JSON:
   {\"finding_id\":\"<section:title>\", \"action\":\"challenge|support\", \"confidence_adjustment\":-20 to +20, \"reasoning\":\"<detailed reasoning>\", \"evidence\":\"<evidence>\"}
 
-  When done: send 'domain-accuracy-reviewer debate evaluation complete' to business-debate-arbitrator.",
+  When done: send 'accuracy-evidence-reviewer debate evaluation complete' to business-debate-arbitrator.",
   summary: "Round 2: cross-review other reviewers' findings"
 )
 ```
@@ -2279,10 +2086,10 @@ SendMessage(
   {positioning_findings_json}
 
   COMMUNICATION-CLARITY-REVIEWER FINDINGS:
-  {clarity_findings_json}
+  {narrative_findings_json}
 
   DATA-EVIDENCE-REVIEWER FINDINGS:
-  {evidence_findings_json}
+  {market_fit_findings_json}
 
   For EACH finding relevant to your domain:
   1. SUPPORT if the finding matters for audience reception -- cite audience impact, confidence_adjustment (+N)
@@ -2314,10 +2121,10 @@ SendMessage(
   {audience_findings_json}
 
   COMMUNICATION-CLARITY-REVIEWER FINDINGS:
-  {clarity_findings_json}
+  {narrative_findings_json}
 
   DATA-EVIDENCE-REVIEWER FINDINGS:
-  {evidence_findings_json}
+  {market_fit_findings_json}
 
   For EACH finding relevant to your domain:
   1. SUPPORT if the finding has competitive implications -- cite market context, confidence_adjustment (+N)
@@ -2334,14 +2141,14 @@ SendMessage(
 )
 ```
 
-**Send to communication-clarity-reviewer:**
+**Send to communication-narrative-reviewer:**
 ```
 SendMessage(
   type: "message",
-  recipient: "communication-clarity-reviewer",
+  recipient: "communication-narrative-reviewer",
   content: "CROSS-REVIEW -- Round 2 of 3
 
-  Evaluate findings from the other 4 business reviewers from your COMMUNICATION CLARITY expertise perspective.
+  Evaluate findings from the other 4 business reviewers from your COMMUNICATION & NARRATIVE expertise perspective.
 
   DOMAIN-ACCURACY-REVIEWER FINDINGS:
   {accuracy_findings_json}
@@ -2353,30 +2160,30 @@ SendMessage(
   {positioning_findings_json}
 
   DATA-EVIDENCE-REVIEWER FINDINGS:
-  {evidence_findings_json}
+  {market_fit_findings_json}
 
   For EACH finding relevant to your domain:
-  1. SUPPORT if the finding involves a clarity or communication issue -- cite writing standard, confidence_adjustment (+N)
-  2. CHALLENGE if the finding conflates content accuracy with writing quality -- cite distinction, confidence_adjustment (-N)
+  1. SUPPORT if the finding involves a communication or narrative issue -- cite writing standard, confidence_adjustment (+N)
+  2. CHALLENGE if the finding conflates content accuracy with narrative quality -- cite distinction, confidence_adjustment (-N)
 
-  You may add NEW OBSERVATIONS that other reviewers missed from your communication expertise.
+  You may add NEW OBSERVATIONS that other reviewers missed from your communication and narrative expertise.
 
   Send each response to business-debate-arbitrator via SendMessage as JSON:
   {\"finding_id\":\"<section:title>\", \"action\":\"challenge|support\", \"confidence_adjustment\":-20 to +20, \"reasoning\":\"<detailed reasoning>\", \"evidence\":\"<evidence>\"}
 
-  When done: send 'communication-clarity-reviewer debate evaluation complete' to business-debate-arbitrator.",
+  When done: send 'communication-narrative-reviewer debate evaluation complete' to business-debate-arbitrator.",
   summary: "Round 2: cross-review other reviewers' findings"
 )
 ```
 
-**Send to data-evidence-reviewer:**
+**Send to market-fit-reviewer:**
 ```
 SendMessage(
   type: "message",
-  recipient: "data-evidence-reviewer",
+  recipient: "market-fit-reviewer",
   content: "CROSS-REVIEW -- Round 2 of 3
 
-  Evaluate findings from the other 4 business reviewers from your DATA & EVIDENCE expertise perspective.
+  Evaluate findings from the other 4 business reviewers from your PRODUCT-MARKET FIT expertise perspective.
 
   DOMAIN-ACCURACY-REVIEWER FINDINGS:
   {accuracy_findings_json}
@@ -2388,19 +2195,19 @@ SendMessage(
   {positioning_findings_json}
 
   COMMUNICATION-CLARITY-REVIEWER FINDINGS:
-  {clarity_findings_json}
+  {narrative_findings_json}
 
   For EACH finding relevant to your domain:
-  1. SUPPORT if the finding involves a data or evidence issue -- cite verification result, confidence_adjustment (+N)
-  2. CHALLENGE if the finding misinterprets data or applies wrong methodology -- cite correct interpretation, confidence_adjustment (-N)
+  1. SUPPORT if the finding involves a product-market fit issue -- cite verification result, confidence_adjustment (+N)
+  2. CHALLENGE if the finding misreads market fit signals or applies wrong methodology -- cite correct interpretation, confidence_adjustment (-N)
 
   You SHOULD use WebSearch to verify data claims raised by other reviewers.
-  You may add NEW OBSERVATIONS that other reviewers missed from your data expertise.
+  You may add NEW OBSERVATIONS that other reviewers missed from your market fit expertise.
 
   Send each response to business-debate-arbitrator via SendMessage as JSON:
   {\"finding_id\":\"<section:title>\", \"action\":\"challenge|support\", \"confidence_adjustment\":-20 to +20, \"reasoning\":\"<detailed reasoning>\", \"evidence\":\"<evidence>\"}
 
-  When done: send 'data-evidence-reviewer debate evaluation complete' to business-debate-arbitrator.",
+  When done: send 'market-fit-reviewer debate evaluation complete' to business-debate-arbitrator.",
   summary: "Round 2: cross-review other reviewers' findings"
 )
 ```
@@ -2718,7 +2525,7 @@ Build the complete business content review report:
 
 ### Round 1: Independent Review
 - Total findings: {N}
-- By reviewer: Accuracy: {A}, Audience: {B}, Positioning: {C}, Clarity: {D}, Evidence: {E}
+- By reviewer: Accuracy: {A}, Audience: {B}, Positioning: {C}, Narrative: {D}, Market Fit: {E}
 
 ### Round 2: Cross-Review
 - Total responses: {N}
@@ -2766,11 +2573,11 @@ Build the complete business content review report:
 | **Phase B5.5: Content Strategy** | | | |
 | Strategy Debate Agents | 4 teammates | ~{X}K | ~${D.DD} |
 | **Phase B6: Business Review** | | | |
-| domain-accuracy-reviewer | 1 teammate | ~{X}K | ~${E.EE} |
+| accuracy-evidence-reviewer | 1 teammate | ~{X}K | ~${E.EE} |
 | audience-fit-reviewer | 1 teammate | ~{X}K | ~${F.FF} |
 | competitive-positioning-reviewer | 1 teammate | ~{X}K | ~${G.GG} |
-| communication-clarity-reviewer | 1 teammate | ~{X}K | ~${H.HH} |
-| data-evidence-reviewer | 1 teammate | ~{X}K | ~${I.II} |
+| communication-narrative-reviewer | 1 teammate | ~{X}K | ~${H.HH} |
+| market-fit-reviewer | 1 teammate | ~{X}K | ~${I.II} |
 | business-debate-arbitrator | 1 teammate | ~{X}K | ~${J.JJ} |
 | **Total** | | | **~${K.KK}** |
 ```
@@ -2789,11 +2596,8 @@ Build the complete business content review report:
 Send shutdown requests to ALL active teammates. Wait for each confirmation before proceeding.
 
 ```
-SendMessage(type: "shutdown_request", recipient: "domain-accuracy-reviewer", content: "Business review session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "audience-fit-reviewer", content: "Business review session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "competitive-positioning-reviewer", content: "Business review session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "communication-clarity-reviewer", content: "Business review session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "data-evidence-reviewer", content: "Business review session complete. Thank you.")
+For each role in REVIEWER_ROLES (the roles that were spawned in Phase B6):
+  SendMessage(type: "shutdown_request", recipient: "{role}", content: "Business review session complete. Thank you.")
 SendMessage(type: "shutdown_request", recipient: "business-debate-arbitrator", content: "Business review session complete. Thank you.")
 ```
 

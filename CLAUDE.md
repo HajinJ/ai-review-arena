@@ -11,9 +11,9 @@
   - `multi-review` - Multi-AI adversarial code review
   - `multi-review-config` - Review config management
   - `multi-review-status` - Review status dashboard
-- `agents/` - Claude agent definitions (16 agents)
-  - Code review: security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer, scale-advisor
-  - Business review: domain-accuracy-reviewer, audience-fit-reviewer, competitive-positioning-reviewer, communication-clarity-reviewer, data-evidence-reviewer
+- `agents/` - Claude agent definitions (27 agents)
+  - Code review: security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer, scope-reviewer, dependency-reviewer, api-contract-reviewer, observability-reviewer, data-integrity-reviewer, accessibility-reviewer, configuration-reviewer
+  - Business review: accuracy-evidence-reviewer, audience-fit-reviewer, competitive-positioning-reviewer, communication-narrative-reviewer, financial-credibility-reviewer, legal-compliance-reviewer, market-fit-reviewer, conversion-impact-reviewer, localization-reviewer, investor-readiness-reviewer
   - Debate: debate-arbitrator, business-debate-arbitrator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
@@ -70,7 +70,7 @@
 - Stale review detection: git-hash-based invalidation (Code Factory pattern) in aggregate-findings.sh
 
 ## Agent Design
-- All 16 agents have three hardened sections before `## Rules`: `## Reporting Threshold` (or `Escalation Threshold`/`Research Threshold`) + `## Error Recovery Protocol`
+- All 27 agents have three hardened sections before `## Rules`: `## Reporting Threshold` (or `Escalation Threshold`/`Research Threshold`) + `## Error Recovery Protocol`
 - Reporting Threshold uses **positive framing** ("report ONLY when criteria met") to avoid the "pink elephant effect" (arxiv 2602.11988: negative instructions increase agent focus on excluded patterns)
 - Each threshold lists **recognized patterns** (secure patterns, accepted conventions, genre norms) as confirmation of mitigation, not as prohibitions
 - "Error Recovery Protocol" ensures graceful degradation (retry, partial submit, team lead notification)

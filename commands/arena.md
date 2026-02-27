@@ -40,7 +40,6 @@ Team Lead (You - this session)
 ├── Phase 6: Agent Team Review (follows multi-review.md pattern)
 │   ├── Create team (Teammate tool)
 │   ├── Spawn reviewer teammates (Task tool with team_name)
-│   ├── Spawn scale-advisor teammate (always included)
 │   ├── Spawn compliance-checker teammate (if compliance detected)
 │   ├── Spawn research-coordinator teammate (deep intensity only)
 │   ├── Run external CLIs (Codex, Gemini via Bash)
@@ -57,15 +56,13 @@ Team Lead (You - this session)
 │   └── Cleanup team
 └── Fallback Framework (structured 6-level graceful degradation)
 
-Claude Reviewer Teammates (independent Claude Code instances)
-├── security-reviewer    ─┐
-├── bug-detector         ─┤── SendMessage <-> each other (debate)
-├── architecture-reviewer─┤── SendMessage -> debate-arbitrator
-├── performance-reviewer ─┤── SendMessage -> team lead (findings)
-├── test-reviewer        ─┤
-├── scale-advisor        ─┤── scale/concurrency analysis
-├── compliance-checker   ─┘── guideline compliance (conditional)
+Claude Reviewer Teammates (dynamic, from config intensity_presets.{INTENSITY}.reviewer_roles)
+├── {role-1}             ─┐
+├── {role-2}             ─┤── SendMessage <-> each other (debate)
+├── {role-3}             ─┤── SendMessage -> debate-arbitrator
+├── {role-N}             ─┘── SendMessage -> team lead (findings)
 │
+├── compliance-checker   ─── guideline compliance (conditional)
 ├── research-coordinator ─── deep intensity only
 └── debate-arbitrator    ─── Receives challenges/supports -> synthesizes consensus
 
@@ -364,10 +361,10 @@ Establish project context, load configuration, and prepare the session environme
      4. Provide clear justification for your decision
 
      Intensity guidelines:
-     - quick: Single element, obvious change, no risk
-     - standard: Multi-file, moderate complexity, low-medium risk
-     - deep: Complex logic, security-sensitive, high risk, compliance needed
-     - comprehensive: System-wide, critical security (auth/payment), needs model benchmarking
+     - quick: 단순 타이포, 1줄 수정, 변수명 변경 등 명백히 사소한 변경만
+     - standard: 단일 파일 수정, 기존 패턴 따르는 변경, 낮은 리스크
+     - deep: 2개 이상 파일 수정, 새 로직 추가, 외부 API 연동, 에러 처리 변경, 데이터 모델 변경
+     - comprehensive: 3개 이상 모듈 영향, 인증/결제/보안 관련, 아키텍처 변경, 새 서비스/시스템 추가
 
      Send your final decision to the team lead via SendMessage in this format:
      INTENSITY_DECISION: {level}
@@ -1415,11 +1412,70 @@ TaskCreate(
 )
 ```
 
+### Step 6.4.5: Context Density Filtering
+
+Apply role-based context filtering to reduce token usage per agent. Each reviewer receives only code relevant to their domain, staying within the configured token budget.
+
+**Prerequisites**: `context_density.enabled` must be true in config (default: true). If false or if `context-filter.sh` is missing, skip this step and fall back to full content truncated at `file_lines_max` from the intensity preset.
+
+**Steps:**
+
+1. Build the file list from the review scope (all files to be reviewed):
+   ```bash
+   FILE_LIST="${SESSION_DIR}/review-file-list.txt"
+   # Populate from diff or direct file paths collected in Phase 0/6.3
+   ```
+
+2. For each role in REVIEWER_ROLES, run context-filter.sh:
+   ```bash
+   for role in $REVIEWER_ROLES; do
+     if [ -f "${SCRIPTS_DIR}/context-filter.sh" ]; then
+       cat "${FILE_LIST}" | bash "${SCRIPTS_DIR}/context-filter.sh" \
+         "${role}" "${CONFIG_FILE}" \
+         > "${SESSION_DIR}/filtered-${role}.txt" \
+         2>"${SESSION_DIR}/filter-${role}.log"
+     else
+       # Fallback: truncate full content to intensity preset limit
+       for file in $(cat "${FILE_LIST}"); do
+         head -n ${FILE_LINES_MAX} "$file"
+       done > "${SESSION_DIR}/filtered-${role}.txt"
+     fi
+   done
+   ```
+
+3. Check stderr logs for `CHUNKING_NEEDED`:
+   ```bash
+   for role in $REVIEWER_ROLES; do
+     if grep -q "CHUNKING_NEEDED" "${SESSION_DIR}/filter-${role}.log" 2>/dev/null; then
+       # Partition the filtered output into N chunks within budget
+       CHUNK_BUDGET=$((AGENT_CONTEXT_BUDGET / MAX_CHUNKS_PER_ROLE))
+       CHUNK_LINES=$((CHUNK_BUDGET / 4))
+       split -l ${CHUNK_LINES} "${SESSION_DIR}/filtered-${role}.txt" \
+         "${SESSION_DIR}/filtered-${role}-chunk-"
+       echo "${role}" >> "${SESSION_DIR}/chunked-roles.txt"
+     fi
+   done
+   ```
+
+4. Display filtering summary:
+   ```
+   ## Context Density Filtering (Step 6.4.5)
+   | Role | Files In | Matched | Lines Extracted | Est. Tokens | Chunked |
+   |------|----------|---------|-----------------|-------------|---------|
+   | security-reviewer | 24 | 8 | 450 | ~1,800 | No |
+   | bug-detector | 24 | 20 | 1,200 | ~4,800 | No |
+   | performance-reviewer | 24 | 12 | 800 | ~3,200 | No |
+   ...
+   ```
+
 ### Step 6.5: Spawn Claude Reviewer Teammates
 
 For each active role, read the agent definition file and spawn a teammate. **Spawn ALL teammates in parallel** by making multiple Task tool calls in a single message.
 
-For each standard role (security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer, scope-reviewer):
+Read REVIEWER_ROLES from config intensity_presets.{INTENSITY}.reviewer_roles.
+Fallback if missing: ["security-reviewer", "bug-detector", "performance-reviewer", "scope-reviewer", "test-coverage-reviewer"]
+
+For each role in REVIEWER_ROLES:
 
 1. Read the agent definition:
    ```
@@ -1453,94 +1509,24 @@ For each standard role (security-reviewer, bug-detector, architecture-reviewer, 
    This role was assigned to you because: {routing_reason}
    === END ENRICHED CONTEXT ===
 
-   CODE TO REVIEW:
-   {diff_content_or_file_contents}
+   CODE TO REVIEW (filtered for {role}, {filtered_lines} lines from {filtered_files} files):
+   {contents of SESSION_DIR/filtered-{role}.txt}
    --- END CODE ---
+
+   NOTE: Code filtered for your review domain ({agent_context_budget_tokens} token budget).
+   Use Read tool to examine files outside your filtered view if needed.
 
    INSTRUCTIONS:
    1. Review the code above following your agent instructions
    2. USE the enriched context to inform your review - check against best practices and compliance requirements
-   3. Send your findings JSON to the team lead using SendMessage
-   4. Mark your task as completed using TaskUpdate
-   5. Stay active for 3-round cross-examination:
+   3. If the filtered view is insufficient, use the Read tool to examine specific files directly
+   4. Send your findings JSON to the team lead using SendMessage
+   5. Mark your task as completed using TaskUpdate
+   6. Stay active for 3-round cross-examination:
       Round 2: You cross-examine Codex/Gemini findings (agree/disagree/partial)
       Round 3: You defend YOUR findings against Codex/Gemini challenges (defend/concede/modify)"
    )
    ```
-
-**Spawn scale-advisor** (always included):
-```
-Task(
-  subagent_type: "general-purpose",
-  team_name: "arena-review-{session_id}",
-  name: "scale-advisor",
-  prompt: "You are a Scale Readiness Advisor. Analyze code for scalability concerns.
-
-  Focus areas:
-  - Concurrency: race conditions, thread safety, lock contention, deadlock potential
-  - Data Volume: N+1 queries, unbounded collections, pagination, batch processing
-  - Resource Management: connection pools, memory leaks, file handle leaks, cache sizing
-  - Observability: logging sufficiency, metrics exposure, tracing support, health checks
-  - Horizontal Scaling: stateless design, session affinity, distributed state
-
-  --- REVIEW TASK ---
-  Task ID: {task_id}
-  Scope: {scope_description}
-
-  STACK PROFILE:
-  {stack_detection_json}
-
-  CODE TO REVIEW:
-  {diff_content_or_file_contents}
-  --- END CODE ---
-
-  INSTRUCTIONS:
-  1. Analyze the code for scale readiness issues
-  2. Categorize findings by: Concurrency, Data Volume, Resource Management, Observability, Horizontal Scaling
-  3. Send findings as JSON to team lead using SendMessage with format:
-     {\"findings\": [{\"category\": \"...\", \"severity\": \"...\", \"title\": \"...\", \"description\": \"...\", \"file\": \"...\", \"line\": N, \"confidence\": N, \"suggestion\": \"...\"}]}
-  4. Mark your task as completed using TaskUpdate
-  5. Stay active for debate phase"
-)
-```
-
-**Spawn scope-reviewer** (always included):
-```
-Task(
-  subagent_type: "general-purpose",
-  team_name: "arena-review-{session_id}",
-  name: "scope-reviewer",
-  prompt: "You are a Scope Reviewer (Surgical Changes Checker). Your job is to ensure the implementation ONLY changes what was requested — nothing more.
-
-  Principle: 'Surgical Changes' — Every change must be intentional and requested. Drive-by refactors, cosmetic fixes, and unrelated improvements are violations.
-
-  --- REVIEW TASK ---
-  Task ID: {task_id}
-  Scope: {scope_description}
-
-  IMPLEMENTATION STRATEGY (from Phase 5.5):
-  {strategy_decision — including Files to Create, Files to Modify, and Success Criteria}
-
-  CODE TO REVIEW:
-  {diff_content_or_file_contents}
-  --- END CODE ---
-
-  INSTRUCTIONS:
-  1. Compare EVERY changed file against the Phase 5.5 strategy:
-     - Was this file listed in 'Files to Create' or 'Files to Modify'? If not → SCOPE_VIOLATION
-     - Does each change directly serve the stated Approach? If not → UNNECESSARY_CHANGE
-  2. For each modified file, check for:
-     - Drive-by refactors: renaming variables, reformatting code, changing patterns not related to the task
-     - Cosmetic changes: adding/removing whitespace, reordering imports, style-only edits
-     - Unrelated improvements: adding error handling, type annotations, docstrings for unchanged code
-     - Gold-plating: adding features, config options, or abstractions beyond what was requested
-  3. Send findings as JSON to team lead using SendMessage with format:
-     {\"scope_findings\": [{\"type\": \"SCOPE_VIOLATION|UNNECESSARY_CHANGE|DRIVE_BY_REFACTOR|GOLD_PLATING\", \"severity\": \"high|medium|low\", \"file\": \"...\", \"line\": N, \"description\": \"...\", \"justification\": \"Why this change was not in scope\"}]}
-  4. If all changes are in scope, send: {\"scope_findings\": [], \"verdict\": \"CLEAN — all changes are surgical and in scope\"}
-  5. Mark your task as completed using TaskUpdate
-  6. Stay active for debate phase"
-)
-```
 
 **Spawn compliance-checker** (if compliance requirements detected):
 ```
@@ -1560,9 +1546,11 @@ Task(
   STACK PROFILE:
   {stack_detection_json}
 
-  CODE TO REVIEW:
-  {diff_content_or_file_contents}
+  CODE TO REVIEW (filtered for compliance-checker):
+  {contents of SESSION_DIR/filtered-compliance-checker.txt}
   --- END CODE ---
+
+  NOTE: Code filtered for compliance review domain. Use Read tool to examine files outside your filtered view if needed.
 
   INSTRUCTIONS:
   1. For EACH compliance requirement, check if the code satisfies it
@@ -1593,9 +1581,11 @@ Task(
   STACK PROFILE:
   {stack_detection_json}
 
-  CODE TO REVIEW:
-  {diff_content_or_file_contents}
+  CODE TO REVIEW (filtered for research-coordinator):
+  {contents of SESSION_DIR/filtered-research-coordinator.txt}
   --- END CODE ---
+
+  NOTE: Code filtered for research coordination domain. Use Read tool to examine files outside your filtered view if needed.
 
   INSTRUCTIONS:
   1. Compare the code against each best practice in the research brief
@@ -1610,6 +1600,26 @@ Task(
 
 **CRITICAL: Launch ALL Claude reviewer teammates simultaneously.** Use multiple Task tool calls in a single message to maximize parallelism. Do NOT wait for one teammate to finish before spawning the next.
 
+**Chunked Roles**: For roles listed in `${SESSION_DIR}/chunked-roles.txt` (from Step 6.4.5), spawn sub-agents instead of a single teammate:
+
+```
+For each chunked role:
+  For each chunk file (filtered-{role}-chunk-aa, filtered-{role}-chunk-ab, ...):
+    Task(
+      subagent_type: "general-purpose",
+      team_name: "arena-review-{session_id}",
+      name: "{role}-chunk-{N}",
+      prompt: "{same agent definition and enriched context as above}
+
+      CODE TO REVIEW (chunk {N}/{total_chunks} for {role}):
+      {contents of chunk file}
+      --- END CODE ---
+
+      NOTE: This is chunk {N} of {total_chunks}. Review only this portion.
+      Send findings to team lead. Mark task as completed."
+    )
+```
+
 ### Step 6.6: Assign Tasks to Teammates
 
 After spawning, assign each task to its corresponding teammate:
@@ -1620,7 +1630,6 @@ TaskUpdate(taskId: "{bug_task_id}", owner: "bug-detector")
 TaskUpdate(taskId: "{arch_task_id}", owner: "architecture-reviewer")
 TaskUpdate(taskId: "{perf_task_id}", owner: "performance-reviewer")
 TaskUpdate(taskId: "{test_task_id}", owner: "test-coverage-reviewer")
-TaskUpdate(taskId: "{scale_task_id}", owner: "scale-advisor")
 TaskUpdate(taskId: "{scope_task_id}", owner: "scope-reviewer")
 # If compliance-checker was spawned:
 TaskUpdate(taskId: "{compliance_task_id}", owner: "compliance-checker")
@@ -1630,22 +1639,27 @@ TaskUpdate(taskId: "{research_task_id}", owner: "research-coordinator")
 
 ### Step 6.7: Launch External CLI Reviews (Parallel)
 
-While Claude teammates work, run Codex and Gemini CLI reviews in parallel via Bash. Use benchmark routing to assign roles:
+While Claude teammates work, run Codex and Gemini CLI reviews in parallel via Bash. Use benchmark routing to assign roles. **Apply per-file budget** from context density filtering to cap external CLI input.
 
 ```bash
 # Determine external model role assignments from benchmark routing
 # Only assign roles where the external model is primary or secondary
 
+# Calculate per-file line budget for external CLIs
+FILE_COUNT=$(cat "${FILE_LIST}" | wc -l | tr -d ' ')
+PER_FILE_BUDGET=$((AGENT_CONTEXT_BUDGET / 4 / (FILE_COUNT > 0 ? FILE_COUNT : 1)))
+[ "$PER_FILE_BUDGET" -lt 50 ] && PER_FILE_BUDGET=50
+
 for role in $CODEX_ROLES; do
   for file in $FILES; do
-    cat "$file" | "${SCRIPTS_DIR}/codex-review.sh" "$file" "$CONFIG" "$role" \
+    head -n "$PER_FILE_BUDGET" "$file" | "${SCRIPTS_DIR}/codex-review.sh" "$file" "$CONFIG" "$role" \
       > "${SESSION_DIR}/findings/codex-${role}-$(basename $file).json" 2>/dev/null &
   done
 done
 
 for role in $GEMINI_ROLES; do
   for file in $FILES; do
-    cat "$file" | "${SCRIPTS_DIR}/gemini-review.sh" "$file" "$CONFIG" "$role" \
+    head -n "$PER_FILE_BUDGET" "$file" | "${SCRIPTS_DIR}/gemini-review.sh" "$file" "$CONFIG" "$role" \
       > "${SESSION_DIR}/findings/gemini-${role}-$(basename $file).json" 2>/dev/null &
   done
 done
@@ -1666,6 +1680,23 @@ Wait for all results from both sources:
    ```
 
 3. Parse and validate all findings. Skip invalid JSON with a warning.
+
+### Step 6.8.5: Merge Chunk Findings
+
+For roles that were chunked in Step 6.4.5, merge sub-agent findings before aggregation.
+
+```
+For each role in chunked-roles.txt:
+  1. Collect findings from all chunk sub-agents: {role}-chunk-1, {role}-chunk-2, ...
+  2. Flatten into a single findings array
+  3. Deduplicate by file + line proximity (within +/- merge_dedup_line_proximity lines,
+     default 3 from context_density.chunking.merge_dedup_line_proximity)
+  4. If chunks overlap (overlap_lines > 0), check for duplicate findings at chunk boundaries
+  5. Relabel source from "{role}-chunk-N" to "{role}" for consistent downstream processing
+  6. Merge into the main findings collection alongside non-chunked role findings
+```
+
+Skip this step if no roles were chunked (chunked-roles.txt is empty or missing).
 
 ### Step 6.9: Findings Aggregation
 
@@ -1689,7 +1720,6 @@ Merge and deduplicate findings from all sources (same as multi-review.md Phase 5
    - By severity: {X} critical, {Y} high, {Z} medium, {W} low
    - By model: Claude: {A}, Codex: {B}, Gemini: {C}
    - Cross-validated: {M} findings confirmed by 2+ models
-   - Scale issues: {S} (from scale-advisor)
    - Compliance issues: {C} (from compliance-checker)
    - Best practice gaps: {G} (from research-coordinator)
    ```
@@ -2366,13 +2396,8 @@ echo '${AUTO_FIX_RESULTS_JSON}' > "${SESSION_DIR}/auto-fix-results.json"
 Send shutdown requests to ALL active teammates. Wait for each confirmation before proceeding.
 
 ```
-SendMessage(type: "shutdown_request", recipient: "security-reviewer", content: "Arena session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "bug-detector", content: "Arena session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "architecture-reviewer", content: "Arena session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "performance-reviewer", content: "Arena session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "test-coverage-reviewer", content: "Arena session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "scale-advisor", content: "Arena session complete. Thank you.")
-SendMessage(type: "shutdown_request", recipient: "scope-reviewer", content: "Arena session complete. Thank you.")
+For each role in REVIEWER_ROLES (the roles that were spawned in Phase 6):
+  SendMessage(type: "shutdown_request", recipient: "{role}", content: "Arena session complete. Thank you.")
 SendMessage(type: "shutdown_request", recipient: "debate-arbitrator", content: "Arena session complete. Thank you.")
 ```
 
