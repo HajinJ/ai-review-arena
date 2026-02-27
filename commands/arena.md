@@ -37,19 +37,31 @@ Team Lead (You - this session)
 │   ├── security-challenger    → challenges security implications
 │   ├── pragmatic-challenger   → challenges complexity/feasibility
 │   └── strategy-arbitrator    → synthesizes best approach
+├── Phase 5.8: Static Analysis Integration (standard+)
+│   ├── Stack-based scanner selection (semgrep/eslint/bandit/gosec)
+│   ├── Parallel scanner execution
+│   └── Output normalization → STATIC_ANALYSIS_FINDINGS
+├── Phase 5.9: Threat Modeling — STRIDE (deep+)
+│   ├── threat-modeler         → STRIDE threat identification
+│   ├── threat-defender        → challenge threats as mitigated/unlikely
+│   └── threat-arbitrator      → prioritized attack surface consensus
 ├── Phase 6: Agent Team Review (follows multi-review.md pattern)
 │   ├── Create team (Teammate tool)
 │   ├── Spawn reviewer teammates (Task tool with team_name)
 │   ├── Spawn compliance-checker teammate (if compliance detected)
 │   ├── Spawn research-coordinator teammate (deep intensity only)
 │   ├── Run external CLIs (Codex, Gemini via Bash)
-│   ├── Coordinate debate phase
+│   ├── Coordinate debate phase (3 rounds + Round 4 escalation for deep+)
 │   └── Aggregate findings & generate report
 ├── Phase 6.5: Apply Findings (auto-fix safe, high-confidence findings)
 │   ├── Filter findings by strict auto-fix criteria
 │   ├── Apply fixes
 │   ├── Run test suite verification
 │   └── Revert on test failure
+├── Phase 6.6: Test Generation (standard+)
+│   ├── Filter critical/high findings with confidence >= 70
+│   ├── Detect test framework and directory
+│   └── Generate regression test stubs
 ├── Phase 7: Final Report & Cleanup
 │   ├── Generate enriched report with compliance + scale sections
 │   ├── Shutdown all teammates
@@ -142,9 +154,9 @@ Establish project context, load configuration, and prepare the session environme
 
    **Intensity determines Phase scope** (decided by Phase 0.1 debate or `--intensity` flag):
    - `quick`: Phase 0 → 0.1 → 0.5 only (Claude solo, no Agent Team)
-   - `standard`: Phase 0 → 0.1 → 0.5 → 1(cached) → 5.5 → 6 → 7
-   - `deep`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 5.5 → 6 → 7
-   - `comprehensive`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 4 → 5 → 5.5 → 6 → 7
+   - `standard`: Phase 0 → 0.1 → 0.5 → 1(cached) → 5.5 → 5.8 → 6 → 6.5 → 6.6 → 7
+   - `deep`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 5.5 → 5.8 → 5.9 → 6(+R4) → 6.5 → 6.6 → 7
+   - `comprehensive`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 4 → 5 → 5.5 → 5.8 → 5.9 → 6(+R4) → 6.5 → 6.6 → 7
 
    **Quick Intensity Mode** (`--intensity quick` or decided by Phase 0.1):
    - Run Phase 0 + Phase 0.1 + Phase 0.5 only
@@ -1271,6 +1283,77 @@ Only execute this phase if `--figma <url>` was provided.
 
 ---
 
+## Phase 5.8: Static Analysis Integration (standard/deep/comprehensive intensity)
+
+**Applies to**: standard, deep, comprehensive intensity. Skip for quick.
+
+**Purpose**: Run external static analysis scanners before agent review. Scanner findings enrich Phase 6 reviewer context with tool-verified issues.
+
+Read `${PLUGIN_DIR}/shared-phases/static-analysis.md` and execute the phase with:
+
+- `INTENSITY`: Current intensity level
+- `PROJECT_ROOT`: Project root directory
+- `DETECTED_STACK`: Stack detection results from Phase 1
+- `SESSION_DIR`: Current session directory
+
+**Steps:**
+
+1. **Check config**: Load `static_analysis` settings from config. If `static_analysis.enabled` is false, skip.
+
+2. **Run static analysis script**:
+   ```bash
+   bash "${SCRIPTS_DIR}/static-analysis.sh" "${PROJECT_ROOT}" \
+     --stack "${DETECTED_STACK_JSON}" \
+     --max-findings "${STATIC_ANALYSIS_MAX_FINDINGS:-50}" \
+     --confidence-floor "${STATIC_ANALYSIS_CONFIDENCE_FLOOR:-60}" \
+     --output-dir "${SESSION_DIR}/static-analysis"
+   ```
+
+3. **Parse results**: Read the JSON output and store as `STATIC_ANALYSIS_FINDINGS`.
+
+4. **Display summary**:
+   ```
+   ## Static Analysis Results
+   - Scanners: {list of scanners run}
+   - Findings: {total} ({critical} critical, {high} high, {medium} medium, {low} low)
+   - Top Issues:
+     1. [{severity}] {title} — {file}:{line}
+     2. ...
+   ```
+
+5. **Forward to Phase 6**: Include `STATIC_ANALYSIS_FINDINGS` as additional context for reviewer agents. Each reviewer receives findings relevant to their domain.
+
+**Error Handling:**
+- No scanners available: Log info message, skip phase, continue without static analysis findings.
+- Scanner timeout: Use partial results from completed scanners.
+- Script error: Skip phase, log warning: "Static analysis unavailable — proceeding without scanner results."
+
+---
+
+## Phase 5.9: Threat Modeling — STRIDE 3-Agent Debate (deep/comprehensive intensity only)
+
+**Applies to**: deep, comprehensive intensity only. Skip for quick and standard.
+
+**Purpose**: Systematic threat analysis before code review. Identifies attack surfaces that individual reviewers might miss by applying the STRIDE framework through adversarial debate.
+
+Read `${PLUGIN_DIR}/shared-phases/threat-modeling.md` and execute the phase with:
+
+- `INTENSITY`: Current intensity level
+- `CODE_CONTEXT`: Code files under review
+- `DETECTED_STACK`: Stack detection results from Phase 1
+- `STATIC_ANALYSIS_FINDINGS`: Findings from Phase 5.8 (if available)
+
+The threat modeling phase spawns 3 agents (threat-modeler, threat-defender, threat-arbitrator) in a structured debate. See `shared-phases/threat-modeling.md` for the full protocol.
+
+**Output**: `THREAT_MODEL` — prioritized attack surface list forwarded to Phase 6 reviewer context.
+
+**Error Handling:**
+- Agent Teams unavailable: Skip threat modeling, log warning.
+- Threat modeler timeout: Proceed without threat model.
+- Defender timeout: Accept all threats from modeler (no defense challenge).
+
+---
+
 ## Phase 6: Agent Team Review
 
 > **Feedback Routing**: If `feedback.use_for_routing` is true, read `${PLUGIN_DIR}/shared-phases/feedback-routing.md` and apply feedback-based model-category role assignments before spawning reviewers.
@@ -1992,13 +2075,57 @@ SendMessage(
 )
 ```
 
+#### Step 6.10.4.5: Round 4 — Escalation (deep/comprehensive intensity only)
+
+**Applies to**: deep, comprehensive intensity only. Skip for quick and standard.
+
+**Trigger**: After Round 3, if debate-arbitrator reports findings still in "disputed" status with severity >= high.
+
+**Purpose**: Bring a fresh perspective to unresolved high-severity disputes. A separate arbitration agent with no prior context evaluates the evidence independently.
+
+1. **Check for disputed findings**: Parse the Round 3 results from debate-arbitrator.
+   ```
+   disputed_high = findings.filter(f => f.status == "disputed" AND f.severity in ["critical", "high"])
+   ```
+   If `disputed_high` is empty, skip Round 4.
+
+2. **Escalation arbitration**:
+   ```
+   SendMessage(
+     type: "message",
+     recipient: "debate-arbitrator",
+     content: "ROUND 4 ESCALATION — {disputed_high.length} high-severity findings still disputed.
+
+     For each disputed finding below, provide a FRESH evaluation:
+     1. Re-read the original evidence from all models
+     2. Ignore Round 1-3 positions — evaluate the code evidence independently
+     3. Use WebSearch to check for CVEs, best practices, or industry standards
+     4. Render final verdict: CONFIRMED (with severity) or DISMISSED (with reason)
+
+     DISPUTED FINDINGS:
+     {JSON of disputed_high findings with all perspectives}
+
+     You MUST resolve each finding — no 'disputed' status allowed after Round 4.
+     If evidence is truly balanced, default to CONFIRMED at medium severity.",
+     summary: "Round 4: escalation for {N} disputed findings"
+   )
+   ```
+
+3. **Collect Round 4 results**: Wait for debate-arbitrator to send the escalation verdicts.
+
+4. **Merge into consensus**: Replace disputed findings with Round 4 verdicts in the final consensus.
+
+**Error Handling:**
+- Round 4 timeout: Keep findings as "disputed" in final report (fallback to pre-Round 4 state).
+- Arbitrator unavailable: Mark disputed findings for mandatory human review.
+
 #### Step 6.10.5: Web Search Verification & Final Consensus
 
 1. **Web Search Verification**: For critical/high severity security findings:
    - Use WebSearch for CVE entries, OWASP guidelines, security advisories
    - Send verification results to debate-arbitrator
 
-2. **Collect Consensus**: Wait for debate-arbitrator to send the final consensus JSON incorporating all 3 rounds (CONFIRMED / DISMISSED / DISPUTED with full cross_examination_trail).
+2. **Collect Consensus**: Wait for debate-arbitrator to send the final consensus JSON incorporating all rounds (CONFIRMED / DISMISSED / DISPUTED with full cross_examination_trail).
 
 #### Cross-Examination Error Handling
 
@@ -2166,6 +2293,58 @@ echo '${AUTO_FIX_RESULTS_JSON}' > "${SESSION_DIR}/auto-fix-results.json"
 - If Edit tool fails on a specific file: skip that fix, mark as "edit-failed", continue with remaining fixes.
 - If git checkout fails during revert: warn user, list modified files for manual recovery.
 - If test command hangs (>120s): kill process, treat as test failure, revert all fixes.
+
+---
+
+## Phase 6.6: Test Generation (standard/deep/comprehensive intensity)
+
+**Applies to**: standard, deep, comprehensive intensity. Skip for quick.
+
+**Purpose**: Generate regression test stubs for confirmed critical and high-severity findings. Ensures identified issues have test coverage to prevent recurrence.
+
+Read `${PLUGIN_DIR}/shared-phases/test-generation.md` and execute the phase with:
+
+- `ACCEPTED_FINDINGS`: Confirmed findings from Phase 6 debate consensus
+- `FILES_CHANGED`: Files in the review scope
+- `DETECTED_STACK`: Stack detection results from Phase 1
+- `PROJECT_ROOT`: Project root directory
+
+**Steps:**
+
+1. **Filter eligible findings**:
+   ```
+   eligible = ACCEPTED_FINDINGS.filter(f =>
+     f.severity in config.test_generation.severity_filter AND
+     f.confidence >= 70 AND
+     f.suggestion != null
+   )
+   ```
+   If no eligible findings, skip with: "No findings eligible for test generation."
+
+2. **Detect test framework** from DETECTED_STACK (jest, pytest, go test, etc.)
+
+3. **Generate test stubs**: For each eligible finding, generate a regression test stub that:
+   - Documents the finding (title, severity, original location)
+   - Tests the FIXED behavior
+   - Uses the project's existing test framework and patterns
+   - Includes TODO comments for manual implementation
+
+4. **Write test files** using the Write tool. Do NOT overwrite existing tests.
+
+5. **Display results**:
+   ```
+   ## Test Generation
+   - Findings eligible: {N}
+   - Test stubs generated: {M}
+   - Test files: {list}
+   - Framework: {detected}
+   - NOTE: Stubs need manual implementation — review generated files.
+   ```
+
+**Error Handling:**
+- Cannot detect test framework: Use generic pseudo-code with TODO comments.
+- Write fails: Log warning, continue with remaining tests.
+- No eligible findings: Skip phase (not an error).
 
 ---
 

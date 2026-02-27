@@ -16,8 +16,8 @@ Arena는 Claude, OpenAI Codex, Google Gemini가 **코드나 비즈니스 콘텐�
 
 **두 파이프라인, 하나의 시스템:**
 
-- **코드 파이프라인** (Route A-F): 코드베이스 컨벤션 분석, 모범 사례 조사, 컴플라이언스 확인, 모델 벤치마킹, 구현 전략 토론, 6-12개 전문 에이전트로 코드 리뷰 (강도에 따라 스케일링), 안전한 발견 자동 수정, 테스트 스위트로 검증
-- **비즈니스 파이프라인** (Route G-I): 문서에서 비즈니스 컨텍스트 추출, 시장 데이터 조사, 주장의 정확성 감사, 비즈니스 콘텐츠 모델 벤치마킹, 콘텐츠 전략 토론, 5-10개 전문 에이전트 + 외부 CLI로 리뷰 (강도에 따라 스케일링), 콘텐츠 자동 수정
+- **코드 파이프라인** (Route A-F): 코드베이스 컨벤션 분석, 모범 사례 조사, 컴플라이언스 확인, 모델 벤치마킹, 정적 분석 스캐너 실행, 구현 전략 토론, 6-12개 전문 에이전트로 코드 리뷰 (강도에 따라 스케일링), 회귀 테스트 생성, 안전한 발견 자동 수정, 테스트 스위트로 검증. deep+ 강도에서 STRIDE 위협 모델링과 Round 4 에스컬레이션 토론 추가
+- **비즈니스 파이프라인** (Route G-I): 문서에서 비즈니스 컨텍스트 추출, 시장 데이터 조사, 토론을 통한 분석 프레임워크 선택, 주장의 정확성 감사, 비즈니스 콘텐츠 모델 벤치마킹, 3-시나리오 의무화된 콘텐츠 전략 토론, 증거 티어링을 적용한 5-10개 전문 에이전트 + 외부 CLI로 리뷰 (강도에 따라 스케일링), deep+에서 정량적 검증과 적대적 레드팀 실행, 일관성 검증과 함께 콘텐츠 자동 수정
 
 Arena는 자동으로 작동합니다. 따로 호출할 필요 없습니다. Claude Code를 평소처럼 사용하면 파이프라인이 백그라운드에서 실행됩니다.
 
@@ -102,8 +102,8 @@ intensity-arbitrator: "Deep. 프로덕션 리스크가 속도보다 중요."
 | 수준 | 코드 파이프라인 | 비즈니스 파이프라인 |
 |-------|-----------|------|
 | **quick** | 코드베이스 스캔, Claude 단독 | 비즈니스 컨텍스트 스캔, Claude 단독 |
-| **standard** | + 스택 감지, 전략 토론, 리뷰, 3라운드 교차 심문, 자동 수정 | + 시장 조사, 전략 토론, 5개 에이전트 리뷰 + 외부 CLI (교차 리뷰), 자동 수정 |
-| **deep** | + 리서치, 컴플라이언스, 강도 체크포인트 | + 모범 사례 조사, 정확성 감사, 강도 체크포인트 |
+| **standard** | + 스택 감지, 정적 분석, 전략 토론, 리뷰, 3라운드 교차 심문, 테스트 생성, 자동 수정 | + 시장 조사, 프레임워크 선택 토론, 전략 토론(+3 시나리오), 5개 에이전트 리뷰 + 외부 CLI (교차 리뷰), 자동 수정(+일관성 검증) |
+| **deep** | + 리서치, 컴플라이언스, 위협 모델링, Round 4 에스컬레이션, 강도 체크포인트 | + 모범 사례 조사, 정확성 감사, 정량적 검증, 적대적 레드팀, 강도 체크포인트 |
 | **comprehensive** | + 모델 벤치마킹, Figma 분석, 전체 토론 | + 비즈니스 모델 벤치마킹, 벤치마크 기반 외부 CLI 역할 |
 
 **강도는 파이프라인 도중에 변경될 수 있습니다.** 리서치 완료 후 (Phase 2.9 / B2.9), Arena는 결정된 강도가 여전히 적절한지 재평가합니다. 리서치에서 숨겨진 복잡성이 드러나면 업그레이드를 권장하고, 작업이 예상보다 단순하면 다운그레이드를 권장합니다. 양방향 조정이 지원됩니다.
@@ -250,7 +250,7 @@ Arena는 git 해시 기반 무효화 시스템으로 코드 신선도를 추적�
 
 에이전트 사양은 부정적 지시("X를 보고하지 마라") 대신 긍정적 기준("기준이 충족될 때만 보고")을 사용합니다. 이는 [AGENTS.md 벤치마크 논문](https://arxiv.org/abs/2602.11988)에 기반한 것으로, 부정적 지시가 포함된 컨텍스트 파일이 "핑크 코끼리 효과"를 유발한다는 것을 발견했습니다 — 에이전트에게 무언가를 하지 말라고 지시하면 역설적으로 제외된 패턴에 대한 주의가 증가하여, SWE-bench 성공률 0.5% 감소, AgentBench 2% 감소, 추론 비용 20-23% 증가를 초래합니다.
 
-27개 모든 에이전트는 발견이 보고 가능하려면 모두 참이어야 하는 3개의 AND 기준으로 된 **Reporting Threshold**를 정의하고, 완화를 확인하는 **Recognized Patterns** 목록을 포함합니다. 예를 들어, security-reviewer는 발견이 악용 가능(Exploitable) AND 미완화(Unmitigated) AND 프로덕션 도달 가능(Production-reachable)일 때만 보고하며, "파라미터화된 쿼리" 같은 패턴을 SQL 인젝션이 완화되었다는 확인으로 나열합니다.
+33개 모든 에이전트는 발견이 보고 가능하려면 모두 참이어야 하는 3개의 AND 기준으로 된 **Reporting Threshold**를 정의하고, 완화를 확인하는 **Recognized Patterns** 목록을 포함합니다. 예를 들어, security-reviewer는 발견이 악용 가능(Exploitable) AND 미완화(Unmitigated) AND 프로덕션 도달 가능(Production-reachable)일 때만 보고하며, "파라미터화된 쿼리" 같은 패턴을 SQL 인젝션이 완화되었다는 확인으로 나열합니다.
 
 ### 왜 외부 CLI 프롬프트가 핵심 지시를 반복하는가
 
@@ -305,12 +305,15 @@ Phase 3     컴플라이언스 확인           * 에이전트가 적용할 규�
 Phase 4     모델 벤치마킹                 카테고리별 각 AI 점수화 (comprehensive, 14일 캐시)
 Phase 5     Figma 디자인 분석             Figma MCP 사용 가능 시
 Phase 5.5   구현 전략                   * 에이전트가 접근법 토론 + 성공 기준 정의
-Phase 6     구현 + 코드 리뷰 + 3라운드 교차 심문
+Phase 5.8   정적 분석                    스캐너 실행 (semgrep, eslint, bandit, gosec) (standard+)
+Phase 5.9   위협 모델링                 * 3-에이전트 STRIDE 위협 토론 (deep+)
+Phase 6     구현 + 코드 리뷰 + 3라운드 교차 심문 (+deep+에서 Round 4 에스컬레이션)
 Phase 6.5   자동 수정 루프                안전한 발견 수정, 테스트 검증, 실패 시 롤백
+Phase 6.6   테스트 생성                   critical/high 발견에 대한 회귀 테스트 스텁 (standard+)
 Phase 7     최종 리포트 + 피드백          성공 기준 PASS/FAIL, 범위 판정, 비용 내역
 ```
 
-7개 결정 포인트(*)가 정적 규칙 대신 적대적 토론을 사용합니다.
+9개 결정 포인트(*)가 정적 규칙 대신 적대적 토론을 사용합니다.
 
 ### 비즈니스 파이프라인
 
@@ -320,14 +323,17 @@ Phase B0.1   강도 결정                    * 에이전트가 토론 (노출�
 Phase B0.2   비용 & 시간 추정              사용자가 실행 전 취소/조정 가능
 Phase B0.5   비즈니스 컨텍스트 분석         문서에서 추출: 제품, 가치 제안, 브랜드 보이스
 Phase B1     시장/산업 컨텍스트             WebSearch로 시장 데이터, 경쟁사, 트렌드
+Phase B1.5   프레임워크 선택             * 3-에이전트 토론으로 분석 프레임워크 선택 (standard+)
 Phase B2     모범 사례 조사               * 에이전트가 조사 방향 토론 (deep+)
 Phase B2.9   강도 체크포인트               시장/리서치 발견에 따른 양방향 조정
 Phase B3     정확성 & 일관성 감사         * 에이전트가 검증 범위 토론 (deep+)
 Phase B4     비즈니스 모델 벤치마킹         12개 오류 삽입 테스트, F1 점수화 (comprehensive)
-Phase B5.5   콘텐츠 전략 토론             * 에이전트가 메시징, 오디언스 적합성, 사실 정확성 토론
-Phase B6     5개 에이전트 리뷰 + 외부 CLI + 3라운드 교차 심문
+Phase B5.5   콘텐츠 전략 토론             * 에이전트가 메시징 토론 + 3-시나리오 분석 의무화
+Phase B5.6   정량적 검증                   2-에이전트 수치 교차 검증 (deep+)
+Phase B5.7   적대적 레드팀               * 회의적 투자자, 경쟁사, 규제 에이전트 (deep+)
+Phase B6     5개 에이전트 리뷰 + 외부 CLI + 3라운드 교차 심문 (증거 티어링 적용)
 Phase B6.5   발견 적용                    합의에 따른 콘텐츠 자동 수정
-Phase B7     최종 리포트 + 피드백          품질 스코어카드, 모델 기여도, 비용 내역
+Phase B7     최종 리포트 + 피드백          품질 스코어카드 + 일관성 검증
 ```
 
 ---
@@ -568,7 +574,7 @@ ai-review-arena/
 |   +-- multi-review-config.md   # 설정 관리
 |   +-- multi-review-status.md   # 상태 대시보드
 |
-+-- agents/                      # 에이전트 역할 정의 (27개 에이전트)
++-- agents/                      # 에이전트 역할 정의 (33개 에이전트)
 |   +-- security-reviewer.md     # OWASP, 인증, 인젝션, 데이터 노출
 |   +-- bug-detector.md          # 로직 오류, null 처리, 에러 핸들링, 동시성
 |   +-- architecture-reviewer.md # SOLID, 패턴, 결합도
@@ -581,23 +587,29 @@ ai-review-arena/
 |   +-- data-integrity-reviewer.md # 데이터 유효성, 마이그레이션 안전성
 |   +-- accessibility-reviewer.md # WCAG, ARIA, 키보드 네비게이션
 |   +-- configuration-reviewer.md # 환경설정, 시크릿, IaC
+|   +-- threat-modeler.md        # STRIDE 위협 식별
+|   +-- threat-defender.md       # 위협 완화 방어
+|   +-- threat-arbitrator.md     # 위협 모델 합의
 |   +-- debate-arbitrator.md     # 코드 리뷰 3라운드 합의
 |   +-- research-coordinator.md  # 구현 전 리서치
 |   +-- design-analyzer.md       # Figma 디자인 추출
 |   +-- compliance-checker.md    # OWASP, WCAG, GDPR 컴플라이언스
-|   +-- accuracy-evidence-reviewer.md      # 비즈니스: 사실 정확성 + 데이터 증거
-|   +-- audience-fit-reviewer.md           # 비즈니스: 오디언스 적합성
-|   +-- competitive-positioning-reviewer.md # 비즈니스: 시장 포지셔닝
-|   +-- communication-narrative-reviewer.md # 비즈니스: 작문 품질 + 내러티브
+|   +-- accuracy-evidence-reviewer.md      # 비즈니스: 사실 정확성 + 증거 티어링
+|   +-- audience-fit-reviewer.md           # 비즈니스: 오디언스 적합성 + 증거 티어링
+|   +-- competitive-positioning-reviewer.md # 비즈니스: 시장 포지셔닝 + 증거 티어링
+|   +-- communication-narrative-reviewer.md # 비즈니스: 작문 품질 + 증거 티어링
 |   +-- market-fit-reviewer.md             # 비즈니스: 제품-시장 적합성, TAM/SAM/SOM
 |   +-- financial-credibility-reviewer.md  # 비즈니스: 재무 모델 신뢰성
 |   +-- legal-compliance-reviewer.md       # 비즈니스: 법률/규제 컴플라이언스
 |   +-- localization-reviewer.md           # 비즈니스: 다국어/다문화 현지화
 |   +-- investor-readiness-reviewer.md     # 비즈니스: 투자 유치 준비도
 |   +-- conversion-impact-reviewer.md      # 비즈니스: 전환율 최적화
+|   +-- skeptical-investor-agent.md        # 레드팀: 투자 회의론자
+|   +-- competitor-response-agent.md       # 레드팀: 경쟁 대응 전략
+|   +-- regulatory-risk-agent.md           # 레드팀: 규제/법적 리스크
 |   +-- business-debate-arbitrator.md      # 비즈니스: 3라운드 합의 + 외부 모델 처리
 |
-+-- scripts/                     # 셸/Python 스크립트 (29개)
++-- scripts/                     # 셸/Python 스크립트 (31개)
 |   +-- codex-review.sh          # Codex 1라운드 코드 리뷰
 |   +-- gemini-review.sh         # Gemini 1라운드 코드 리뷰
 |   +-- codex-cross-examine.sh   # Codex 2 & 3라운드 (코드)
@@ -626,19 +638,30 @@ ai-review-arena/
 |   +-- utils.sh                 # 공유 유틸리티
 |   +-- openai-ws-debate.py      # WebSocket 토론 클라이언트 (Responses API)
 |   +-- gemini-hook-adapter.sh   # Gemini 훅 → Arena 리뷰 어댑터
+|   +-- static-analysis.sh       # 정적 분석 스캐너 실행기 (Phase 5.8)
+|   +-- normalize-scanner-output.sh # 스캐너 출력 정규화 (SARIF/JSON → 표준 포맷)
 |   +-- setup-arena.sh           # Arena 설정
 |   +-- setup.sh                 # 일반 설정
 |
-+-- shared-phases/               # 공통 단계 정의 (코드 + 비즈니스 공유)
++-- shared-phases/               # 공통 단계 정의 (9개, 코드 + 비즈니스 공유)
 |   +-- intensity-decision.md    # Phase 0.1/B0.1: Agent Teams 강도 토론
 |   +-- cost-estimation.md       # Phase 0.2/B0.2: 비용 & 시간 추정
 |   +-- feedback-routing.md      # 피드백 기반 모델-카테고리 역할 배정
+|   +-- static-analysis.md       # Phase 5.8: 정적 분석 통합 (standard+)
+|   +-- threat-modeling.md       # Phase 5.9: STRIDE 3-에이전트 위협 토론 (deep+)
+|   +-- test-generation.md       # Phase 6.6: 회귀 테스트 스텁 생성 (standard+)
+|   +-- framework-selection.md   # Phase B1.5: 분석 프레임워크 선택 토론 (standard+)
+|   +-- quantitative-validation.md # Phase B5.6: 수치 교차 검증 (deep+)
+|   +-- adversarial-red-team.md  # Phase B5.7: 적대적 스트레스 테스트 (deep+)
 |
 +-- config/
 |   +-- default-config.json      # 모든 기본 설정 (모델, 리뷰, 토론, 아레나, 캐시,
 |   |                            #   벤치마크, 컴플라이언스, 라우팅, 폴백, 비용,
 |   |                            #   피드백, 컨텍스트 포워딩, 컨텍스트 밀도,
-|   |                            #   메모리 계층, 파이프라인 평가)
+|   |                            #   메모리 계층, 파이프라인 평가, 정적 분석,
+|   |                            #   위협 모델링, 테스트 생성, 증거 티어링,
+|   |                            #   프레임워크 선택, 시나리오 분석, 정량적
+|   |                            #   검증, 레드팀, 일관성 검증)
 |   +-- compliance-rules.json    # 기능-가이드라인 매핑
 |   +-- tech-queries.json        # 기술-검색 쿼리 매핑 (31개 기술)
 |   +-- review-prompts/          # 구조화된 프롬프트 (9개 템플릿)
@@ -739,6 +762,21 @@ F1 범위는 LLM 비결정성으로 인한 여러 실행 간 분산을 반영합
 
 ## 변경 이력
 
+### v3.3.0
+
+- **정적 분석 통합** (Phase 5.8, standard+): 에이전트 리뷰 전 외부 스캐너(semgrep, eslint, bandit, gosec, brakeman, cargo-audit) 실행. 스택 기반 스캐너 선택, 병렬 실행, 표준 포맷으로 출력 정규화. 발견을 Phase 6 리뷰어 에이전트에 추가 컨텍스트로 전달
+- **STRIDE 위협 모델링** (Phase 5.9, deep+): 3-에이전트 적대적 토론 — threat-modeler가 STRIDE 위협 식별, threat-defender가 완화/가능성 낮음으로 반박, threat-arbitrator가 우선순위 공격 표면 리스트로 합의
+- **테스트 생성** (Phase 6.6, standard+): 신뢰도 >= 70의 critical/high 발견에 대한 회귀 테스트 스텁 생성. 테스트 프레임워크(jest, pytest, go test 등)와 테스트 디렉토리 구조 자동 감지
+- **Round 4 에스컬레이션** (deep+): Round 3 이후 미해결 high-severity 논쟁이 남으면 새로운 관점의 중재자가 추가 증거 요구와 함께 교착 상태 해소
+- **프레임워크 선택 토론** (Phase B1.5, standard+): 콘텐츠 작성 전 3-에이전트 토론으로 분석 프레임워크 선택. 16개 내장 프레임워크 DB: 콘텐츠(AIDA, StoryBrand, PAS), 전략(Porter, SWOT, PESTEL, Blue Ocean), 커뮤니케이션(Pyramid Principle, SPIN)
+- **증거 티어링 프로토콜**: 10개 비즈니스 리뷰어 에이전트 전체에 4단계 증거 품질 분류 — T1(1.0 가중치, 정부/학술), T2(0.8, 산업 보고서), T3(0.5, 뉴스/블로그), T4(0.3, AI 추정). 신뢰도가 티어 가중치로 조정. Critical 발견은 T2+ 증거 필요
+- **3-시나리오 의무화** (Phase B5.5, standard+): 전략 토론 출력에 기본, 낙관, 비관 시나리오와 정량적 전망 의무 포함
+- **정량적 검증** (Phase B5.6, deep+): 2-에이전트 팀(data-verifier + methodology-auditor)이 WebSearch를 통해 모든 수치 주장 교차 검증. 주장을 VERIFIED, UNVERIFIED, CONTRADICTED로 편차 퍼센트와 함께 평가
+- **적대적 레드팀** (Phase B5.7, deep+): 3개 적대적 에이전트가 비즈니스 콘텐츠 스트레스 테스트 — skeptical-investor("왜 투자하면 안 되는가?"), competitor-response("경쟁자가 어떻게 반박할 것인가?"), regulatory-risk("숨겨진 규제 리스크는?"). 비즈니스 유형별 에이전트 선택
+- **일관성 검증** (Phase B7): 최종 리포트 전 수치 일관성, 섹션 간 주장 일관성, 톤 일관성 교차 확인
+- **10개 새 설정 섹션**: static_analysis, threat_modeling, test_generation, debate_escalation, framework_selection, evidence_tiering, scenario_analysis, quantitative_validation, red_team, consistency_validation
+- 33개 에이전트 (기존 27개), 31개 스크립트 (기존 29개), 9개 공유 단계 (기존 3개)
+
 ### v3.2.0
 
 - **커밋/PR 안전 프로토콜**: `git commit`이나 `gh pr create` 전에 필수 리뷰 게이트 + 사용자 확인
@@ -758,8 +796,8 @@ F1 범위는 LLM 비결정성으로 인한 여러 실행 간 분산을 반영합
 - **컨텍스트 밀도 필터링**: 역할 기반 컨텍스트 필터링으로 각 에이전트에게 관련 코드 패턴만 제공, 노이즈와 토큰 비용 감소 (에이전트당 8,000 토큰 예산)
 - **메모리 계층**: 세션 간 학습을 위한 4계층 메모리 아키텍처 (working/short-term/long-term/permanent)
 - **파이프라인 평가**: LLM-as-Judge 점수화와 위치 편향 완화를 포함한 정밀도/재현율/F1 메트릭
-- **에이전트 강화**: 27개 모든 에이전트에 Error Recovery Protocol 추가 (재시도 → 부분 제출 → 팀 리더 알림)
-- **긍정적 프레이밍** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): 핑크 코끼리 효과를 방지하기 위해 27개 모든 에이전트 사양을 부정형("보고하지 않을 때")에서 긍정형("Reporting Threshold")으로 재구성
+- **에이전트 강화**: 모든 에이전트에 Error Recovery Protocol 추가 (재시도 → 부분 제출 → 팀 리더 알림)
+- **긍정적 프레이밍** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): 핑크 코끼리 효과를 방지하기 위해 모든 에이전트 사양을 부정형("보고하지 않을 때")에서 긍정형("Reporting Threshold")으로 재구성
 - **Duplicate Prompt Technique** ([arxiv 2512.14982](https://arxiv.org/abs/2512.14982)): 비추론 LLM 정확도 향상을 위해 외부 CLI 스크립트에 핵심 리뷰 지시 반복
 - **리뷰 유효성 검증**: 리뷰 중 코드 변경 시 오래된 발견에 기반한 조치를 방지하는 git 해시 기반 리뷰 신선도 확인
 - **프롬프트 캐시 인식 비용 추정**: Claude의 프리픽스 캐싱으로 정확한 비용 예측을 위한 `prompt_cache_discount` 설정

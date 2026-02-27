@@ -134,6 +134,8 @@ You MUST output ONLY valid JSON in the following format. Do not include any text
         "actual_data": "<verified data from authoritative source, if found>",
         "data_recency": "<how current the data is>"
       },
+      "evidence_tier": "T1|T2|T3|T4",
+      "evidence_source": "<source>",
       "suggestion": "<specific remediation: corrected wording, add source, reframe claim, add caveats>"
     }
   ],
@@ -210,6 +212,25 @@ SendMessage(
   approve: true
 )
 ```
+
+## Evidence Tiering Protocol
+
+All claims and findings MUST be classified by evidence quality tier. This affects confidence scoring and finding weight.
+
+| Tier | Source Type | Weight | Examples |
+|------|-----------|--------|---------|
+| T1 | Government/regulatory official data, peer-reviewed research | 1.0 | SEC filings, government statistics, academic journals |
+| T2 | Industry reports from recognized firms | 0.8 | Gartner, McKinsey, IDC, Forrester reports |
+| T3 | News articles, blog posts, case studies | 0.5 | TechCrunch, company blogs, press releases |
+| T4 | AI estimation, analogical reasoning | 0.3 | Model inference, comparable company analysis without data |
+
+### Application Rules
+
+1. **Every finding** MUST include `evidence_tier` (T1-T4) and `evidence_source` (specific source name/URL)
+2. **Confidence adjustment**: `final_confidence = base_confidence × tier_weight`
+3. **Critical findings** require T2 or higher evidence (T3/T4 evidence cannot support critical severity)
+4. **Multiple sources**: Use the highest-tier source available; note lower-tier corroboration
+5. **No source available**: Classify as T4 with explicit note: "Based on AI analysis — no external source verified"
 
 ## Reporting Threshold
 

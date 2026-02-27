@@ -36,15 +36,26 @@ Team Lead (You - this session)
 |   +-- Run benchmark-business-models.sh against planted-error test cases
 |   +-- Score each model (Claude, Codex, Gemini) per category (avg F1)
 |   +-- Determine model role assignments for Phase B6
-+-- Phase B5.5: Content Strategy Debate (standard+)
++-- Phase B1.5: Framework Selection Debate (standard+)
+|   +-- framework-advocate       -> argues for comprehensive framework set
+|   +-- framework-minimalist     -> argues for focused framework set
+|   +-- framework-arbitrator     -> selects up to 3 frameworks
++-- Phase B5.5: Content Strategy Debate (standard+, + 3-scenario mandate)
 |   +-- messaging-advocate       -> proposes messaging strategy
 |   +-- audience-challenger      -> challenges audience fit
 |   +-- accuracy-challenger      -> challenges factual claims
-|   +-- strategy-arbitrator      -> synthesizes content strategy
+|   +-- strategy-arbitrator      -> synthesizes content strategy + 3 scenarios
++-- Phase B5.6: Quantitative Validation (deep+)
+|   +-- data-verifier            -> cross-reference numbers against sources
+|   +-- methodology-auditor      -> validate projection methodology
++-- Phase B5.7: Adversarial Red Team (deep+)
+|   +-- skeptical-investor-agent -> "Why should I NOT invest?"
+|   +-- competitor-response-agent -> "How would competitors counter?"
+|   +-- regulatory-risk-agent    -> "Hidden regulatory/legal risks?"
 +-- Phase B6: Multi-Agent Business Review (5 reviewers + arbitrator + external CLIs, 3-round debate)
 |   +-- Step B6.1.5: Determine external model participation (benchmark-driven at comprehensive)
 |   +-- Create team (Teammate tool)
-|   +-- Spawn business reviewer teammates (Task tool with team_name)
+|   +-- Spawn business reviewer teammates (Task tool with team_name, with evidence tiering)
 |   +-- Run external CLI Round 1 if assigned as primary (parallel with Claude teammates)
 |   +-- Coordinate 3-round debate phase (independent review, cross-review, defense)
 |   +-- Run external CLI Round 2 cross-review (parallel with Claude Round 2)
@@ -52,7 +63,8 @@ Team Lead (You - this session)
 +-- Phase B6.5: Apply Findings (review→fix loop for critical/high findings)
 |   +-- Auto-revise content based on consensus findings
 |   +-- Verify fixes address the issues
-+-- Phase B7: Final Report & Cleanup
++-- Phase B7: Final Report & Cleanup (+ consistency validation)
+|   +-- Consistency validation (numerical, claim, tone)
 |   +-- Generate enriched business review report
 |   +-- Shutdown all teammates
 |   +-- Cleanup team
@@ -155,9 +167,9 @@ Establish business context, load configuration, and prepare the session environm
 
    **Intensity determines Phase scope** (decided by Phase B0.1 debate or `--intensity` flag):
    - `quick`: Phase B0 -> B0.1 -> B0.5 only (Claude solo, no Agent Team)
-   - `standard`: Phase B0 -> B0.1 -> B0.5 -> B1 -> B5.5 -> B6 -> B7
-   - `deep`: Phase B0 -> B0.1 -> B0.5 -> B1 -> B2(+debate) -> B3(+debate) -> B5.5 -> B6 -> B7
-   - `comprehensive`: Phase B0 -> B0.1 -> B0.5 -> B1 -> B2(+debate) -> B3(+debate) -> B5.5 -> B6 -> B7 (all phases with all debates, maximum reviewer depth)
+   - `standard`: Phase B0 -> B0.1 -> B0.2 -> B0.5 -> B1 -> B1.5 -> B5.5(+scenarios) -> B6 -> B6.5 -> B7(+consistency)
+   - `deep`: Phase B0 -> B0.1 -> B0.2 -> B0.5 -> B1 -> B1.5 -> B2(+debate) -> B2.9 -> B3(+debate) -> B5.5(+scenarios) -> B5.6 -> B5.7 -> B6 -> B6.5 -> B7(+consistency)
+   - `comprehensive`: Phase B0 -> B0.1 -> B0.2 -> B0.5 -> B1 -> B1.5 -> B2(+debate) -> B2.9 -> B3(+debate) -> B4 -> B5.5(+scenarios) -> B5.6 -> B5.7 -> B6 -> B6.5 -> B7(+consistency)
 
    **Quick Intensity Mode** (`--intensity quick` or decided by Phase B0.1):
    - Run Phase B0 + Phase B0.1 + Phase B0.5 only
@@ -839,6 +851,35 @@ Gather current market data, competitive intelligence, and industry trends releva
 - If cache-manager.sh fails: proceed without caching, run WebSearch directly.
 - If WebSearch returns no results for a query: note the gap and continue with other queries.
 - If all market research fails: warn "Market research unavailable - proceeding without market context." Set `market_context_available = false` for downstream phases.
+
+---
+
+## Phase B1.5: Framework Selection Debate (standard/deep/comprehensive intensity)
+
+**Applies to**: standard, deep, comprehensive intensity. Skip for quick.
+
+**Purpose**: Select the most appropriate analysis frameworks for the business content through a 3-agent debate. Prevents applying wrong frameworks and ensures structured analysis.
+
+Read `${PLUGIN_DIR}/shared-phases/framework-selection.md` and execute the phase with:
+
+- `BUSINESS_TYPE`: Content type (content, strategy, communication)
+- `USER_REQUEST`: The original user request
+- `MARKET_CONTEXT`: Market research results from Phase B1
+- `BUSINESS_CONTEXT`: Business context from Phase B0.5
+
+The framework selection phase spawns 3 agents (framework-advocate, framework-minimalist, framework-arbitrator) to debate and select up to 3 frameworks. See `shared-phases/framework-selection.md` for the full protocol including the built-in framework database.
+
+**Output**: `SELECTED_FRAMEWORKS` — list of selected frameworks with rationale and application map, forwarded to Phase B5.5 and B6.
+
+**Default Frameworks** (used when Agent Teams unavailable):
+- content → AIDA + SCQA
+- strategy → SWOT + Porter's Five Forces
+- communication → Pyramid Principle
+
+**Error Handling:**
+- Agent Teams unavailable: Use default frameworks based on business type.
+- Debate timeout: Use framework-advocate's initial recommendation.
+- No consensus: Use the most commonly recommended frameworks.
 
 ---
 
@@ -1678,6 +1719,13 @@ Now execute the main accuracy audit using the debate-determined scope:
      4. {criterion_4} -> verify: {how_to_check}
      5. {criterion_5} -> verify: {how_to_check}
 
+     SCENARIO ANALYSIS (MANDATORY for strategy type):
+     You MUST include 3 scenarios with quantitative projections:
+     Base Scenario: {most_likely_outcome_with_numbers}
+     Optimistic Scenario: {upside_case_with_numbers_and_assumptions}
+     Pessimistic Scenario: {downside_case_with_numbers_and_assumptions}
+     Each scenario MUST include: key assumptions, quantitative forecast, probability estimate.
+
      IMPORTANT: Success Criteria must be concrete and verifiable.
      Good: 'All market size claims cite a published source -> verify: each TAM/SAM figure has a citation'
      Bad: 'Content is well-written and persuasive' (not verifiable)"
@@ -1724,6 +1772,76 @@ Now execute the main accuracy audit using the debate-determined scope:
 - If Agent Teams are unavailable: fall back to Claude solo strategy with explicit reasoning.
 - If debate times out: use messaging-advocate's initial proposal with accuracy-challenger's concerns noted.
 - If no consensus: err on the side of accuracy (accuracy-challenger's position takes precedence on factual matters).
+
+---
+
+## Phase B5.6: Quantitative Validation (deep/comprehensive intensity only)
+
+**Applies to**: deep, comprehensive intensity only. Skip for quick and standard.
+
+**Purpose**: Cross-validate all numerical claims in business content before review. A 2-agent team verifies market sizes, growth rates, financial projections, and unit economics.
+
+Read `${PLUGIN_DIR}/shared-phases/quantitative-validation.md` and execute the phase with:
+
+- `CONTENT_DRAFT`: Business content with numerical claims
+- `EVIDENCE_SOURCES`: Sources cited in the content
+- `MARKET_CONTEXT`: Market research results from Phase B1
+
+The quantitative validation phase spawns 2 agents (data-verifier, methodology-auditor) to cross-reference all numerical claims. See `shared-phases/quantitative-validation.md` for the full protocol.
+
+**Output**: `VALIDATION_RESULTS` — verification status for all numerical claims, forwarded to Phase B5.7 and B6.
+
+**Display**:
+```
+## Quantitative Validation
+- Claims checked: {N}
+- Verified: {V} | Unverified: {U} | Contradicted: {C}
+- Projections: Sound: {S} | Questionable: {Q} | Flawed: {F}
+```
+
+**Error Handling:**
+- WebSearch unavailable: Mark claims as "unverified" rather than failing.
+- Agent timeout: Proceed with available results.
+- All agents fail: Skip validation, warn in report.
+
+---
+
+## Phase B5.7: Adversarial Red Team (deep/comprehensive intensity only)
+
+**Applies to**: deep, comprehensive intensity only. Skip for quick and standard.
+
+**Purpose**: Stress-test business content from 3 adversarial perspectives before review. Catches blind spots that collaborative review might miss.
+
+Read `${PLUGIN_DIR}/shared-phases/adversarial-red-team.md` and execute the phase with:
+
+- `CONTENT_DRAFT`: Business content being reviewed
+- `BUSINESS_TYPE`: Content type (content, strategy, communication)
+- `SELECTED_FRAMEWORKS`: Frameworks chosen in Phase B1.5
+- `VALIDATION_RESULTS`: Quantitative validation results from Phase B5.6
+
+The red team phase spawns 1-3 adversarial agents based on business type:
+- **skeptical-investor-agent**: "Why should I NOT invest?" (investor-facing content)
+- **competitor-response-agent**: "How would competitors counter this?" (all types)
+- **regulatory-risk-agent**: "Hidden regulatory/legal risks?" (regulated industries)
+
+See `shared-phases/adversarial-red-team.md` for agent selection logic and full protocol.
+
+**Output**: `RED_TEAM_REPORT` — challenges from all perspectives, forwarded to Phase B6 and B6.5.
+
+**Display**:
+```
+## Adversarial Red Team
+- Perspectives: {list}
+- Total Challenges: {N} (critical: {C}, high: {H}, medium: {M}, low: {L})
+- Top Challenges:
+  1. [{severity}] [{perspective}] {title}
+  2. ...
+```
+
+**Error Handling:**
+- Agent Teams unavailable: Skip red team, log warning.
+- Individual agent timeout: Proceed with available results.
+- All agents fail: Skip red team, note in report.
 
 ---
 
@@ -2427,6 +2545,35 @@ FOR each applied revision:
 
 ## Phase B7: Final Report & Cleanup
 
+### Step B7.0: Consistency Validation (all intensities except quick)
+
+Before generating the final report, perform internal consistency checks on the content:
+
+1. **Numerical Consistency**: Cross-reference all numbers mentioned in different sections:
+   - Same metric mentioned in multiple places → values must match
+   - Derived calculations → verify math (e.g., if revenue=$10M and margin=20%, profit must be $2M)
+   - Time references → dates and timeframes must be consistent
+
+2. **Claim Consistency**: Verify claims don't contradict each other:
+   - Positioning claims in different sections → must align
+   - Market size references → must use same source/number
+   - Competitive advantages → must not contradict risk section
+
+3. **Tone Consistency**: Verify consistent tone throughout:
+   - Executive summary tone → must match body sections
+   - Technical depth → must be consistent for target audience
+   - Confidence level → must match evidence strength
+
+**Output**:
+```
+## Consistency Check
+- Numerical: {pass/fail} — {issues if any}
+- Claims: {pass/fail} — {contradictions if any}
+- Tone: {pass/fail} — {inconsistencies if any}
+```
+
+If `config.consistency_validation.fail_on_inconsistency` is true AND any check fails, flag for user attention before generating report. Otherwise, include inconsistencies as warnings in the report.
+
 ### Step B7.1: Generate Business Review Report
 
 Build the complete business content review report:
@@ -2465,6 +2612,55 @@ Build the complete business content review report:
 | Communication Clarity | {score}% | {brief_summary} |
 | Data & Evidence | {score}% | {brief_summary} |
 | **Overall** | **{score}%** | |
+
+---
+
+## Framework Analysis (if Phase B1.5 ran)
+
+- **Selected Frameworks:** {list with rationale}
+- **Application Map:** {framework → content section}
+
+---
+
+## Scenario Analysis (if Phase B5.5 produced scenarios)
+
+| Scenario | Key Assumptions | Projection | Probability |
+|----------|----------------|-----------|-------------|
+| Base | {assumptions} | {forecast} | {probability}% |
+| Optimistic | {assumptions} | {forecast} | {probability}% |
+| Pessimistic | {assumptions} | {forecast} | {probability}% |
+
+---
+
+## Quantitative Validation (if Phase B5.6 ran)
+
+- **Claims Checked:** {N} — Verified: {V}, Unverified: {U}, Contradicted: {C}
+- **Projections Audited:** {P} — Sound: {S}, Questionable: {Q}, Flawed: {F}
+- **Key Discrepancies:** {list if any}
+
+---
+
+## Adversarial Red Team (if Phase B5.7 ran)
+
+| Perspective | Challenges | Critical/High | Score |
+|------------|-----------|---------------|-------|
+| Skeptical Investor | {N} | {count} | Investability: {score}% |
+| Competitor Response | {N} | {count} | Resilience: {score}% |
+| Regulatory Risk | {N} | {count} | Readiness: {score}% |
+
+**Top Red Team Challenges:**
+1. [{severity}] [{perspective}] {title}
+2. [{severity}] [{perspective}] {title}
+3. [{severity}] [{perspective}] {title}
+
+---
+
+## Consistency Validation
+
+- Numerical Consistency: {pass/fail}
+- Claim Consistency: {pass/fail}
+- Tone Consistency: {pass/fail}
+- {Details of any inconsistencies found}
 
 ---
 

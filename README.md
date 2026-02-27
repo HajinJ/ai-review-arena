@@ -16,8 +16,8 @@ Arena makes Claude, OpenAI Codex, and Google Gemini **independently review your 
 
 **Two pipelines, one system:**
 
-- **Code Pipeline** (Routes A-F): Analyzes your codebase conventions, researches best practices, checks compliance, benchmarks models, debates implementation strategy, reviews code with 6-12 specialized agents (scaling by intensity), auto-fixes safe findings, and verifies with your test suite.
-- **Business Pipeline** (Routes G-I): Extracts business context from your docs, researches market data, audits accuracy of claims, benchmarks models on business content, debates content strategy, reviews with 5-10 specialized agents + external CLIs (scaling by intensity), and auto-revises content.
+- **Code Pipeline** (Routes A-F): Analyzes your codebase conventions, researches best practices, checks compliance, benchmarks models, runs static analysis scanners, debates implementation strategy, reviews code with 6-12 specialized agents (scaling by intensity), generates regression tests, auto-fixes safe findings, and verifies with your test suite. At deep+ intensity, adds STRIDE threat modeling and Round 4 escalation debates.
+- **Business Pipeline** (Routes G-I): Extracts business context from your docs, researches market data, selects analysis frameworks via debate, audits accuracy of claims, benchmarks models on business content, debates content strategy with mandatory 3-scenario analysis, reviews with 5-10 specialized agents + external CLIs (scaling by intensity) using evidence tiering, runs quantitative validation and adversarial red team at deep+, and auto-revises content with consistency checks.
 
 Arena activates automatically. You don't invoke it. Just use Claude Code normally, and the pipeline runs behind the scenes.
 
@@ -104,8 +104,8 @@ The arbitrator picks one of four levels:
 | Level | Code Pipeline | Business Pipeline |
 |-------|-----------|------|
 | **quick** | Codebase scan, Claude solo | Business context scan, Claude solo |
-| **standard** | + stack detection, strategy debate, review, 3-round cross-exam, auto-fix | + market research, strategy debate, 5-agent review + external CLIs (cross-review), auto-revise |
-| **deep** | + research, compliance, intensity checkpoint | + best practices research, accuracy audit, intensity checkpoint |
+| **standard** | + stack detection, static analysis, strategy debate, review, 3-round cross-exam, test generation, auto-fix | + market research, framework selection debate, strategy debate (+3 scenarios), 5-agent review + external CLIs (cross-review), auto-revise (+consistency check) |
+| **deep** | + research, compliance, threat modeling, Round 4 escalation, intensity checkpoint | + best practices research, accuracy audit, quantitative validation, adversarial red team, intensity checkpoint |
 | **comprehensive** | + model benchmarking, Figma analysis, all debates | + business model benchmarking, benchmark-driven external CLI roles |
 
 **Intensity can change mid-pipeline.** After research completes (Phase 2.9 / B2.9), Arena re-evaluates whether the decided intensity is still appropriate. If research reveals hidden complexity, it recommends upgrading. If the task turns out simpler, it recommends downgrading. Both directions are supported.
@@ -252,7 +252,7 @@ Agent debate solves this because agents can **reason about novel scenarios**. Th
 
 Agent specifications use positive criteria ("report ONLY when criteria met") instead of negative instructions ("don't report X"). This is based on the [AGENTS.md benchmark paper](https://arxiv.org/abs/2602.11988) which found that context files with negative instructions trigger a "pink elephant effect" — telling an agent NOT to do something paradoxically increases its attention on excluded patterns, reducing SWE-bench success by 0.5%, AgentBench by 2%, and increasing inference cost by 20-23%.
 
-All 27 agents define a **Reporting Threshold** with 3 AND-criteria that must all be true for a finding to be reportable, plus a list of **Recognized Patterns** that confirm mitigation. For example, the security-reviewer reports only when a finding is Exploitable AND Unmitigated AND Production-reachable — and lists patterns like "parameterized queries" as confirmation that SQL injection is mitigated.
+All 33 agents define a **Reporting Threshold** with 3 AND-criteria that must all be true for a finding to be reportable, plus a list of **Recognized Patterns** that confirm mitigation. For example, the security-reviewer reports only when a finding is Exploitable AND Unmitigated AND Production-reachable — and lists patterns like "parameterized queries" as confirmation that SQL injection is mitigated.
 
 ### Why external CLI prompts repeat core instructions
 
@@ -307,12 +307,15 @@ Phase 3     Compliance Check             * agents debate which rules apply (deep
 Phase 4     Model Benchmarking            score each AI per category (comprehensive, cached 14 days)
 Phase 5     Figma Design Analysis         if Figma MCP is available
 Phase 5.5   Implementation Strategy      * agents debate approach + define success criteria
-Phase 6     Implementation + Code Review + 3-Round Cross-Examination
+Phase 5.8   Static Analysis               run scanners (semgrep, eslint, bandit, gosec) (standard+)
+Phase 5.9   Threat Modeling              * 3-agent STRIDE threat debate (deep+)
+Phase 6     Implementation + Code Review + 3-Round Cross-Examination (+Round 4 escalation at deep+)
 Phase 6.5   Auto-Fix Loop                 fix safe findings, verify with tests, revert on failure
+Phase 6.6   Test Generation               regression test stubs for critical/high findings (standard+)
 Phase 7     Final Report + Feedback        success criteria PASS/FAIL, scope verdict, cost breakdown
 ```
 
-Seven decision points (*) use adversarial debate instead of static rules.
+Nine decision points (*) use adversarial debate instead of static rules.
 
 ### Business Pipeline
 
@@ -322,14 +325,17 @@ Phase B0.1   Intensity Decision           * agents debate (audience exposure, br
 Phase B0.2   Cost & Time Estimation         user can cancel or adjust before execution
 Phase B0.5   Business Context Analysis      extract from docs: product, value props, brand voice
 Phase B1     Market/Industry Context        WebSearch for market data, competitors, trends
+Phase B1.5   Framework Selection          * 3-agent debate to select analysis frameworks (standard+)
 Phase B2     Best Practices Research       * agents debate research direction (deep+)
 Phase B2.9   Intensity Checkpoint           bidirectional based on market/research findings
 Phase B3     Accuracy & Consistency Audit  * agents debate verification scope (deep+)
 Phase B4     Business Model Benchmarking    12 planted-error test cases, F1 scoring (comprehensive)
-Phase B5.5   Content Strategy Debate       * agents debate messaging, audience fit, factual accuracy
-Phase B6     5-Agent Review + External CLIs + 3-Round Cross-Examination
+Phase B5.5   Content Strategy Debate       * agents debate messaging + mandatory 3-scenario analysis
+Phase B5.6   Quantitative Validation        2-agent numerical cross-verification (deep+)
+Phase B5.7   Adversarial Red Team         * skeptical investor, competitor, regulatory agents (deep+)
+Phase B6     5-Agent Review + External CLIs + 3-Round Cross-Examination (with evidence tiering)
 Phase B6.5   Apply Findings                 auto-revise content based on consensus
-Phase B7     Final Report + Feedback        quality scorecard, model attribution, cost breakdown
+Phase B7     Final Report + Feedback        quality scorecard + consistency validation
 ```
 
 ---
@@ -570,7 +576,7 @@ ai-review-arena/
 |   +-- multi-review-config.md   # Config management
 |   +-- multi-review-status.md   # Status dashboard
 |
-+-- agents/                      # Agent role definitions (27 agents)
++-- agents/                      # Agent role definitions (33 agents)
 |   +-- security-reviewer.md     # OWASP, auth, injection, data exposure
 |   +-- bug-detector.md          # Logic errors, null handling, error handling, concurrency
 |   +-- architecture-reviewer.md # SOLID, patterns, coupling
@@ -583,23 +589,29 @@ ai-review-arena/
 |   +-- data-integrity-reviewer.md # Data validation, migration safety
 |   +-- accessibility-reviewer.md # WCAG, ARIA, keyboard navigation
 |   +-- configuration-reviewer.md # Environment, secrets, IaC
+|   +-- threat-modeler.md        # STRIDE threat identification
+|   +-- threat-defender.md       # Threat mitigation defense
+|   +-- threat-arbitrator.md     # Threat model consensus
 |   +-- debate-arbitrator.md     # Code review 3-round consensus
 |   +-- research-coordinator.md  # Pre-implementation research
 |   +-- design-analyzer.md       # Figma design extraction
 |   +-- compliance-checker.md    # OWASP, WCAG, GDPR compliance
-|   +-- accuracy-evidence-reviewer.md      # Business: factual accuracy + data evidence
-|   +-- audience-fit-reviewer.md           # Business: audience match
-|   +-- competitive-positioning-reviewer.md # Business: market positioning
-|   +-- communication-narrative-reviewer.md # Business: writing quality + narrative
+|   +-- accuracy-evidence-reviewer.md      # Business: factual accuracy + evidence tiering
+|   +-- audience-fit-reviewer.md           # Business: audience match + evidence tiering
+|   +-- competitive-positioning-reviewer.md # Business: market positioning + evidence tiering
+|   +-- communication-narrative-reviewer.md # Business: writing quality + evidence tiering
 |   +-- market-fit-reviewer.md             # Business: product-market fit, TAM/SAM/SOM
 |   +-- financial-credibility-reviewer.md  # Business: financial model credibility
 |   +-- legal-compliance-reviewer.md       # Business: legal/regulatory compliance
 |   +-- localization-reviewer.md           # Business: multilingual/cultural adaptation
 |   +-- investor-readiness-reviewer.md     # Business: investor readiness
 |   +-- conversion-impact-reviewer.md      # Business: conversion optimization
+|   +-- skeptical-investor-agent.md        # Red team: investment skeptic
+|   +-- competitor-response-agent.md       # Red team: competitive counter-strategy
+|   +-- regulatory-risk-agent.md           # Red team: regulatory/legal risk
 |   +-- business-debate-arbitrator.md      # Business: 3-round consensus + external model handling
 |
-+-- scripts/                     # Shell/Python scripts (29 scripts)
++-- scripts/                     # Shell/Python scripts (31 scripts)
 |   +-- codex-review.sh          # Codex Round 1 code review
 |   +-- gemini-review.sh         # Gemini Round 1 code review
 |   +-- codex-cross-examine.sh   # Codex Round 2 & 3 (code)
@@ -628,19 +640,30 @@ ai-review-arena/
 |   +-- utils.sh                 # Shared utilities
 |   +-- openai-ws-debate.py      # WebSocket debate client (Responses API)
 |   +-- gemini-hook-adapter.sh   # Gemini hook → Arena review adapter
+|   +-- static-analysis.sh       # Static analysis scanner runner (Phase 5.8)
+|   +-- normalize-scanner-output.sh # Scanner output normalization (SARIF/JSON → standard)
 |   +-- setup-arena.sh           # Arena setup
 |   +-- setup.sh                 # General setup
 |
-+-- shared-phases/               # Common phase definitions (shared by code + business)
++-- shared-phases/               # Common phase definitions (9 phases, shared by code + business)
 |   +-- intensity-decision.md    # Phase 0.1/B0.1: Agent Teams intensity debate
 |   +-- cost-estimation.md       # Phase 0.2/B0.2: Cost & time estimation
 |   +-- feedback-routing.md      # Feedback-based model-category role assignment
+|   +-- static-analysis.md       # Phase 5.8: Static analysis integration (standard+)
+|   +-- threat-modeling.md       # Phase 5.9: STRIDE 3-agent threat debate (deep+)
+|   +-- test-generation.md       # Phase 6.6: Regression test stub generation (standard+)
+|   +-- framework-selection.md   # Phase B1.5: Analysis framework selection debate (standard+)
+|   +-- quantitative-validation.md # Phase B5.6: Numerical claim cross-validation (deep+)
+|   +-- adversarial-red-team.md  # Phase B5.7: Adversarial stress testing (deep+)
 |
 +-- config/
 |   +-- default-config.json      # All settings (models, review, debate, arena, cache,
 |   |                            #   benchmarks, compliance, routing, fallback, cost,
 |   |                            #   feedback, context forwarding, context density,
-|   |                            #   memory tiers, pipeline evaluation)
+|   |                            #   memory tiers, pipeline evaluation, static analysis,
+|   |                            #   threat modeling, test generation, evidence tiering,
+|   |                            #   framework selection, scenario analysis, quantitative
+|   |                            #   validation, red team, consistency validation)
 |   +-- compliance-rules.json    # Feature-to-guideline mapping
 |   +-- tech-queries.json        # Tech-to-search-query mapping (31 technologies)
 |   +-- review-prompts/          # Structured prompts (9 templates)
@@ -741,6 +764,21 @@ Run `./scripts/run-benchmark.sh --verbose` to see Arena-only results.
 
 ## Changelog
 
+### v3.3.0
+
+- **Static Analysis Integration** (Phase 5.8, standard+): Runs external scanners (semgrep, eslint, bandit, gosec, brakeman, cargo-audit) before agent review. Stack-based scanner selection, parallel execution, output normalization to standard format. Findings forwarded as additional context to Phase 6 reviewer agents
+- **STRIDE Threat Modeling** (Phase 5.9, deep+): 3-agent adversarial debate — threat-modeler identifies STRIDE threats, threat-defender challenges them as mitigated/unlikely, threat-arbitrator synthesizes into prioritized attack surface list
+- **Test Generation** (Phase 6.6, standard+): Generates regression test stubs for critical/high findings with confidence >= 70. Auto-detects test framework (jest, pytest, go test, etc.) and test directory structure
+- **Round 4 Escalation** (deep+): When Round 3 leaves unresolved high-severity disputes, a fresh-perspective arbitrator breaks the deadlock with additional evidence requirements
+- **Framework Selection Debate** (Phase B1.5, standard+): 3-agent debate selects analysis frameworks before content creation. Built-in database of 16 frameworks across content (AIDA, StoryBrand, PAS), strategy (Porter, SWOT, PESTEL, Blue Ocean), and communication (Pyramid Principle, SPIN) categories
+- **Evidence Tiering Protocol**: All 10 business reviewer agents now classify evidence quality into 4 tiers — T1 (1.0 weight, govt/academic), T2 (0.8, industry reports), T3 (0.5, news/blogs), T4 (0.3, AI estimation). Confidence adjusted by tier weight. Critical findings require T2+ evidence
+- **3-Scenario Mandate** (Phase B5.5, standard+): Strategy debate output now requires base, optimistic, and pessimistic scenarios with quantitative projections
+- **Quantitative Validation** (Phase B5.6, deep+): 2-agent team (data-verifier + methodology-auditor) cross-validates all numerical claims via WebSearch. Claims rated VERIFIED, UNVERIFIED, or CONTRADICTED with deviation percentages
+- **Adversarial Red Team** (Phase B5.7, deep+): 3 adversarial agents stress-test business content — skeptical-investor ("why NOT invest?"), competitor-response ("how would competitors counter?"), regulatory-risk ("hidden regulatory risks?"). Agent selection varies by business type
+- **Consistency Validation** (Phase B7): Cross-checks numerical consistency, claim consistency across sections, and tone consistency before final report
+- **10 new config sections**: static_analysis, threat_modeling, test_generation, debate_escalation, framework_selection, evidence_tiering, scenario_analysis, quantitative_validation, red_team, consistency_validation
+- 33 agents (was 27), 31 scripts (was 29), 9 shared phases (was 3)
+
 ### v3.2.0
 
 - **Commit/PR Safety Protocol**: Mandatory review gate + user confirmation before `git commit` or `gh pr create`
@@ -760,8 +798,8 @@ Run `./scripts/run-benchmark.sh --verbose` to see Arena-only results.
 - **Context Density Filtering**: Role-based context filtering provides each agent with relevant code patterns only, reducing noise and token cost (8,000 token budget per agent)
 - **Memory Tiers**: 4-tier memory architecture (working/short-term/long-term/permanent) for cross-session learning
 - **Pipeline Evaluation**: Precision/recall/F1 metrics with LLM-as-Judge scoring and position bias mitigation
-- **Agent Hardening**: Error Recovery Protocol added to all 27 agents (retry → partial submit → team lead notification)
-- **Positive Framing** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): All 27 agent specs reframed from negative ("When NOT to Report") to positive ("Reporting Threshold") to avoid the pink elephant effect
+- **Agent Hardening**: Error Recovery Protocol added to all agents (retry → partial submit → team lead notification)
+- **Positive Framing** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): All agent specs reframed from negative ("When NOT to Report") to positive ("Reporting Threshold") to avoid the pink elephant effect
 - **Duplicate Prompt Technique** ([arxiv 2512.14982](https://arxiv.org/abs/2512.14982)): Core review instructions repeated in external CLI scripts for improved non-reasoning LLM accuracy
 - **Stale Review Detection**: Git-hash-based review freshness check prevents acting on outdated findings when code changes mid-review
 - **Prompt Cache-Aware Cost Estimation**: `prompt_cache_discount` config for accurate cost projections with Claude's prefix caching

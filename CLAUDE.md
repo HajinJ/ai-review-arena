@@ -1,7 +1,7 @@
-# AI Review Arena v3.2.0 - Development Rules
+# AI Review Arena v3.3.0 - Development Rules
 
 ## Project Structure
-- `.claude-plugin/` - Plugin manifest (v3.2.0)
+- `.claude-plugin/` - Plugin manifest (v3.3.0)
 - `hooks/` - PostToolUse hook for auto-review + Gemini CLI AfterTool hook
 - `commands/` - Slash commands (7 files)
   - `arena` - Full lifecycle orchestrator (research → compliance → benchmark → review → auto-fix)
@@ -11,13 +11,15 @@
   - `multi-review` - Multi-AI adversarial code review
   - `multi-review-config` - Review config management
   - `multi-review-status` - Review status dashboard
-- `agents/` - Claude agent definitions (27 agents)
+- `agents/` - Claude agent definitions (33 agents)
   - Code review: security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer, scope-reviewer, dependency-reviewer, api-contract-reviewer, observability-reviewer, data-integrity-reviewer, accessibility-reviewer, configuration-reviewer
   - Business review: accuracy-evidence-reviewer, audience-fit-reviewer, competitive-positioning-reviewer, communication-narrative-reviewer, financial-credibility-reviewer, legal-compliance-reviewer, market-fit-reviewer, conversion-impact-reviewer, localization-reviewer, investor-readiness-reviewer
+  - Threat modeling: threat-modeler, threat-defender, threat-arbitrator
+  - Red team: skeptical-investor-agent, competitor-response-agent, regulatory-risk-agent
   - Debate: debate-arbitrator, business-debate-arbitrator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell/Python scripts (29 files)
+- `scripts/` - Shell/Python scripts (31 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
   - Review: aggregate-findings.sh, run-debate.sh, generate-report.sh, cost-estimator.sh
@@ -27,6 +29,7 @@
   - Evaluation: evaluate-pipeline.sh
   - Feedback: feedback-tracker.sh
   - Context: context-filter.sh (role-based code filtering for review agents)
+  - Static analysis: static-analysis.sh, normalize-scanner-output.sh
   - Validation: validate-config.sh, normalize-severity.sh
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
@@ -47,6 +50,12 @@
   - `intensity-decision.md` - Phase 0.1/B0.1: Agent Teams intensity debate (shared template)
   - `cost-estimation.md` - Phase 0.2/B0.2: Cost & time estimation using cost-estimator.sh
   - `feedback-routing.md` - Feedback-based model-category role assignment for Phase 6/B6
+  - `static-analysis.md` - Phase 5.8: Static analysis scanner integration
+  - `threat-modeling.md` - Phase 5.9: STRIDE 3-agent threat modeling debate
+  - `test-generation.md` - Phase 6.6: Regression test stub generation
+  - `framework-selection.md` - Phase B1.5: Business framework selection debate
+  - `quantitative-validation.md` - Phase B5.6: Numerical claim cross-validation
+  - `adversarial-red-team.md` - Phase B5.7: Adversarial red team stress test
 - `cache/` - Runtime knowledge cache (gitignored, TTL-managed)
 
 ## Coding Rules

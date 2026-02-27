@@ -437,5 +437,78 @@
     },
     "auto_run_after_review": false,
     "report_dir": "cache/evaluation-reports"
+  },
+  "static_analysis": {
+    "enabled": true,
+    "min_intensity": "standard",
+    "scanners": {
+      "semgrep": {"enabled": true, "timeout_seconds": 120},
+      "eslint": {"enabled": true, "timeout_seconds": 60},
+      "bandit": {"enabled": true, "timeout_seconds": 60},
+      "gosec": {"enabled": true, "timeout_seconds": 60},
+      "brakeman": {"enabled": true, "timeout_seconds": 60},
+      "cargo_audit": {"enabled": true, "timeout_seconds": 60}
+    },
+    "max_findings": 50,
+    "confidence_floor": 60
+  },
+  "threat_modeling": {
+    "enabled": true,
+    "min_intensity": "deep",
+    "framework": "stride",
+    "max_threats": 10,
+    "debate_timeout_seconds": 300
+  },
+  "test_generation": {
+    "enabled": true,
+    "min_intensity": "standard",
+    "max_tests_per_finding": 2,
+    "frameworks": "auto",
+    "severity_filter": ["critical", "high"]
+  },
+  "debate_escalation": {
+    "enabled": true,
+    "min_intensity": "deep",
+    "trigger_threshold": 3,
+    "fresh_perspective": true
+  },
+  "framework_selection": {
+    "enabled": true,
+    "min_intensity": "standard",
+    "debate_timeout_seconds": 180,
+    "max_frameworks": 3
+  },
+  "evidence_tiering": {
+    "tier_weights": {
+      "T1": 1.0,
+      "T2": 0.8,
+      "T3": 0.5,
+      "T4": 0.3
+    },
+    "min_tier_for_critical": "T2",
+    "require_source_citation": true
+  },
+  "scenario_analysis": {
+    "enabled": true,
+    "min_intensity": "standard",
+    "scenarios": ["base", "optimistic", "pessimistic"],
+    "require_quantitative": true
+  },
+  "quantitative_validation": {
+    "enabled": true,
+    "min_intensity": "deep",
+    "checks": ["market_size", "growth_rates", "financial_projections", "unit_economics"],
+    "tolerance_pct": 20
+  },
+  "red_team": {
+    "enabled": true,
+    "min_intensity": "deep",
+    "agents": ["skeptical-investor", "competitor-response", "regulatory-risk"],
+    "max_challenges": 10
+  },
+  "consistency_validation": {
+    "enabled": true,
+    "checks": ["numerical", "claim", "tone"],
+    "fail_on_inconsistency": false
   }
 }
