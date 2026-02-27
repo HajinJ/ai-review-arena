@@ -144,7 +144,7 @@ check_finding_match() {
   local i=0
   while [ "$i" -lt "$total_keywords" ]; do
     local keyword
-    keyword=$(echo "$gt_keywords_json" | jq -r ".[$i]" 2>/dev/null)
+    keyword=$(echo "$gt_keywords_json" | jq -r ".[$i]")
     if echo "$finding_desc" | grep -qi "$keyword" 2>/dev/null; then
       matched_keywords=$((matched_keywords + 1))
     fi
@@ -182,26 +182,26 @@ score_findings() {
   local gt_idx=0
   while [ "$gt_idx" -lt "$total_expected" ]; do
     local gt_item
-    gt_item=$(echo "$ground_truth_json" | jq ".[$gt_idx]" 2>/dev/null)
+    gt_item=$(echo "$ground_truth_json" | jq ".[$gt_idx]")
 
     local gt_section
-    gt_section=$(echo "$gt_item" | jq -r '.section // ""' 2>/dev/null)
+    gt_section=$(echo "$gt_item" | jq -r '.section // ""')
 
     local gt_keywords
-    gt_keywords=$(echo "$gt_item" | jq '.description_contains // []' 2>/dev/null)
+    gt_keywords=$(echo "$gt_item" | jq '.description_contains // []')
 
     # Check if any finding matches this ground truth item
     local found_match=0
     local f_idx=0
     while [ "$f_idx" -lt "$total_findings" ]; do
       local finding
-      finding=$(echo "$findings_json" | jq ".[$f_idx]" 2>/dev/null)
+      finding=$(echo "$findings_json" | jq ".[$f_idx]")
 
       local finding_section
-      finding_section=$(echo "$finding" | jq -r '.section // ""' 2>/dev/null)
+      finding_section=$(echo "$finding" | jq -r '.section // ""')
 
       local finding_desc
-      finding_desc=$(echo "$finding" | jq -r '.description // .message // ""' 2>/dev/null)
+      finding_desc=$(echo "$finding" | jq -r '.description // .message // ""')
 
       local is_match
       is_match=$(check_finding_match "$finding_section" "$finding_desc" "$gt_section" "$gt_keywords")
@@ -297,10 +297,10 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
   log_info "Benchmarking test case: $BENCH_FILENAME (category: $BENCH_CATEGORY)"
 
   # Read test case
-  TEST_ID=$(jq -r '.id // "unknown"' "$benchmark_file" 2>/dev/null)
-  CONTENT=$(jq -r '.content // ""' "$benchmark_file" 2>/dev/null)
-  GROUND_TRUTH=$(jq '.ground_truth // []' "$benchmark_file" 2>/dev/null)
-  CONTENT_TYPE=$(jq -r '.content_type // "unknown"' "$benchmark_file" 2>/dev/null)
+  TEST_ID=$(jq -r '.id // "unknown"' "$benchmark_file")
+  CONTENT=$(jq -r '.content // ""' "$benchmark_file")
+  GROUND_TRUTH=$(jq '.ground_truth // []' "$benchmark_file")
+  CONTENT_TYPE=$(jq -r '.content_type // "unknown"' "$benchmark_file")
 
   if [ -z "$CONTENT" ]; then
     log_warn "No content in $benchmark_file"

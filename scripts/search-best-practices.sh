@@ -70,7 +70,7 @@ if [ -z "$TECH_ENTRY" ] || [ "$TECH_ENTRY" = "null" ]; then
 fi
 
 # --- Extract TTL ---
-TTL_DAYS=$(echo "$TECH_ENTRY" | jq -r '.ttl_days // 3' 2>/dev/null)
+TTL_DAYS=$(echo "$TECH_ENTRY" | jq -r '.ttl_days // 3')
 
 # --- Check cache ---
 CACHE_KEY="${TECHNOLOGY}"

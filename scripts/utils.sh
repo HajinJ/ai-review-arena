@@ -7,6 +7,9 @@
 #
 # Functions:
 #   log_info, log_warn, log_error  - structured logging to stderr
+#   log_stderr_file                - log stderr from temp file, then cleanup
+#   safe_jq                        - jq with error logging (not silent)
+#   is_valid_json                  - check if string is valid JSON
 #   ensure_jq                      - verify jq is available
 #   project_hash                   - deterministic hash from path
 #   find_project_root              - git root or pwd
@@ -17,6 +20,14 @@
 #   get_config_value               - jq wrapper for config values
 #   get_current_year               - current year string
 #   format_timestamp               - human readable from epoch
+#
+# Error Handling Convention:
+#   - External CLI calls: capture stderr via log_stderr_file(), never 2>/dev/null
+#   - jq on validated input: no 2>/dev/null (errors indicate real bugs)
+#   - jq on external/optional input: 2>/dev/null OK (input may be absent)
+#   - Conditional validity checks (if ... | jq . &>/dev/null): OK
+#   - System commands (kill, wait, rm): 2>/dev/null OK (noise suppression)
+#   - Always prefer `|| fallback` over `2>/dev/null` when possible
 # =============================================================================
 
 # Guard against double-sourcing
@@ -59,6 +70,32 @@ log_stderr_file() {
   elif [ -f "$logfile" ]; then
     rm -f "$logfile"
   fi
+}
+
+# =============================================================================
+# Safe JSON Helpers
+# =============================================================================
+
+# Safe jq: run jq with error logging instead of silent suppression.
+# Usage: safe_jq '.field' "$file"           → stdout result, log on error
+# Usage: safe_jq '.field' <<< "$json_var"   → same with stdin
+# Returns: jq output on success, empty string on failure (exit 0 always)
+safe_jq() {
+  local filter="$1"
+  shift
+  local result
+  if result=$(jq -r "$filter" "$@" 2>&1); then
+    echo "$result"
+  else
+    log_warn "jq parse error (filter: $filter): ${result:0:200}"
+    echo ""
+  fi
+}
+
+# Validate JSON string. Returns 0 if valid, 1 if not.
+# Usage: is_valid_json "$var" && echo "ok"
+is_valid_json() {
+  [ -n "$1" ] && echo "$1" | jq . &>/dev/null
 }
 
 # =============================================================================

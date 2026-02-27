@@ -162,8 +162,8 @@ check_ground_truth() {
       local si=0
       while [ "$si" -lt "$struct_total" ]; do
         local sev type_val
-        sev=$(echo "$ground_truth_json" | jq -r ".[$si].severity // empty" 2>/dev/null)
-        type_val=$(echo "$ground_truth_json" | jq -r ".[$si].type // empty" 2>/dev/null)
+        sev=$(echo "$ground_truth_json" | jq -r ".[$si].severity // empty")
+        type_val=$(echo "$ground_truth_json" | jq -r ".[$si].type // empty")
 
         # A finding is "structurally matched" if the response mentions both severity and type
         local sev_found=false type_found=false
@@ -207,7 +207,7 @@ check_ground_truth() {
   local i=0
   while [ "$i" -lt "$total" ]; do
     local keyword
-    keyword=$(echo "$all_keywords" | jq -r ".[$i]" 2>/dev/null)
+    keyword=$(echo "$all_keywords" | jq -r ".[$i]")
     if keyword_match_positive "$response" "$keyword"; then
       matched=$((matched + 1))
     fi
@@ -247,12 +247,12 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
 
   tc_idx=0
   while [ "$tc_idx" -lt "$TEST_COUNT" ]; do
-    TEST_CASE=$(echo "$TEST_CASES" | jq ".[$tc_idx]" 2>/dev/null)
-    CODE=$(echo "$TEST_CASE" | jq -r '.code // ""' 2>/dev/null)
+    TEST_CASE=$(echo "$TEST_CASES" | jq ".[$tc_idx]")
+    CODE=$(echo "$TEST_CASE" | jq -r '.code // ""')
     # ground_truth can be array of finding objects or single object
-    GROUND_TRUTH=$(echo "$TEST_CASE" | jq '.ground_truth // []' 2>/dev/null)
-    TEST_FILE=$(echo "$TEST_CASE" | jq -r '.file // "benchmark_test.tmp"' 2>/dev/null)
-    TEST_ROLE=$(echo "$TEST_CASE" | jq -r '.role // "bugs"' 2>/dev/null)
+    GROUND_TRUTH=$(echo "$TEST_CASE" | jq '.ground_truth // []')
+    TEST_FILE=$(echo "$TEST_CASE" | jq -r '.file // "benchmark_test.tmp"')
+    TEST_ROLE=$(echo "$TEST_CASE" | jq -r '.role // "bugs"')
 
     if [ -z "$CODE" ]; then
       tc_idx=$((tc_idx + 1))

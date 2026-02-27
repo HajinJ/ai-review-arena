@@ -110,10 +110,10 @@ FALLBACK_SMALL="true"
 
 if [ -f "$CONFIG_FILE" ] && command -v jq &>/dev/null; then
   jq empty "$CONFIG_FILE" 2>/dev/null || log_warn "Malformed JSON in config: $CONFIG_FILE. Using defaults."
-  ENABLED=$(jq -r '.context_density.enabled // true' "$CONFIG_FILE" 2>/dev/null)
-  BUDGET_CFG=$(jq -r '.context_density.agent_context_budget_tokens // empty' "$CONFIG_FILE" 2>/dev/null)
-  SMALL_FILE_THRESHOLD_CFG=$(jq -r '.context_density.small_file_threshold_lines // empty' "$CONFIG_FILE" 2>/dev/null)
-  FALLBACK_SMALL=$(jq -r '.context_density.fallback_on_small_files // true' "$CONFIG_FILE" 2>/dev/null)
+  ENABLED=$(jq -r '.context_density.enabled // true' "$CONFIG_FILE")
+  BUDGET_CFG=$(jq -r '.context_density.agent_context_budget_tokens // empty' "$CONFIG_FILE")
+  SMALL_FILE_THRESHOLD_CFG=$(jq -r '.context_density.small_file_threshold_lines // empty' "$CONFIG_FILE")
+  FALLBACK_SMALL=$(jq -r '.context_density.fallback_on_small_files // true' "$CONFIG_FILE")
 
   # Override budget from config if not set via CLI
   if [ "$BUDGET" = "$DEFAULT_BUDGET" ] && [ -n "$BUDGET_CFG" ]; then
@@ -124,8 +124,8 @@ if [ -f "$CONFIG_FILE" ] && command -v jq &>/dev/null; then
   fi
 
   if [ -n "$FILTER_KEY" ]; then
-    INCLUDE_PATTERNS=$(jq -r --arg key "$FILTER_KEY" '.context_density.role_filters[$key].include_patterns // [] | join("|")' "$CONFIG_FILE" 2>/dev/null)
-    INCLUDE_FILE_PATTERNS=$(jq -r --arg key "$FILTER_KEY" '.context_density.role_filters[$key].include_file_patterns // [] | .[]' "$CONFIG_FILE" 2>/dev/null)
+    INCLUDE_PATTERNS=$(jq -r --arg key "$FILTER_KEY" '.context_density.role_filters[$key].include_patterns // [] | join("|")' "$CONFIG_FILE")
+    INCLUDE_FILE_PATTERNS=$(jq -r --arg key "$FILTER_KEY" '.context_density.role_filters[$key].include_file_patterns // [] | .[]' "$CONFIG_FILE")
   fi
 fi
 

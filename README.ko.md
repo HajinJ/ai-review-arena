@@ -34,8 +34,7 @@ Arena는 자동으로 작동합니다. 따로 호출할 필요 없습니다. Cla
 ```bash
 git clone https://github.com/HajinJ/ai-review-arena.git
 cd ai-review-arena
-./install.sh  # macOS/Linux
-# .\install.ps1  # Windows
+./install.sh  # macOS / Linux / WSL
 ```
 
 Agent Teams 활성화 (멀티 에이전트 토론에 필요):
@@ -552,7 +551,7 @@ Short-term과 Long-term 계층은 라우팅 결정과 에이전트 컨텍스트�
 ai-review-arena/
 +-- ARENA-ROUTER.md              # 상시 작동 라우팅 로직 (9개 라우트, 컨텍스트 포워딩)
 +-- CLAUDE.md                    # 플러그인 개발 규칙
-+-- install.sh / install.ps1     # 설치 프로그램
++-- install.sh                   # 설치 프로그램 (macOS / Linux / WSL)
 +-- uninstall.sh                 # 제거 프로그램
 +-- requirements.txt             # Python 의존성 (openai>=2.22.0)
 |
@@ -663,6 +662,7 @@ ai-review-arena/
 +-- docs/                        # 문서
 |   +-- adr-001-bash-architecture.md  # ADR: 왜 bash인지 (트레이드오프)
 |   +-- adr-002-markdown-pipelines.md # ADR: 왜 마크다운-as-코드 파이프라인인지
+|   +-- config-reference.md      # 설정 레퍼런스 (전체 설정, 환경 변수, 예제)
 |   +-- router-examples.md       # 라우터 예시 추출 (12개)
 |   +-- context-forwarding.md    # 컨텍스트 포워딩 인터페이스 스펙
 |   +-- safety-protocol.md       # Commit/PR 안전 게이트 상세

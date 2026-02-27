@@ -34,8 +34,7 @@ Arena activates automatically. You don't invoke it. Just use Claude Code normall
 ```bash
 git clone https://github.com/HajinJ/ai-review-arena.git
 cd ai-review-arena
-./install.sh  # macOS/Linux
-# .\install.ps1  # Windows
+./install.sh  # macOS / Linux / WSL
 ```
 
 Enable Agent Teams (required for multi-agent debates):
@@ -554,7 +553,7 @@ When a request requires an MCP server (Figma, Playwright, Notion) that isn't ins
 ai-review-arena/
 +-- ARENA-ROUTER.md              # Always-on routing logic (9 routes, context forwarding)
 +-- CLAUDE.md                    # Plugin development rules
-+-- install.sh / install.ps1     # Installers
++-- install.sh                   # Installer (macOS / Linux / WSL)
 +-- uninstall.sh                 # Uninstaller
 +-- requirements.txt             # Python dependencies (openai>=2.22.0)
 |
@@ -665,6 +664,7 @@ ai-review-arena/
 +-- docs/                        # Documentation
 |   +-- adr-001-bash-architecture.md  # ADR: Why bash (trade-offs)
 |   +-- adr-002-markdown-pipelines.md # ADR: Why markdown-as-code pipelines
+|   +-- config-reference.md      # Configuration reference (all settings, env vars, examples)
 |   +-- router-examples.md       # Extracted router examples (12 cases)
 |   +-- context-forwarding.md    # Context forwarding interface spec
 |   +-- safety-protocol.md       # Commit/PR safety gate details

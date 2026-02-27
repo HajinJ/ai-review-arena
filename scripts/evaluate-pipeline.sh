@@ -159,7 +159,7 @@ calculate_metrics() {
   # Simplified matching: count findings that contain expected keywords
   for i in $(seq 0 $((expected_count - 1))); do
     local keywords
-    keywords=$(jq -r ".ground_truth.expected_findings[$i].description_contains[]?" "$ground_truth_file" 2>/dev/null)
+    keywords=$(jq -r ".ground_truth.expected_findings[$i].description_contains[]?" "$ground_truth_file")
 
     local found=false
     if [ -n "$keywords" ]; then
@@ -233,15 +233,15 @@ TOTAL_FP=0
 TOTAL_FN=0
 
 for test_case in "${TEST_CASES[@]}"; do
-  test_id=$(jq -r '.id // "unknown"' "$test_case" 2>/dev/null)
-  test_desc=$(jq -r '.description // "no description"' "$test_case" 2>/dev/null)
+  test_id=$(jq -r '.id // "unknown"' "$test_case")
+  test_desc=$(jq -r '.description // "no description"' "$test_case")
 
   if [ "$VERBOSE" = "true" ]; then
     log_info "Evaluating: $test_id — $test_desc"
   fi
 
   # Check if this is a real pipeline test or a sample
-  has_files=$(jq -r '.project_setup.files | length // 0' "$test_case" 2>/dev/null)
+  has_files=$(jq -r '.project_setup.files | length // 0' "$test_case")
   if [ "$has_files" = "0" ]; then
     if [ "$VERBOSE" = "true" ]; then
       log_warn "Skipping $test_id — no project files defined (sample template)"
@@ -262,7 +262,7 @@ for test_case in "${TEST_CASES[@]}"; do
     [ "$file_dir" != "." ] && mkdir -p "${EVAL_TEMP}/${file_dir}"
     jq -r --arg f "$filename" '.project_setup.files[$f]' "$test_case" > "${EVAL_TEMP}/${filename}"
     file_count=$((file_count + 1))
-  done < <(jq -r '.project_setup.files | keys[]' "$test_case" 2>/dev/null)
+  done < <(jq -r '.project_setup.files | keys[]' "$test_case")
 
   if [ "$file_count" -eq 0 ]; then
     if [ "$VERBOSE" = "true" ]; then
@@ -285,7 +285,7 @@ for test_case in "${TEST_CASES[@]}"; do
     # This allows evaluation without running the full pipeline (which requires API keys)
     #
     # If actual pipeline results exist in a session dir, use those instead
-    EXISTING_SESSION=$(jq -r '.session_dir // ""' "$test_case" 2>/dev/null)
+    EXISTING_SESSION=$(jq -r '.session_dir // ""' "$test_case")
     if [ -n "$EXISTING_SESSION" ] && [ -d "$EXISTING_SESSION" ]; then
       # Use real pipeline output
       if ! AGGREGATE_OUT=$("$SCRIPT_DIR/aggregate-findings.sh" "$EXISTING_SESSION" "$CONFIG_FILE" 2>/dev/null); then
@@ -314,7 +314,7 @@ for test_case in "${TEST_CASES[@]}"; do
 {
   "model": "eval-mock",
   "role": "${gt_cat}",
-  "file": "$(jq -r '.project_setup.files | keys[0] // "test.py"' "$test_case" 2>/dev/null)",
+  "file": "$(jq -r '.project_setup.files | keys[0] // "test.py"' "$test_case")",
   "findings": [{
     "title": "${gt_desc}",
     "severity": "${gt_sev}",
@@ -326,7 +326,7 @@ for test_case in "${TEST_CASES[@]}"; do
 }
 MOCK_FINDING
         gt_idx=$((gt_idx + 1))
-      done < <(jq -c '.ground_truth.expected_findings[]?' "$test_case" 2>/dev/null)
+      done < <(jq -c '.ground_truth.expected_findings[]?' "$test_case")
 
       # Run aggregate-findings on the mock session
       if ! AGGREGATE_OUT=$("$SCRIPT_DIR/aggregate-findings.sh" "$EVAL_SESSION" "$CONFIG_FILE" 2>/dev/null); then
@@ -365,8 +365,8 @@ MOCK_FINDING
   TOTAL_FN=$((TOTAL_FN + tc_fn))
 
   # Check against evaluation criteria
-  min_precision=$(jq '.evaluation_criteria.min_precision // 0.7' "$test_case" 2>/dev/null)
-  min_recall=$(jq '.evaluation_criteria.min_recall // 0.8' "$test_case" 2>/dev/null)
+  min_precision=$(jq '.evaluation_criteria.min_precision // 0.7' "$test_case")
+  min_recall=$(jq '.evaluation_criteria.min_recall // 0.8' "$test_case")
   tc_precision=$(echo "$METRICS" | jq '.precision // 0')
   tc_recall=$(echo "$METRICS" | jq '.recall // 0')
 

@@ -96,9 +96,9 @@ MIN_LINES="${_cfg_min_lines:-10}"
 CONFIDENCE_THRESHOLD="${_cfg_conf_threshold:-75}"
 
 # Allowed extensions: config stores without dots (e.g., "ts"), we add dots for matching
-RAW_EXTENSIONS=$(jq -r '(.review.file_extensions[]? // empty)' "$CONFIG_FILE" 2>/dev/null)
+RAW_EXTENSIONS=$(jq -r '(.review.file_extensions[]? // empty)' "$CONFIG_FILE")
 if [ -z "$RAW_EXTENSIONS" ]; then
-  RAW_EXTENSIONS=$(jq -r '(.hook_mode.allowed_extensions[]? // empty)' "$CONFIG_FILE" 2>/dev/null)
+  RAW_EXTENSIONS=$(jq -r '(.hook_mode.allowed_extensions[]? // empty)' "$CONFIG_FILE")
 fi
 if [ -z "$RAW_EXTENSIONS" ]; then
   ALLOWED_EXTENSIONS=".ts .tsx .js .jsx .py .go .rs .java .kt .swift .rb .php .c .cpp .cs"
@@ -147,7 +147,7 @@ CHANGE_DETAIL=""
 case "$TOOL_NAME" in
   Write)
     CHANGE_TYPE="write"
-    CONTENT=$(echo "$HOOK_INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null)
+    CONTENT=$(echo "$HOOK_INPUT" | jq -r '.tool_input.content // empty')
     if [ -n "$CONTENT" ]; then
       LINE_COUNT=$(echo "$CONTENT" | wc -l | tr -d ' ')
       if [ "$LINE_COUNT" -lt "$MIN_LINES" ]; then
@@ -158,13 +158,13 @@ case "$TOOL_NAME" in
     ;;
   Edit)
     CHANGE_TYPE="edit"
-    _EDIT_PARSED=$(echo "$HOOK_INPUT" | jq -r '[(.tool_input.old_string // ""), (.tool_input.new_string // "")] | @tsv' 2>/dev/null)
+    _EDIT_PARSED=$(echo "$HOOK_INPUT" | jq -r '[(.tool_input.old_string // ""), (.tool_input.new_string // "")] | @tsv')
     IFS=$'\t' read -r OLD_STR NEW_STR <<< "$_EDIT_PARSED"
     CHANGE_DETAIL=$(printf "--- OLD ---\n%s\n--- NEW ---\n%s" "$OLD_STR" "$NEW_STR")
     ;;
   MultiEdit)
     CHANGE_TYPE="multiedit"
-    EDITS=$(echo "$HOOK_INPUT" | jq -r '.tool_input.edits[]? | "--- OLD ---\n" + .old_string + "\n--- NEW ---\n" + .new_string' 2>/dev/null)
+    EDITS=$(echo "$HOOK_INPUT" | jq -r '.tool_input.edits[]? | "--- OLD ---\n" + .old_string + "\n--- NEW ---\n" + .new_string')
     CHANGE_DETAIL="$EDITS"
     ;;
   *)
@@ -300,17 +300,17 @@ FALLBACK_LEVEL=0
 # =============================================================================
 
 # Codex
-codex_enabled="${MULTI_REVIEW_CODEX_ENABLED:-$(jq -r '.models.codex.enabled // false' "$CONFIG_FILE" 2>/dev/null)}"
+codex_enabled="${MULTI_REVIEW_CODEX_ENABLED:-$(jq -r '.models.codex.enabled // false' "$CONFIG_FILE")}"
 codex_roles=""
 if [ "$codex_enabled" = "true" ]; then
-  codex_roles=$(jq -r '.models.codex.roles[]? // empty' "$CONFIG_FILE" 2>/dev/null)
+  codex_roles=$(jq -r '.models.codex.roles[]? // empty' "$CONFIG_FILE")
 fi
 
 # Gemini
-gemini_enabled="${MULTI_REVIEW_GEMINI_ENABLED:-$(jq -r '.models.gemini.enabled // false' "$CONFIG_FILE" 2>/dev/null)}"
+gemini_enabled="${MULTI_REVIEW_GEMINI_ENABLED:-$(jq -r '.models.gemini.enabled // false' "$CONFIG_FILE")}"
 gemini_roles=""
 if [ "$gemini_enabled" = "true" ]; then
-  gemini_roles=$(jq -r '.models.gemini.roles[]? // empty' "$CONFIG_FILE" 2>/dev/null)
+  gemini_roles=$(jq -r '.models.gemini.roles[]? // empty' "$CONFIG_FILE")
 fi
 
 # If no models enabled, skip
@@ -462,7 +462,7 @@ if [ -z "$REPORT" ]; then
 fi
 
 # Determine language for feedback message
-LANG_CFG=$(jq -r '.output.language // "ko"' "$CONFIG_FILE" 2>/dev/null)
+LANG_CFG=$(jq -r '.output.language // "ko"' "$CONFIG_FILE")
 
 if [ "$LANG_CFG" = "ko" ]; then
   FEEDBACK_PREFIX="AI Review Arena (${BATCH_SIZE}건 일괄 리뷰):"

@@ -36,11 +36,11 @@ SHOW_CONFIDENCE=true
 INTENSITY="standard"
 
 if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
-  OUTPUT_LANG=$(jq -r '.output.language // "ko"' "$CONFIG_FILE" 2>/dev/null)
-  SHOW_COST=$(jq -r '.output.show_cost_estimate // true' "$CONFIG_FILE" 2>/dev/null)
-  SHOW_MODELS=$(jq -r '.output.show_model_attribution // true' "$CONFIG_FILE" 2>/dev/null)
-  SHOW_CONFIDENCE=$(jq -r '.output.show_confidence_scores // true' "$CONFIG_FILE" 2>/dev/null)
-  INTENSITY=$(jq -r '.review.intensity // "standard"' "$CONFIG_FILE" 2>/dev/null)
+  OUTPUT_LANG=$(jq -r '.output.language // "ko"' "$CONFIG_FILE")
+  SHOW_COST=$(jq -r '.output.show_cost_estimate // true' "$CONFIG_FILE")
+  SHOW_MODELS=$(jq -r '.output.show_model_attribution // true' "$CONFIG_FILE")
+  SHOW_CONFIDENCE=$(jq -r '.output.show_confidence_scores // true' "$CONFIG_FILE")
+  INTENSITY=$(jq -r '.review.intensity // "standard"' "$CONFIG_FILE")
 fi
 
 # --- Read input ---
@@ -67,10 +67,10 @@ DISPUTED="[]"
 ALL_FINDINGS="[]"
 
 if [ "$IS_CONSENSUS" = "true" ]; then
-  ACCEPTED=$(echo "$INPUT_JSON" | jq '.accepted // []' 2>/dev/null)
-  REJECTED=$(echo "$INPUT_JSON" | jq '.rejected // []' 2>/dev/null)
-  DISPUTED=$(echo "$INPUT_JSON" | jq '.disputed // []' 2>/dev/null)
-  ALL_FINDINGS=$(echo "$INPUT_JSON" | jq '[.accepted[], .disputed[]]' 2>/dev/null)
+  ACCEPTED=$(echo "$INPUT_JSON" | jq '.accepted // []')
+  REJECTED=$(echo "$INPUT_JSON" | jq '.rejected // []')
+  DISPUTED=$(echo "$INPUT_JSON" | jq '.disputed // []')
+  ALL_FINDINGS=$(echo "$INPUT_JSON" | jq '[.accepted[], .disputed[]]')
 else
   # Plain array: treat all as accepted
   ALL_FINDINGS="$INPUT_JSON"
@@ -110,7 +110,7 @@ FILE_COUNT=$(echo "$ALL_FINDINGS" | jq -r '[.[].file] | unique | length' || echo
 # --- Focus areas ---
 FOCUS_AREAS=""
 if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
-  FOCUS_AREAS=$(jq -r '.review.focus_areas // [] | join(", ")' "$CONFIG_FILE" 2>/dev/null)
+  FOCUS_AREAS=$(jq -r '.review.focus_areas // [] | join(", ")' "$CONFIG_FILE")
 fi
 
 # =============================================================================
@@ -224,7 +224,7 @@ render_findings() {
     (if $desc != "" then "\n   \($desc)" else "" end) +
     (if $sug != "" and $sug != "null" then "\n   \($l_sug): \($sug)" else "" end) +
     "\n"
-  ' 2>/dev/null)
+  ')
 
   if [ -n "$rendered" ]; then
     echo "$rendered"
@@ -236,7 +236,7 @@ render_severity_section() {
   local severity="$1"
   local label="$2"
   local findings
-  findings=$(echo "$ACCEPTED" | jq --arg sev "$severity" '[.[] | select(.severity == $sev)]' 2>/dev/null)
+  findings=$(echo "$ACCEPTED" | jq --arg sev "$severity" '[.[] | select(.severity == $sev)]')
   local count
   count=$(echo "$findings" | jq 'length' || echo "0")
 
@@ -268,7 +268,7 @@ if [ "$DISPUTED_COUNT" -gt 0 ]; then
     ((.models // []) | join(", ")),
     (.challenger // ""),
     (.debate_status // "")
-  ] | @tsv' 2>/dev/null | {
+  ] | @tsv' | {
     i=0
     while IFS=$'\t' read -r file line title desc confidence models challenger debate_status; do
       i=$((i + 1))

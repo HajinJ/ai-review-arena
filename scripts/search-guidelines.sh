@@ -107,8 +107,8 @@ if [ -n "$ALL_MATCHED_RULE_NAMES" ]; then
       continue
     fi
 
-    RULE_PLATFORM=$(echo "$RULE_DETAIL" | jq -r '.platform // "all"' 2>/dev/null)
-    SEARCH_QUERY=$(echo "$RULE_DETAIL" | jq -r '.search_query // ""' 2>/dev/null)
+    RULE_PLATFORM=$(echo "$RULE_DETAIL" | jq -r '.platform // "all"')
+    SEARCH_QUERY=$(echo "$RULE_DETAIL" | jq -r '.search_query // ""')
     CACHE_KEY=$(echo "$rule_name" | tr ' ' '_' | tr '[:upper:]' '[:lower:]')
 
     # Check cache

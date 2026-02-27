@@ -52,7 +52,7 @@ CODE_TESTS=()
 for f in "$BENCHMARK_DIR"/security-test-*.json "$BENCHMARK_DIR"/bugs-test-*.json \
          "$BENCHMARK_DIR"/architecture-test-*.json "$BENCHMARK_DIR"/performance-test-*.json; do
   [ -f "$f" ] || continue
-  test_id=$(jq -r '.id // ""' "$f" 2>/dev/null)
+  test_id=$(jq -r '.id // ""' "$f")
   if [ -n "$TEST_IDS" ]; then
     echo "$TEST_IDS" | grep -q "$test_id" || continue
   fi

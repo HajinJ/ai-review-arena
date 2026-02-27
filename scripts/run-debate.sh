@@ -298,7 +298,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
     fi
 
     IFS=$'\t' read -r MODEL_COUNT CONFIDENCE FINDING_MODEL FILE_TO_READ LINE_NUM <<< "$_FINDING_FIELDS"
-    FINDING=$(echo "$CURRENT_FINDINGS" | jq ".[$idx]" 2>/dev/null)
+    FINDING=$(echo "$CURRENT_FINDINGS" | jq ".[$idx]")
     if [ -z "$FINDING" ] || [ "$FINDING" = "null" ]; then
       idx=$((idx + 1))
       continue
