@@ -16,6 +16,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/utils.sh"
+source "$SCRIPT_DIR/benchmark-utils.sh"
 
 VERBOSE=false
 TEST_IDS=""
@@ -62,61 +63,6 @@ done
 
 log_info "Found ${#CODE_TESTS[@]} code benchmark test case(s)"
 
-# --- Helper: extract text from findings JSON ---
-extract_text() {
-  local json="$1"
-  echo "$json" | tr -d '\000-\011\013-\037' | jq -r '
-    if type == "array" then
-      [.[] | (.title // ""), (.description // ""), (.suggestion // "")] | join(" ")
-    elif type == "object" then
-      [(.title // ""), (.description // ""), (.suggestion // "")] | join(" ")
-    else . // "" end
-  ' || echo "$json"
-}
-
-# --- Helper: count ground truth matches ---
-count_matches() {
-  local text="$1"
-  local test_file="$2"
-  local expected_count
-  expected_count=$(jq '.ground_truth | length' "$test_file")
-
-  local tp=0
-  local fn=0
-  for i in $(seq 0 $((expected_count - 1))); do
-    local keywords
-    keywords=$(jq -r ".ground_truth[$i].description_contains[]?" "$test_file" 2>/dev/null)
-    local found=false
-    if [ -n "$keywords" ]; then
-      for keyword in $keywords; do
-        if echo "$text" | grep -qi "$keyword" 2>/dev/null; then
-          found=true
-          break
-        fi
-      done
-    fi
-    if [ "$found" = "true" ]; then
-      tp=$((tp + 1))
-    else
-      fn=$((fn + 1))
-    fi
-  done
-
-  echo "$tp $fn $expected_count"
-}
-
-# --- Helper: compute metrics ---
-compute_metrics() {
-  local tp="$1" fp="$2" fn="$3"
-  local precision=0 recall=0 f1=0
-  [ $((tp + fp)) -gt 0 ] && precision=$(echo "scale=3; $tp / ($tp + $fp)" | bc)
-  [ $((tp + fn)) -gt 0 ] && recall=$(echo "scale=3; $tp / ($tp + $fn)" | bc)
-  if [ "$(echo "$precision + $recall > 0" | bc)" = "1" ]; then
-    f1=$(echo "scale=3; 2 * $precision * $recall / ($precision + $recall)" | bc)
-  fi
-  echo "$precision $recall $f1"
-}
-
 # --- Run benchmarks ---
 # Accumulators: solo_codex, solo_gemini, arena
 SC_TP=0; SC_FP=0; SC_FN=0
@@ -130,6 +76,7 @@ for test_file in "${CODE_TESTS[@]}"; do
   test_cat=$(jq -r '.category' "$test_file")
   test_lang=$(jq -r '.language // "javascript"' "$test_file")
 
+  expected_count=$(jq '.ground_truth | length' "$test_file")
   log_info "=== $test_id ($test_cat) ==="
 
   BENCH_TEMP=$(mktemp -d "${TMPDIR:-/tmp}/arena-solo-bench-XXXXXX")
@@ -165,7 +112,7 @@ for test_file in "${CODE_TESTS[@]}"; do
   if [ -n "$CODEX_RESULT" ] && echo "$CODEX_RESULT" | jq . &>/dev/null; then
     codex_text=$(extract_text "$CODEX_RESULT")
     codex_actual=$(echo "$CODEX_RESULT" | jq 'if type == "array" then length else 0 end' || echo 0)
-    read -r sc_tp sc_fn _ <<< "$(count_matches "$codex_text" "$test_file")"
+    read -r sc_tp sc_fn <<< "$(count_matches "$codex_text" "$test_file" "$expected_count")"
     [ "$codex_actual" -gt "$sc_tp" ] && sc_fp=$((codex_actual - sc_tp))
   fi
 
@@ -174,7 +121,7 @@ for test_file in "${CODE_TESTS[@]}"; do
   if [ -n "$GEMINI_RESULT" ] && echo "$GEMINI_RESULT" | jq . &>/dev/null; then
     gemini_text=$(extract_text "$GEMINI_RESULT")
     gemini_actual=$(echo "$GEMINI_RESULT" | jq 'if type == "array" then length else 0 end' || echo 0)
-    read -r sg_tp sg_fn _ <<< "$(count_matches "$gemini_text" "$test_file")"
+    read -r sg_tp sg_fn <<< "$(count_matches "$gemini_text" "$test_file" "$expected_count")"
     [ "$gemini_actual" -gt "$sg_tp" ] && sg_fp=$((gemini_actual - sg_tp))
   fi
 
@@ -195,7 +142,7 @@ for test_file in "${CODE_TESTS[@]}"; do
 
     agg_text=$(extract_text "$AGG_RESULT")
     agg_actual=$(echo "$AGG_RESULT" | jq 'if type == "array" then length else 0 end' || echo 0)
-    read -r ar_tp ar_fn _ <<< "$(count_matches "$agg_text" "$test_file")"
+    read -r ar_tp ar_fn <<< "$(count_matches "$agg_text" "$test_file" "$expected_count")"
     [ "$agg_actual" -gt "$ar_tp" ] && ar_fp=$((agg_actual - ar_tp))
   fi
 

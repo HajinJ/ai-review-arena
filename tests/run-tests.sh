@@ -101,9 +101,26 @@ if [ "$RUN_INTEGRATION" = true ] && [ -d "$TESTS_DIR/integration" ]; then
   done
 fi
 
+# Mock E2E tests (no external CLIs needed) always run with integration tests
+if [ "$RUN_INTEGRATION" = true ] && [ -d "$TESTS_DIR/e2e" ]; then
+  for f in "$TESTS_DIR"/e2e/test-mock-*.sh; do
+    [ -f "$f" ] || continue
+    if [ -n "$PATTERN" ]; then
+      case "$(basename "$f")" in
+        *"$PATTERN"*) TEST_FILES+=("$f") ;;
+      esac
+    else
+      TEST_FILES+=("$f")
+    fi
+  done
+fi
+
+# Real E2E tests (require external CLIs) only with --e2e flag
 if [ "$RUN_E2E" = true ] && [ -d "$TESTS_DIR/e2e" ]; then
   for f in "$TESTS_DIR"/e2e/test-*.sh; do
     [ -f "$f" ] || continue
+    # Skip mock tests (already included above)
+    case "$(basename "$f")" in test-mock-*) continue ;; esac
     if [ -n "$PATTERN" ]; then
       case "$(basename "$f")" in
         *"$PATTERN"*) TEST_FILES+=("$f") ;;
@@ -147,7 +164,7 @@ for test_file in "${TEST_FILES[@]}"; do
   # Integration/e2e tests get a 120s timeout to prevent hanging
   TEST_TIMEOUT=0
   case "$test_name" in
-    *debate*|*orchestrate*|*fallback*) TEST_TIMEOUT=120 ;;
+    *debate*|*orchestrate*|*fallback*|*mock-pipeline*) TEST_TIMEOUT=120 ;;
   esac
 
   if [ "$TEST_TIMEOUT" -gt 0 ]; then

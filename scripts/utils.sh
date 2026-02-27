@@ -312,39 +312,18 @@ extract_json() {
     return 0
   fi
 
-  # Try 2: Extract from ```json ... ``` blocks
+  # Try 2: Extract from markdown code blocks (```json or ```)
   local extracted
-  extracted=$(echo "$input" | sed -n '/^```json/,/^```$/p' | sed '1d;$d')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  # Try 3: Extract from ``` ... ``` blocks (no language tag)
-  extracted=$(echo "$input" | sed -n '/^```/,/^```$/p' | sed '1d;$d')
-  if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
-    echo "$extracted"
-    return 0
-  fi
-
-  # Try 4: Find outermost JSON object using jq -R (robust brace matching)
-  extracted=$(echo "$input" | jq -Rsc '
-    # Find first { and extract to end, let jq validate
-    if test("\\{") then
-      capture("(?<json>\\{.+)").json // empty
-    else empty end
-  ' 2>/dev/null)
-  if [ -n "$extracted" ]; then
-    # Try parsing the extracted substring
-    local parsed
-    parsed=$(echo "$extracted" | jq -r '.' 2>/dev/null)
-    if [ -n "$parsed" ] && echo "$parsed" | jq . &>/dev/null 2>&1; then
-      echo "$parsed"
+  local pattern
+  for pattern in '/^```json/,/^```$/p' '/^```/,/^```$/p'; do
+    extracted=$(echo "$input" | sed -n "$pattern" | sed '1d;$d')
+    if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
+      echo "$extracted"
       return 0
     fi
-  fi
+  done
 
-  # Try 5: Fallback — sed-based first { to last }
+  # Try 3: Fallback — extract first { to last }
   extracted=$(echo "$input" | sed -n '/^[[:space:]]*{/,/}[[:space:]]*$/p')
   if [ -n "$extracted" ] && echo "$extracted" | jq . &>/dev/null 2>&1; then
     echo "$extracted"
