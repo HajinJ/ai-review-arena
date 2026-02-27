@@ -514,3 +514,5 @@ else
   [ -n "$COST_CAP_WARNING" ] && echo "" && echo "$COST_CAP_WARNING"
   [ -n "$DAILY_CAP_WARNING" ] && echo "$DAILY_CAP_WARNING"
 fi
+
+exit 0
