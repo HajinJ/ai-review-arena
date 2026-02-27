@@ -26,7 +26,8 @@ Arena는 자동으로 작동합니다. 따로 호출할 필요 없습니다. Cla
 ### 옵션 1: Claude Code 플러그인 마켓플레이스 (권장)
 
 ```
-/install-plugin HajinJ/ai-review-arena
+/plugin marketplace add HajinJ/ai-review-arena
+/plugin install ai-review-arena@ai-review-arena
 ```
 
 ### 옵션 2: 소스에서 설치

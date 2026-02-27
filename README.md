@@ -26,7 +26,8 @@ Arena activates automatically. You don't invoke it. Just use Claude Code normall
 ### Option 1: Claude Code Plugin Marketplace (Recommended)
 
 ```
-/install-plugin HajinJ/ai-review-arena
+/plugin marketplace add HajinJ/ai-review-arena
+/plugin install ai-review-arena@ai-review-arena
 ```
 
 ### Option 2: From Source
