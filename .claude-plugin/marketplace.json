@@ -1,0 +1,47 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ai-review-arena",
+  "version": "3.3.0",
+  "description": "Multi-AI adversarial code & business review with STRIDE threat modeling, evidence tiering, and adversarial red team",
+  "owner": {
+    "name": "HajinJ",
+    "email": "hajin@github.com"
+  },
+  "plugins": [
+    {
+      "name": "ai-review-arena",
+      "description": "Full AI development and business lifecycle orchestrator — multi-AI adversarial review (Claude + Codex + Gemini), 3-round debate with Round 4 escalation, static analysis integration, STRIDE threat modeling, evidence tiering, adversarial red team, test generation, cost estimation, and feedback-based routing",
+      "source": "./",
+      "version": "3.3.0",
+      "author": {
+        "name": "HajinJ",
+        "email": "hajin@github.com"
+      },
+      "homepage": "https://github.com/HajinJ/ai-review-arena",
+      "repository": "https://github.com/HajinJ/ai-review-arena",
+      "license": "MIT",
+      "keywords": [
+        "code-review",
+        "multi-ai",
+        "adversarial",
+        "debate",
+        "static-analysis",
+        "threat-modeling",
+        "evidence-tiering",
+        "red-team",
+        "business-review",
+        "orchestration"
+      ],
+      "category": "code-quality",
+      "tags": [
+        "codex",
+        "gemini",
+        "security",
+        "testing",
+        "benchmarking",
+        "compliance",
+        "cost-estimation"
+      ]
+    }
+  ]
+}
