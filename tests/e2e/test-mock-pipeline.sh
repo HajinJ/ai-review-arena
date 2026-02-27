@@ -210,6 +210,35 @@ else
 fi
 
 # =============================================================================
+# Test 5: severity_weight and compute_weighted_f1
+# =============================================================================
+
+# severity_weight maps correctly
+w_crit=$(severity_weight "critical")
+w_high=$(severity_weight "high")
+w_med=$(severity_weight "medium")
+w_low=$(severity_weight "low")
+w_unk=$(severity_weight "")
+if [ "$w_crit" = "4" ] && [ "$w_high" = "3" ] && [ "$w_med" = "2" ] && [ "$w_low" = "1" ] && [ "$w_unk" = "1" ]; then
+  pass "severity_weight maps all levels correctly (4/3/2/1/1)"
+else
+  fail "severity_weight mapping wrong: crit=$w_crit high=$w_high med=$w_med low=$w_low unk=$w_unk"
+fi
+
+# compute_weighted_f1 with ground truth file
+if [ -f "$TEST_FILE" ]; then
+  expected_count=$(jq '.ground_truth | length' "$TEST_FILE")
+  wf1=$(compute_weighted_f1 "$mock_text" "$MOCK_FINDINGS" "$TEST_FILE" "$expected_count")
+  if [ "$(echo "$wf1 > 0" | bc 2>/dev/null)" = "1" ]; then
+    pass "compute_weighted_f1 returns valid score ($wf1)"
+  else
+    fail "compute_weighted_f1 returned: $wf1"
+  fi
+else
+  fail "Cannot test compute_weighted_f1: test file not found"
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""

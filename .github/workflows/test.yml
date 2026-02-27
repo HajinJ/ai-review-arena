@@ -47,8 +47,10 @@ jobs:
           chmod +x tests/unit/*.sh tests/integration/*.sh
           bash tests/run-tests.sh --unit
 
-      - name: Run integration tests
-        run: bash tests/run-tests.sh --integration
+      - name: Run integration tests (includes mock E2E)
+        run: |
+          chmod +x tests/e2e/*.sh 2>/dev/null || true
+          bash tests/run-tests.sh --integration
 
       - name: Validate config
         run: |

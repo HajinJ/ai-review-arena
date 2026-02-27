@@ -12,9 +12,11 @@
 #   source "$SCRIPT_DIR/benchmark-utils.sh"
 #
 # Functions:
-#   extract_text       - Extract readable text from findings JSON
-#   count_matches      - Count ground truth keyword matches in text
-#   compute_metrics    - Calculate precision/recall/F1 from TP/FP/FN
+#   extract_text            - Extract readable text from findings JSON
+#   count_matches           - Count ground truth keyword matches in text
+#   compute_metrics         - Calculate precision/recall/F1 from TP/FP/FN
+#   severity_weight         - Severity string → numeric weight
+#   compute_weighted_f1     - Severity-weighted F1 from findings + ground truth
 # =============================================================================
 
 # Guard against double-sourcing
@@ -151,4 +153,114 @@ compute_metrics() {
   fi
 
   echo "$precision $recall $f1"
+}
+
+# =============================================================================
+# severity_weight - Map severity string to numeric weight
+#
+# Weights: critical=4, high=3, medium=2, low=1, unknown=1
+#
+# Usage:
+#   w=$(severity_weight "critical")  # → 4
+#
+# Arguments:
+#   $1 - Severity string (critical, high, medium, low)
+#
+# Output:
+#   Numeric weight on stdout
+# =============================================================================
+severity_weight() {
+  case "${1:-}" in
+    critical) echo 4 ;;
+    high)     echo 3 ;;
+    medium)   echo 2 ;;
+    low)      echo 1 ;;
+    *)        echo 1 ;;
+  esac
+}
+
+# =============================================================================
+# compute_weighted_f1 - Severity-weighted F1 score
+#
+# Computes F1 where each finding is weighted by severity. A critical true
+# positive contributes 4x more than a low true positive.
+#
+# Usage:
+#   wf1=$(compute_weighted_f1 "$agg_text" "$findings_json" "$test_file" "$expected_count")
+#
+# Arguments:
+#   $1 - Text to search (output of extract_text)
+#   $2 - Aggregated findings JSON (array with severity fields)
+#   $3 - Path to the test case JSON file (has ground_truth with severity)
+#   $4 - Number of ground truth items
+#
+# Output:
+#   Weighted F1 score on stdout (scale=3)
+# =============================================================================
+compute_weighted_f1() {
+  local agg_text="$1"
+  local findings_json="$2"
+  local test_file="$3"
+  local expected_count="$4"
+
+  local weighted_tp=0
+  local weighted_fn=0
+
+  # Score true positives and false negatives with severity weights
+  local i
+  for i in $(seq 0 $((expected_count - 1))); do
+    local sev
+    sev=$(jq -r ".ground_truth[$i].severity // \"medium\"" "$test_file")
+    local w
+    w=$(severity_weight "$sev")
+
+    local keywords
+    keywords=$(jq -r ".ground_truth[$i].description_contains[]?" "$test_file" 2>/dev/null)
+    local found=false
+    if [ -n "$keywords" ]; then
+      local keyword
+      for keyword in $keywords; do
+        if echo "$agg_text" | grep -qi "$keyword" 2>/dev/null; then
+          found=true
+          break
+        fi
+      done
+    fi
+
+    if [ "$found" = "true" ]; then
+      weighted_tp=$((weighted_tp + w))
+    else
+      weighted_fn=$((weighted_fn + w))
+    fi
+  done
+
+  # Score false positives: findings not matching any ground truth
+  local actual_count
+  actual_count=$(echo "$findings_json" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo 0)
+  # count_matches gives us tp count; actual - tp = false positives
+  local tp_count=0
+  for i in $(seq 0 $((expected_count - 1))); do
+    local keywords
+    keywords=$(jq -r ".ground_truth[$i].description_contains[]?" "$test_file" 2>/dev/null)
+    local found=false
+    if [ -n "$keywords" ]; then
+      local keyword
+      for keyword in $keywords; do
+        if echo "$agg_text" | grep -qi "$keyword" 2>/dev/null; then
+          found=true
+          break
+        fi
+      done
+    fi
+    [ "$found" = "true" ] && tp_count=$((tp_count + 1))
+  done
+  local fp_count=0
+  [ "$actual_count" -gt "$tp_count" ] && fp_count=$((actual_count - tp_count))
+  # FP weight: assume medium severity for unmatched findings
+  local weighted_fp=$((fp_count * 2))
+
+  # Compute weighted F1 (extract only F1, discard precision/recall)
+  local wf1
+  wf1=$(compute_metrics "$weighted_tp" "$weighted_fp" "$weighted_fn" | awk '{print $3}')
+  echo "$wf1"
 }
