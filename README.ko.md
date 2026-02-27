@@ -16,8 +16,8 @@ Arena는 Claude, OpenAI Codex, Google Gemini가 **코드나 비즈니스 콘텐�
 
 **두 파이프라인, 하나의 시스템:**
 
-- **코드 파이프라인** (Route A-F): 코드베이스 컨벤션 분석, 모범 사례 조사, 컴플라이언스 확인, 모델 벤치마킹, 구현 전략 토론, 7-10개 전문 에이전트로 코드 리뷰, 안전한 발견 자동 수정, 테스트 스위트로 검증
-- **비즈니스 파이프라인** (Route G-I): 문서에서 비즈니스 컨텍스트 추출, 시장 데이터 조사, 주장의 정확성 감사, 비즈니스 콘텐츠 모델 벤치마킹, 콘텐츠 전략 토론, 5개 전문 에이전트 + 외부 CLI로 리뷰, 콘텐츠 자동 수정
+- **코드 파이프라인** (Route A-F): 코드베이스 컨벤션 분석, 모범 사례 조사, 컴플라이언스 확인, 모델 벤치마킹, 구현 전략 토론, 6-12개 전문 에이전트로 코드 리뷰 (강도에 따라 스케일링), 안전한 발견 자동 수정, 테스트 스위트로 검증
+- **비즈니스 파이프라인** (Route G-I): 문서에서 비즈니스 컨텍스트 추출, 시장 데이터 조사, 주장의 정확성 감사, 비즈니스 콘텐츠 모델 벤치마킹, 콘텐츠 전략 토론, 5-10개 전문 에이전트 + 외부 CLI로 리뷰 (강도에 따라 스케일링), 콘텐츠 자동 수정
 
 Arena는 자동으로 작동합니다. 따로 호출할 필요 없습니다. Claude Code를 평소처럼 사용하면 파이프라인이 백그라운드에서 실행됩니다.
 
@@ -243,7 +243,7 @@ Arena는 git 해시 기반 무효화 시스템으로 코드 신선도를 추적�
 
 에이전트 사양은 부정적 지시("X를 보고하지 마라") 대신 긍정적 기준("기준이 충족될 때만 보고")을 사용합니다. 이는 [AGENTS.md 벤치마크 논문](https://arxiv.org/abs/2602.11988)에 기반한 것으로, 부정적 지시가 포함된 컨텍스트 파일이 "핑크 코끼리 효과"를 유발한다는 것을 발견했습니다 — 에이전트에게 무언가를 하지 말라고 지시하면 역설적으로 제외된 패턴에 대한 주의가 증가하여, SWE-bench 성공률 0.5% 감소, AgentBench 2% 감소, 추론 비용 20-23% 증가를 초래합니다.
 
-16개 모든 에이전트는 발견이 보고 가능하려면 모두 참이어야 하는 3개의 AND 기준으로 된 **Reporting Threshold**를 정의하고, 완화를 확인하는 **Recognized Patterns** 목록을 포함합니다. 예를 들어, security-reviewer는 발견이 악용 가능(Exploitable) AND 미완화(Unmitigated) AND 프로덕션 도달 가능(Production-reachable)일 때만 보고하며, "파라미터화된 쿼리" 같은 패턴을 SQL 인젝션이 완화되었다는 확인으로 나열합니다.
+27개 모든 에이전트는 발견이 보고 가능하려면 모두 참이어야 하는 3개의 AND 기준으로 된 **Reporting Threshold**를 정의하고, 완화를 확인하는 **Recognized Patterns** 목록을 포함합니다. 예를 들어, security-reviewer는 발견이 악용 가능(Exploitable) AND 미완화(Unmitigated) AND 프로덕션 도달 가능(Production-reachable)일 때만 보고하며, "파라미터화된 쿼리" 같은 패턴을 SQL 인젝션이 완화되었다는 확인으로 나열합니다.
 
 ### 왜 외부 CLI 프롬프트가 핵심 지시를 반복하는가
 
@@ -491,10 +491,15 @@ Arena는 각 리뷰 에이전트에게 역할에 맞는 컨텍스트를 제공�
 | 역할 | 우선 패턴 |
 |------|---------------------|
 | security | `auth`, `login`, `password`, `token`, `session`, `csrf`, `inject`, `eval` |
-| bugs | `catch`, `throw`, `error`, `null`, `undefined`, `async`, `await`, `race` |
-| performance | `for`, `while`, `map`, `query`, `select`, `cache`, `Promise.all`, `stream` |
+| bugs | `catch`, `throw`, `error`, `null`, `undefined`, `async`, `await`, `race`, `lock`, `mutex`, `retry` |
+| performance | `for`, `while`, `map`, `query`, `select`, `cache`, `Promise.all`, `stream`, `circuit`, `pool`, `metric` |
 | architecture | `import`, `export`, `class`, `interface`, `extends`, `module`, `provider` |
 | testing | `describe`, `it`, `test`, `expect`, `mock`, `jest`, `vitest`, `pytest` |
+| api_contract | `route`, `endpoint`, `handler`, `controller`, `schema`, `swagger`, `openapi`, `graphql` |
+| observability | `log`, `logger`, `trace`, `span`, `metric`, `monitor`, `alert`, `health`, `sentry` |
+| data_integrity | `schema`, `validate`, `migration`, `transaction`, `rollback`, `zod`, `prisma`, `typeorm` |
+| accessibility | `aria`, `role`, `tabindex`, `alt`, `label`, `focus`, `a11y`, `wcag`, `sr-only` |
+| configuration | `env`, `config`, `secret`, `credential`, `docker`, `kubernetes`, `terraform`, `pipeline` |
 
 각 에이전트는 최대 8,000 토큰의 역할 관련 컨텍스트를 받습니다 (설정 가능). 200줄 이하 파일은 필터링을 우회하고 전체가 전송됩니다.
 
@@ -585,7 +590,7 @@ ai-review-arena/
 |   +-- conversion-impact-reviewer.md      # 비즈니스: 전환율 최적화
 |   +-- business-debate-arbitrator.md      # 비즈니스: 3라운드 합의 + 외부 모델 처리
 |
-+-- scripts/                     # 셸/Python 스크립트 (24개)
++-- scripts/                     # 셸/Python 스크립트 (25개)
 |   +-- codex-review.sh          # Codex 1라운드 코드 리뷰
 |   +-- gemini-review.sh         # Gemini 1라운드 코드 리뷰
 |   +-- codex-cross-examine.sh   # Codex 2 & 3라운드 (코드)
@@ -605,6 +610,7 @@ ai-review-arena/
 |   +-- search-guidelines.sh     # 컴플라이언스 가이드라인 검색
 |   +-- cache-manager.sh         # 캐시 관리
 |   +-- cost-estimator.sh        # 토큰 비용 추정 + 캐시 할인
+|   +-- context-filter.sh         # 역할 기반 코드 필터링 (리뷰 에이전트용)
 |   +-- utils.sh                 # 공유 유틸리티
 |   +-- openai-ws-debate.py       # WebSocket 토론 클라이언트 (Responses API)
 |   +-- gemini-hook-adapter.sh   # Gemini 훅 → Arena 리뷰 어댑터
@@ -685,8 +691,8 @@ ai-review-arena/
 - **컨텍스트 밀도 필터링**: 역할 기반 컨텍스트 필터링으로 각 에이전트에게 관련 코드 패턴만 제공, 노이즈와 토큰 비용 감소 (에이전트당 8,000 토큰 예산)
 - **메모리 계층**: 세션 간 학습을 위한 4계층 메모리 아키텍처 (working/short-term/long-term/permanent)
 - **파이프라인 평가**: LLM-as-Judge 점수화와 위치 편향 완화를 포함한 정밀도/재현율/F1 메트릭
-- **에이전트 강화**: 16개 모든 에이전트에 Error Recovery Protocol 추가 (재시도 → 부분 제출 → 팀 리더 알림)
-- **긍정적 프레이밍** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): 핑크 코끼리 효과를 방지하기 위해 16개 모든 에이전트 사양을 부정형("보고하지 않을 때")에서 긍정형("Reporting Threshold")으로 재구성
+- **에이전트 강화**: 27개 모든 에이전트에 Error Recovery Protocol 추가 (재시도 → 부분 제출 → 팀 리더 알림)
+- **긍정적 프레이밍** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): 핑크 코끼리 효과를 방지하기 위해 27개 모든 에이전트 사양을 부정형("보고하지 않을 때")에서 긍정형("Reporting Threshold")으로 재구성
 - **Duplicate Prompt Technique** ([arxiv 2512.14982](https://arxiv.org/abs/2512.14982)): 비추론 LLM 정확도 향상을 위해 외부 CLI 스크립트에 핵심 리뷰 지시 반복
 - **리뷰 유효성 검증**: 리뷰 중 코드 변경 시 오래된 발견에 기반한 조치를 방지하는 git 해시 기반 리뷰 신선도 확인
 - **프롬프트 캐시 인식 비용 추정**: Claude의 프리픽스 캐싱으로 정확한 비용 예측을 위한 `prompt_cache_discount` 설정

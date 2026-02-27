@@ -16,8 +16,8 @@ Arena makes Claude, OpenAI Codex, and Google Gemini **independently review your 
 
 **Two pipelines, one system:**
 
-- **Code Pipeline** (Routes A-F): Analyzes your codebase conventions, researches best practices, checks compliance, benchmarks models, debates implementation strategy, reviews code with 7-10 specialized agents, auto-fixes safe findings, and verifies with your test suite.
-- **Business Pipeline** (Routes G-I): Extracts business context from your docs, researches market data, audits accuracy of claims, benchmarks models on business content, debates content strategy, reviews with 5 specialized agents + external CLIs, and auto-revises content.
+- **Code Pipeline** (Routes A-F): Analyzes your codebase conventions, researches best practices, checks compliance, benchmarks models, debates implementation strategy, reviews code with 6-12 specialized agents (scaling by intensity), auto-fixes safe findings, and verifies with your test suite.
+- **Business Pipeline** (Routes G-I): Extracts business context from your docs, researches market data, audits accuracy of claims, benchmarks models on business content, debates content strategy, reviews with 5-10 specialized agents + external CLIs (scaling by intensity), and auto-revises content.
 
 Arena activates automatically. You don't invoke it. Just use Claude Code normally, and the pipeline runs behind the scenes.
 
@@ -245,7 +245,7 @@ Agent debate solves this because agents can **reason about novel scenarios**. Th
 
 Agent specifications use positive criteria ("report ONLY when criteria met") instead of negative instructions ("don't report X"). This is based on the [AGENTS.md benchmark paper](https://arxiv.org/abs/2602.11988) which found that context files with negative instructions trigger a "pink elephant effect" — telling an agent NOT to do something paradoxically increases its attention on excluded patterns, reducing SWE-bench success by 0.5%, AgentBench by 2%, and increasing inference cost by 20-23%.
 
-All 16 agents define a **Reporting Threshold** with 3 AND-criteria that must all be true for a finding to be reportable, plus a list of **Recognized Patterns** that confirm mitigation. For example, the security-reviewer reports only when a finding is Exploitable AND Unmitigated AND Production-reachable — and lists patterns like "parameterized queries" as confirmation that SQL injection is mitigated.
+All 27 agents define a **Reporting Threshold** with 3 AND-criteria that must all be true for a finding to be reportable, plus a list of **Recognized Patterns** that confirm mitigation. For example, the security-reviewer reports only when a finding is Exploitable AND Unmitigated AND Production-reachable — and lists patterns like "parameterized queries" as confirmation that SQL injection is mitigated.
 
 ### Why external CLI prompts repeat core instructions
 
@@ -493,10 +493,15 @@ Arena provides each review agent with context tailored to its role. Instead of s
 | Role | Prioritized Patterns |
 |------|---------------------|
 | security | `auth`, `login`, `password`, `token`, `session`, `csrf`, `inject`, `eval` |
-| bugs | `catch`, `throw`, `error`, `null`, `undefined`, `async`, `await`, `race` |
-| performance | `for`, `while`, `map`, `query`, `select`, `cache`, `Promise.all`, `stream` |
+| bugs | `catch`, `throw`, `error`, `null`, `undefined`, `async`, `await`, `race`, `lock`, `mutex`, `retry` |
+| performance | `for`, `while`, `map`, `query`, `select`, `cache`, `Promise.all`, `stream`, `circuit`, `pool`, `metric` |
 | architecture | `import`, `export`, `class`, `interface`, `extends`, `module`, `provider` |
 | testing | `describe`, `it`, `test`, `expect`, `mock`, `jest`, `vitest`, `pytest` |
+| api_contract | `route`, `endpoint`, `handler`, `controller`, `schema`, `swagger`, `openapi`, `graphql` |
+| observability | `log`, `logger`, `trace`, `span`, `metric`, `monitor`, `alert`, `health`, `sentry` |
+| data_integrity | `schema`, `validate`, `migration`, `transaction`, `rollback`, `zod`, `prisma`, `typeorm` |
+| accessibility | `aria`, `role`, `tabindex`, `alt`, `label`, `focus`, `a11y`, `wcag`, `sr-only` |
+| configuration | `env`, `config`, `secret`, `credential`, `docker`, `kubernetes`, `terraform`, `pipeline` |
 
 Each agent receives up to 8,000 tokens of role-relevant context (configurable). Files under 200 lines bypass filtering and are sent in full.
 
@@ -587,7 +592,7 @@ ai-review-arena/
 |   +-- conversion-impact-reviewer.md      # Business: conversion optimization
 |   +-- business-debate-arbitrator.md      # Business: 3-round consensus + external model handling
 |
-+-- scripts/                     # Shell/Python scripts (24 scripts)
++-- scripts/                     # Shell/Python scripts (25 scripts)
 |   +-- codex-review.sh          # Codex Round 1 code review
 |   +-- gemini-review.sh         # Gemini Round 1 code review
 |   +-- codex-cross-examine.sh   # Codex Round 2 & 3 (code)
@@ -607,6 +612,7 @@ ai-review-arena/
 |   +-- search-guidelines.sh     # Compliance guideline search
 |   +-- cache-manager.sh         # Cache management
 |   +-- cost-estimator.sh        # Token cost estimation + cache discount
+|   +-- context-filter.sh         # Role-based code filtering for review agents
 |   +-- utils.sh                 # Shared utilities
 |   +-- openai-ws-debate.py       # WebSocket debate client (Responses API)
 |   +-- gemini-hook-adapter.sh   # Gemini hook → Arena review adapter
@@ -687,8 +693,8 @@ ai-review-arena/
 - **Context Density Filtering**: Role-based context filtering provides each agent with relevant code patterns only, reducing noise and token cost (8,000 token budget per agent)
 - **Memory Tiers**: 4-tier memory architecture (working/short-term/long-term/permanent) for cross-session learning
 - **Pipeline Evaluation**: Precision/recall/F1 metrics with LLM-as-Judge scoring and position bias mitigation
-- **Agent Hardening**: Error Recovery Protocol added to all 16 agents (retry → partial submit → team lead notification)
-- **Positive Framing** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): All 16 agent specs reframed from negative ("When NOT to Report") to positive ("Reporting Threshold") to avoid the pink elephant effect
+- **Agent Hardening**: Error Recovery Protocol added to all 27 agents (retry → partial submit → team lead notification)
+- **Positive Framing** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): All 27 agent specs reframed from negative ("When NOT to Report") to positive ("Reporting Threshold") to avoid the pink elephant effect
 - **Duplicate Prompt Technique** ([arxiv 2512.14982](https://arxiv.org/abs/2512.14982)): Core review instructions repeated in external CLI scripts for improved non-reasoning LLM accuracy
 - **Stale Review Detection**: Git-hash-based review freshness check prevents acting on outdated findings when code changes mid-review
 - **Prompt Cache-Aware Cost Estimation**: `prompt_cache_discount` config for accurate cost projections with Claude's prefix caching

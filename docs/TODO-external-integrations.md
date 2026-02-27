@@ -248,7 +248,7 @@ These research findings have been applied to the current codebase:
 
 ### 6a. Pink Elephant Effect Mitigation (arxiv 2602.11988)
 
-**Applied**: All 16 agent specs reframed from negative ("When NOT to Report") to positive ("Reporting Threshold") framing.
+**Applied**: All 27 agent specs reframed from negative ("When NOT to Report") to positive ("Reporting Threshold") framing.
 
 **Evidence**: LLM-generated context files with negative instructions decrease SWE-bench success by 0.5%, AgentBench by 2%, and increase inference cost 20-23%. The "pink elephant effect" causes agents to focus MORE on what they're told NOT to do.
 

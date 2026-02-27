@@ -17,7 +17,7 @@
   - Debate: debate-arbitrator, business-debate-arbitrator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell/Python scripts (24 files)
+- `scripts/` - Shell/Python scripts (25 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
   - Review: aggregate-findings.sh, run-debate.sh, generate-report.sh, cost-estimator.sh
@@ -25,6 +25,7 @@
   - External integrations: openai-ws-debate.py (WebSocket debate), gemini-hook-adapter.sh (Gemini hook adapter)
   - Evaluation: evaluate-pipeline.sh
   - Feedback: feedback-tracker.sh
+  - Context: context-filter.sh (role-based code filtering for review agents)
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
   - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation)
