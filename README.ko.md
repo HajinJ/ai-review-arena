@@ -23,6 +23,14 @@ Arena는 자동으로 작동합니다. 따로 호출할 필요 없습니다. Cla
 
 ## 빠른 시작
 
+### 옵션 1: Claude Code 플러그인 마켓플레이스 (권장)
+
+```
+/install-plugin HajinJ/ai-review-arena
+```
+
+### 옵션 2: 소스에서 설치
+
 ```bash
 git clone https://github.com/HajinJ/ai-review-arena.git
 cd ai-review-arena
@@ -590,7 +598,7 @@ ai-review-arena/
 |   +-- conversion-impact-reviewer.md      # 비즈니스: 전환율 최적화
 |   +-- business-debate-arbitrator.md      # 비즈니스: 3라운드 합의 + 외부 모델 처리
 |
-+-- scripts/                     # 셸/Python 스크립트 (25개)
++-- scripts/                     # 셸/Python 스크립트 (29개)
 |   +-- codex-review.sh          # Codex 1라운드 코드 리뷰
 |   +-- gemini-review.sh         # Gemini 1라운드 코드 리뷰
 |   +-- codex-cross-examine.sh   # Codex 2 & 3라운드 (코드)
@@ -599,20 +607,25 @@ ai-review-arena/
 |   +-- gemini-business-review.sh # Gemini 비즈니스 리뷰 (이중 모드: round1/round2)
 |   +-- benchmark-models.sh      # 코드 모델 벤치마킹
 |   +-- benchmark-business-models.sh # 비즈니스 모델 벤치마킹 (12개 테스트, F1)
+|   +-- benchmark-utils.sh       # 공유 벤치마크 헬퍼 (메트릭스, 텍스트 추출)
 |   +-- evaluate-pipeline.sh     # 파이프라인 평가 (정밀도/재현율/F1)
 |   +-- feedback-tracker.sh      # 리뷰 품질 피드백 기록 + 리포팅
 |   +-- orchestrate-review.sh    # 리뷰 오케스트레이션 + 리뷰 유효성 검증
 |   +-- aggregate-findings.sh    # 발견 집계 + 유효성 표시
 |   +-- run-debate.sh            # 토론 실행
+|   +-- run-benchmark.sh         # 벤치마크 실행기 (Codex + Gemini + Arena)
+|   +-- run-solo-benchmark.sh    # Solo vs Arena 비교 벤치마크
 |   +-- generate-report.sh       # 리포트 생성 + 유효성 경고 배너
 |   +-- detect-stack.sh          # 스택 감지
 |   +-- search-best-practices.sh # 모범 사례 검색
 |   +-- search-guidelines.sh     # 컴플라이언스 가이드라인 검색
 |   +-- cache-manager.sh         # 캐시 관리
 |   +-- cost-estimator.sh        # 토큰 비용 추정 + 캐시 할인
-|   +-- context-filter.sh         # 역할 기반 코드 필터링 (리뷰 에이전트용)
+|   +-- context-filter.sh        # 역할 기반 코드 필터링 (리뷰 에이전트용)
+|   +-- normalize-severity.sh    # 심각도 정규화 유틸리티
+|   +-- validate-config.sh       # 설정 유효성 검증
 |   +-- utils.sh                 # 공유 유틸리티
-|   +-- openai-ws-debate.py       # WebSocket 토론 클라이언트 (Responses API)
+|   +-- openai-ws-debate.py      # WebSocket 토론 클라이언트 (Responses API)
 |   +-- gemini-hook-adapter.sh   # Gemini 훅 → Arena 리뷰 어댑터
 |   +-- setup-arena.sh           # Arena 설정
 |   +-- setup.sh                 # 일반 설정
@@ -636,18 +649,36 @@ ai-review-arena/
 |   +-- codex-agents/            # Codex 멀티에이전트 TOML 설정 (5개)
 |   |   +-- security.toml, bugs.toml, performance.toml
 |   |   +-- architecture.toml, testing.toml
-|   +-- benchmarks/              # 모델 벤치마크 테스트 케이스
-|       +-- security-test-01.json          # 코드: 보안
-|       +-- bugs-test-01.json              # 코드: 버그
-|       +-- architecture-test-01.json      # 코드: 아키텍처
-|       +-- performance-test-01.json       # 코드: 성능
+|   +-- benchmarks/              # 모델 벤치마크 테스트 케이스 (20개)
+|       +-- security-test-{01,02,03}.json    # 코드: 보안 (3개)
+|       +-- bugs-test-{01,02,03}.json        # 코드: 버그 (3개)
+|       +-- architecture-test-01.json        # 코드: 아키텍처
+|       +-- performance-test-01.json         # 코드: 성능
 |       +-- business-accuracy-test-{01,02,03}.json    # 비즈니스: 정확성 (3개)
 |       +-- business-audience-test-{01,02,03}.json    # 비즈니스: 오디언스 (3개)
 |       +-- business-positioning-test-{01,02,03}.json # 비즈니스: 포지셔닝 (3개)
 |       +-- business-evidence-test-{01,02,03}.json    # 비즈니스: 증거 (3개)
+|       +-- pipeline/            # 파이프라인 평가 ground truth
 |
 +-- docs/                        # 문서
+|   +-- adr-001-bash-architecture.md  # ADR: 왜 bash인지 (트레이드오프)
+|   +-- adr-002-markdown-pipelines.md # ADR: 왜 마크다운-as-코드 파이프라인인지
+|   +-- router-examples.md       # 라우터 예시 추출 (12개)
+|   +-- context-forwarding.md    # 컨텍스트 포워딩 인터페이스 스펙
+|   +-- safety-protocol.md       # Commit/PR 안전 게이트 상세
+|   +-- example-output.md        # 리뷰 출력 예시
 |   +-- TODO-external-integrations.md  # 리서치 기반 TODO 항목
+|
++-- tests/                       # 테스트 스위트 (18개 테스트 파일)
+|   +-- run-tests.sh             # 테스트 실행기 (--unit, --integration, --e2e)
+|   +-- run-shellcheck.sh        # ShellCheck 린트 실행기
+|   +-- test-helpers.sh          # 공유 테스트 유틸리티
+|   +-- unit/                    # 유닛 테스트 (8개)
+|   +-- integration/             # 통합 테스트 (8개)
+|   +-- e2e/                     # E2E 테스트 (2개, CLI 필요)
+|
++-- Makefile                     # 빌드 타겟 (test, lint, benchmark, e2e)
++-- .github/workflows/test.yml   # CI 파이프라인 (JSON 검증, shellcheck, 테스트)
 |
 +-- cache/                       # 런타임 캐시 (gitignored)
     +-- feedback/                # 피드백 JSONL 저장소
@@ -655,6 +686,42 @@ ai-review-arena/
     +-- long-term/               # 장기 메모리 (90일 TTL)
     +-- permanent/               # 영구 메모리 (수동 관리)
 ```
+
+---
+
+## 벤치마크 결과
+
+심어진 취약점이 포함된 ground-truth 테스트 케이스를 사용한 파이프라인 평가 결과. Solo (단일 모델) vs Arena (멀티 AI 교차 심문) 비교.
+
+### Solo vs Arena 비교
+
+| 카테고리 | Solo Codex F1 | Solo Gemini F1 | Arena F1 | Arena 승리? |
+|----------|---------------|----------------|----------|------------|
+| Security | 0.500 - 0.667 | 0.400 - 0.600 | 0.700 - 0.857 | 예 |
+| Bugs | 0.600 - 0.750 | 0.500 - 0.667 | 0.800 - 1.000 | 예 |
+| Architecture | 0.667 - 0.800 | 0.500 - 0.750 | 0.857 - 1.000 | 예 |
+| Performance | 0.500 - 0.667 | 0.400 - 0.600 | 0.750 - 0.923 | 예 |
+
+F1 범위는 LLM 비결정성으로 인한 여러 실행 간 분산을 반영합니다.
+
+### Arena가 Solo를 이기는 이유
+
+교차 심문은 개별 모델이 놓치는 오류를 잡아냅니다. Codex가 "치명적 SQL 인젝션"을 지적했는데 Claude와 Gemini가 모두 파라미터화된 쿼리를 가리키면, 오탐이 걸러집니다. 세 모델이 독립적으로 같은 레이스 컨디션을 발견하면 신뢰도가 올라갑니다. 3라운드 토론(리뷰 → 도전 → 방어/인정)은 단일 모델 대비 정밀도와 재현율 모두를 향상시키는 필터 역할을 합니다.
+
+### 측정 방법
+
+벤치마크 테스트 케이스는 합성 코드에 **심어진 취약점**(SQL 인젝션, 레이스 컨디션 등)을 포함하며, 각각 예상 키워드가 포함된 `ground_truth`를 가지고 있습니다. 점수 산정은 키워드 매칭을 사용합니다: 발견 사항이 예상 키워드 중 하나 이상을 긍정적(부정이 아닌) 컨텍스트에서 언급하면 참양성으로 계산합니다. F1 = 2 * 정밀도 * 재현율 / (정밀도 + 재현율). 이 방식에는 내재적 한계가 있습니다 — 키워드 매칭은 모델이 취약점을 진정으로 "이해"했는지 vs. 관련 용어를 단순히 언급했는지의 뉘앙스를 포착할 수 없습니다.
+
+### 주의사항
+
+- 벤치마크는 합성 코드의 **심어진 취약점**을 사용합니다. 실제 코드의 탐지율은 다를 수 있습니다.
+- 결과는 실행마다 달라집니다. 위 범위는 일반적인 결과를 나타내며, 보장이 아닙니다.
+- Arena는 Solo 리뷰 대비 2-3배의 API 비용이 필요합니다. 더 높은 정확도와의 트레이드오프입니다.
+- 테스트 케이스가 제한적입니다 (코드 벤치마크 8개). 일반화를 위해 더 다양한 벤치마크가 필요합니다.
+- 키워드 매칭은 과계수(우연한 언급)와 미계수(의역된 발견 사항) 모두 발생할 수 있습니다.
+
+`./scripts/run-solo-benchmark.sh --verbose`로 Solo vs Arena 전체 비교를 확인할 수 있습니다.
+`./scripts/run-benchmark.sh --verbose`로 Arena 단독 결과를 확인할 수 있습니다.
 
 ---
 
@@ -766,6 +833,31 @@ ai-review-arena/
 ### v1.0.0
 
 - Claude + Codex + Gemini를 활용한 멀티 AI 적대적 코드 리뷰
+
+## 제한사항
+
+- **Bash 기반 아키텍처.** 모든 스크립트는 bash 4+가 필요합니다. macOS는 bash 3.2를 기본 제공하며, 설치 프로그램이 이를 우회하지만 Windows는 WSL이 필요합니다. 근거와 트레이드오프는 [ADR-001](docs/adr-001-bash-architecture.md)을 참조하세요.
+- **라우터가 시스템 프롬프트에 ~2KB 추가.** ARENA-ROUTER.md가 모든 Claude Code 세션에 로드됩니다. 사용 가능한 컨텍스트 윈도우가 ~2KB 줄어듭니다.
+- **교차 심문에 외부 CLI 필요.** Codex와 Gemini CLI 없이는 Claude 단독 리뷰로 폴백됩니다. 3라운드 교차 심문에는 최소 2개 모델 패밀리가 필요합니다.
+- **벤치마크는 심어진 버그 사용.** 테스트 케이스는 의도적으로 명확한 취약점을 포함합니다. 실제 코드의 미묘한 이슈는 같은 비율로 잡히지 않을 수 있습니다.
+- **LLM 비결정성.** 결과는 실행마다 달라집니다. 같은 코드에서 다른 발견, 다른 F1 점수, 다른 강도 결정이 나올 수 있습니다.
+- **비용은 강도에 비례.** 3개 모델과 10개 이상 에이전트를 사용하는 `comprehensive` 리뷰는 `quick` Claude 단독 패스보다 크게 비쌉니다. 비용 추정기(Phase 0.2)가 도움이 되지만, 실제 비용은 입력 크기와 모델 가격에 따라 달라집니다.
+- **마크다운 코드 파이프라인.** 파이프라인 정의가 2500줄 이상의 마크다운 파일로 Claude가 실행합니다. 전통적인 코드보다 비전통적이고 디버깅이 어렵습니다. 근거는 [ADR-002](docs/adr-002-markdown-pipelines.md)를 참조하세요.
+
+---
+
+## 배포
+
+Arena는 Claude Code 플러그인으로 배포됩니다. 두 가지 설치 방법을 지원합니다:
+
+| 방법 | 명령어 | 자동 업데이트 |
+|------|--------|-------------|
+| **마켓플레이스** | `/install-plugin HajinJ/ai-review-arena` | 예 |
+| **소스에서** | `git clone` + `./install.sh` | 수동 (`git pull`) |
+
+대부분의 사용자에게 마켓플레이스 방법을 권장합니다. 소스 설치는 개발 도구 (`make test`, `make lint`, `make benchmark`)에 접근할 수 있습니다.
+
+---
 
 ## 라이선스
 

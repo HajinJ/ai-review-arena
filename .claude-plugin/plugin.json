@@ -32,5 +32,9 @@
     "fallback-framework",
     "cost-estimation"
   ],
-  "hooks": "./hooks/hooks.json"
+  "hooks": "./hooks/hooks.json",
+  "displayName": "AI Review Arena",
+  "category": "code-quality",
+  "compatibility": {"claude_code": ">=1.0.0"},
+  "homepage": "https://github.com/HajinJ/ai-review-arena"
 }

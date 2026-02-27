@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "plugin_name": "ai-review-arena",
+  "display_name": "AI Review Arena",
+  "version": "3.2.0",
+  "tagline": "Multi-AI adversarial code & business review",
+  "description": "Makes Claude, Codex, and Gemini argue about your code and business content in 3-round adversarial debates. Findings validated by multiple AI perspectives.",
+  "category": "code-quality",
+  "min_claude_code_version": "1.0.0",
+  "pricing": "free",
+  "author": {
+    "name": "HajinJ",
+    "url": "https://github.com/HajinJ"
+  },
+  "repository": "https://github.com/HajinJ/ai-review-arena",
+  "license": "MIT",
+  "install_command": "bash install.sh",
+  "uninstall_command": "bash uninstall.sh"
+}

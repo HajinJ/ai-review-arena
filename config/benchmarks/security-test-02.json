@@ -1,0 +1,45 @@
+{
+  "id": "security-02",
+  "category": "security",
+  "description": "Stored XSS, SSRF, and insecure deserialization vulnerabilities",
+  "language": "javascript",
+  "code": "const express = require('express');\nconst axios = require('axios');\nconst serialize = require('node-serialize');\nconst app = express();\nconst comments = [];\n\n// User profile with avatar from URL\napp.post('/profile/avatar', express.json(), async (req, res) => {\n  const { avatarUrl } = req.body;\n  try {\n    const response = await axios.get(avatarUrl);\n    const imageData = Buffer.from(response.data).toString('base64');\n    res.json({ avatar: imageData });\n  } catch (e) {\n    res.status(400).json({ error: 'Failed to fetch avatar' });\n  }\n});\n\n// Comment system with stored XSS\napp.post('/comments', express.json(), (req, res) => {\n  const { author, body, metadata } = req.body;\n  const comment = {\n    id: comments.length + 1,\n    author: author,\n    body: body,\n    html: `<div class=\"comment\"><strong>${author}</strong><p>${body}</p></div>`,\n    metadata: metadata,\n    createdAt: new Date()\n  };\n  comments.push(comment);\n  res.json(comment);\n});\n\napp.get('/comments', (req, res) => {\n  const html = comments.map(c => c.html).join('');\n  res.send(`<html><body>${html}</body></html>`);\n});\n\n// Import/export with deserialization\napp.post('/import', express.text(), (req, res) => {\n  try {\n    const data = serialize.unserialize(req.body);\n    res.json({ imported: data });\n  } catch (e) {\n    res.status(400).json({ error: 'Invalid data' });\n  }\n});\n\n// Webhook with SSRF via redirect\napp.post('/webhook/test', express.json(), async (req, res) => {\n  const { callbackUrl } = req.body;\n  try {\n    const result = await axios.post(callbackUrl, { status: 'ok' });\n    res.json({ delivered: true, statusCode: result.status });\n  } catch (e) {\n    res.json({ delivered: false });\n  }\n});\n\napp.listen(3000);",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "stored_xss",
+      "location": "/comments endpoint",
+      "description_contains": ["XSS", "stored", "cross-site", "sanitiz", "escap", "template literal"]
+    },
+    {
+      "severity": "critical",
+      "type": "ssrf",
+      "location": "/profile/avatar endpoint",
+      "description_contains": ["SSRF", "server-side request", "internal", "URL", "allowlist", "whitelist"]
+    },
+    {
+      "severity": "critical",
+      "type": "ssrf",
+      "location": "/webhook/test endpoint",
+      "description_contains": ["SSRF", "callback", "request forgery", "internal network"]
+    },
+    {
+      "severity": "critical",
+      "type": "insecure_deserialization",
+      "location": "/import endpoint",
+      "description_contains": ["deserializ", "unserialize", "code execution", "RCE"]
+    },
+    {
+      "severity": "high",
+      "type": "input_validation",
+      "location": "/comments endpoint",
+      "description_contains": ["validat", "sanitiz", "input", "metadata"]
+    },
+    {
+      "severity": "medium",
+      "type": "information_disclosure",
+      "location": "error handling",
+      "description_contains": ["error", "detail", "stack", "information"]
+    }
+  ]
+}

@@ -61,7 +61,7 @@ if [ -f "$CONFIG_FILE" ]; then
   _read_price() {
     local key="$1" default="$2"
     local val
-    val=$(jq -r ".cost_estimation.token_cost_per_1k.${key} // empty" "$CONFIG_FILE" 2>/dev/null || true)
+    val=$(jq -r ".cost_estimation.token_cost_per_1k.${key} // empty" "$CONFIG_FILE" || true)
     if [ -n "$val" ]; then
       awk -v v="$val" 'BEGIN { printf "%.2f", v * 1000 }'
     else
@@ -82,7 +82,7 @@ fi
 # Agent workflows with stable system prompts typically achieve 0.4-0.6 effective discount.
 CACHE_DISCOUNT="0.0"
 if [ -f "$CONFIG_FILE" ]; then
-  cfg_cache=$(jq -r '.cost_estimation.prompt_cache_discount // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_cache=$(jq -r '.cost_estimation.prompt_cache_discount // empty' "$CONFIG_FILE" || true)
   if [ -n "$cfg_cache" ]; then
     CACHE_DISCOUNT="$cfg_cache"
   fi
@@ -96,12 +96,16 @@ _COST_CFG=$(jq -r '[
   (.models.gemini.enabled // false),
   (.debate.enabled // false),
   (.debate.max_rounds // 3)
-] | @tsv' "$CONFIG_FILE" 2>/dev/null) || _COST_CFG=""
+] | @tsv' "$CONFIG_FILE") || _COST_CFG=""
 
 if [ -n "$_COST_CFG" ]; then
   IFS=$'\t' read -r OUTPUT_LANG claude_enabled codex_enabled gemini_enabled debate_enabled debate_rounds <<< "$_COST_CFG"
 else
-  OUTPUT_LANG="ko"; claude_enabled="false"; codex_enabled="false"; gemini_enabled="false"; debate_enabled="false"; debate_rounds=3
+  # shellcheck disable=SC2034 # variables used via indirect reference in cost calculations
+  {
+  OUTPUT_LANG="ko"; claude_enabled="false"; codex_enabled="false"
+  gemini_enabled="false"; debate_enabled="false"; debate_rounds=3
+  }
 fi
 
 # Check external CLI availability
@@ -293,7 +297,7 @@ cli_call_count=0
 
 if [ "$INTENSITY" != "quick" ]; then
   if [ "$PIPELINE" = "code" ]; then
-    claude_agent_count=$(jq -r '.models.claude.roles | length' "$CONFIG_FILE" 2>/dev/null || echo "3")
+    claude_agent_count=$(jq -r '.models.claude.roles | length' "$CONFIG_FILE" || echo "3")
     # +1 for debate-arbitrator
     claude_agent_count=$((claude_agent_count + 1))
   else
@@ -351,6 +355,79 @@ for phase in "${PHASES[@]}"; do
   BREAKDOWN="${BREAKDOWN}  ${label}: ~${phase_tokens} tokens, $(format_cost "$phase_cost")\n"
 done
 
+# =============================================================================
+# Cost Cap Checks
+# =============================================================================
+
+# Read cost cap settings from config
+MAX_PER_REVIEW=$(jq -r '.cost_estimation.max_per_review_dollars // 10.0' "$CONFIG_FILE" || echo "10.0")
+MAX_DAILY=$(jq -r '.cost_estimation.max_daily_dollars // 50.0' "$CONFIG_FILE" || echo "50.0")
+WARN_THRESHOLD_PCT=$(jq -r '.cost_estimation.warn_threshold_percent // 80' "$CONFIG_FILE" || echo "80")
+
+# Per-review cap check
+COST_CAP_WARNING=""
+EXCEEDS_PER_REVIEW="false"
+EXCEEDS_DAILY="false"
+
+if [ "$(awk -v cost="$TOTAL_COST_VAL" -v cap="$MAX_PER_REVIEW" 'BEGIN { print (cost > cap) ? "1" : "0" }')" = "1" ]; then
+  EXCEEDS_PER_REVIEW="true"
+  if [ "$OUTPUT_LANG" = "ko" ]; then
+    COST_CAP_WARNING="WARNING: 예상 비용 ($(format_cost "$TOTAL_COST_VAL"))이 리뷰당 한도 ($(format_cost "$MAX_PER_REVIEW"))를 초과합니다!"
+  else
+    COST_CAP_WARNING="WARNING: Estimated cost ($(format_cost "$TOTAL_COST_VAL")) exceeds per-review cap ($(format_cost "$MAX_PER_REVIEW"))!"
+  fi
+elif [ "$(awk -v cost="$TOTAL_COST_VAL" -v cap="$MAX_PER_REVIEW" -v pct="$WARN_THRESHOLD_PCT" 'BEGIN { print (cost > cap * pct / 100) ? "1" : "0" }')" = "1" ]; then
+  if [ "$OUTPUT_LANG" = "ko" ]; then
+    COST_CAP_WARNING="NOTE: 예상 비용이 리뷰당 한도의 ${WARN_THRESHOLD_PCT}%에 도달했습니다."
+  else
+    COST_CAP_WARNING="NOTE: Estimated cost approaching per-review cap (${WARN_THRESHOLD_PCT}% of $(format_cost "$MAX_PER_REVIEW"))."
+  fi
+fi
+
+# Daily cost tracking
+CACHE_BASE_DIR=$(jq -r '.cache.base_dir // "'"$HOME"'/.claude/plugins/ai-review-arena/cache"' "$CONFIG_FILE" || echo "$HOME/.claude/plugins/ai-review-arena/cache")
+CACHE_BASE_DIR="${CACHE_BASE_DIR/#\~/$HOME}"
+COST_TRACKING_DIR="${CACHE_BASE_DIR}/cost-tracking"
+mkdir -p "$COST_TRACKING_DIR" 2>/dev/null || true
+
+TODAY=$(date +%Y-%m-%d)
+DAILY_FILE="${COST_TRACKING_DIR}/${TODAY}.json"
+DAILY_TOTAL="0.0"
+
+if [ -f "$DAILY_FILE" ]; then
+  DAILY_TOTAL=$(jq -r '.total_cost // 0' "$DAILY_FILE" || echo "0.0")
+fi
+
+# Projected daily total after this review
+PROJECTED_DAILY=$(awk -v d="$DAILY_TOTAL" -v c="$TOTAL_COST_VAL" 'BEGIN { printf "%.4f", d + c }')
+
+DAILY_CAP_WARNING=""
+if [ "$(awk -v proj="$PROJECTED_DAILY" -v cap="$MAX_DAILY" 'BEGIN { print (proj > cap) ? "1" : "0" }')" = "1" ]; then
+  EXCEEDS_DAILY="true"
+  if [ "$OUTPUT_LANG" = "ko" ]; then
+    DAILY_CAP_WARNING="WARNING: 일일 누적 비용 ($(format_cost "$PROJECTED_DAILY"))이 일일 한도 ($(format_cost "$MAX_DAILY"))를 초과합니다!"
+  else
+    DAILY_CAP_WARNING="WARNING: Daily cumulative cost ($(format_cost "$PROJECTED_DAILY")) exceeds daily cap ($(format_cost "$MAX_DAILY"))!"
+  fi
+elif [ "$(awk -v proj="$PROJECTED_DAILY" -v cap="$MAX_DAILY" -v pct="$WARN_THRESHOLD_PCT" 'BEGIN { print (proj > cap * pct / 100) ? "1" : "0" }')" = "1" ]; then
+  if [ "$OUTPUT_LANG" = "ko" ]; then
+    DAILY_CAP_WARNING="NOTE: 일일 누적 비용이 일일 한도의 ${WARN_THRESHOLD_PCT}%에 도달했습니다."
+  else
+    DAILY_CAP_WARNING="NOTE: Daily cumulative cost approaching daily cap (${WARN_THRESHOLD_PCT}% of $(format_cost "$MAX_DAILY"))."
+  fi
+fi
+
+# Record this review's cost in the daily tracking file
+if [ -f "$DAILY_FILE" ]; then
+  jq --arg cost "$TOTAL_COST_VAL" --arg proj "$PROJECTED_DAILY" \
+    '.reviews += 1 | .total_cost = ($proj | tonumber) | .last_review_cost = ($cost | tonumber)' \
+    "$DAILY_FILE" > "${DAILY_FILE}.tmp" 2>/dev/null && mv "${DAILY_FILE}.tmp" "$DAILY_FILE"
+else
+  jq -n --arg cost "$TOTAL_COST_VAL" --arg date "$TODAY" \
+    '{ date: $date, reviews: 1, total_cost: ($cost | tonumber), last_review_cost: ($cost | tonumber) }' \
+    > "$DAILY_FILE" || true
+fi
+
 # Estimate time
 EST_MINUTES=$(awk -v t="$TOTAL_TOKENS" 'BEGIN { m = t / 15000; if (m < 1) m = 1; printf "%d", m + 0.5 }')
 
@@ -369,6 +446,11 @@ if [ "$OUTPUT_JSON" = "true" ]; then
     --argjson cli_calls "$cli_call_count" \
     --argjson lines "$TOTAL_INPUT_LINES" \
     --arg cache_discount "$CACHE_DISCOUNT" \
+    --arg max_per_review "$MAX_PER_REVIEW" \
+    --arg max_daily "$MAX_DAILY" \
+    --arg daily_total "$PROJECTED_DAILY" \
+    --arg exceeds_per_review "$EXCEEDS_PER_REVIEW" \
+    --arg exceeds_daily "$EXCEEDS_DAILY" \
     '{
       intensity: $intensity,
       pipeline: $pipeline,
@@ -378,7 +460,14 @@ if [ "$OUTPUT_JSON" = "true" ]; then
       total_tokens: $total_tokens,
       total_cost_usd: ($total_cost | tonumber),
       est_minutes: $est_minutes,
-      prompt_cache_discount: ($cache_discount | tonumber)
+      prompt_cache_discount: ($cache_discount | tonumber),
+      cost_caps: {
+        max_per_review_usd: ($max_per_review | tonumber),
+        max_daily_usd: ($max_daily | tonumber),
+        daily_total_usd: ($daily_total | tonumber),
+        exceeds_per_review: ($exceeds_per_review == "true"),
+        exceeds_daily: ($exceeds_daily == "true")
+      }
     }'
   exit 0
 fi
@@ -402,6 +491,8 @@ if [ "$OUTPUT_LANG" = "ko" ]; then
     echo "프롬프트 캐시 할인: $(awk -v d="$CACHE_DISCOUNT" 'BEGIN{printf "%d", d*100}')% (입력 토큰)"
   fi
   echo "예상 시간: ~${EST_MINUTES}분"
+  [ -n "$COST_CAP_WARNING" ] && echo "" && echo "$COST_CAP_WARNING"
+  [ -n "$DAILY_CAP_WARNING" ] && echo "$DAILY_CAP_WARNING"
 else
   echo "## Cost & Time Estimate"
   echo ""
@@ -420,4 +511,6 @@ else
     echo "Prompt Cache Discount: $(awk -v d="$CACHE_DISCOUNT" 'BEGIN{printf "%d", d*100}')% (input tokens)"
   fi
   echo "Est. Time: ~${EST_MINUTES} min"
+  [ -n "$COST_CAP_WARNING" ] && echo "" && echo "$COST_CAP_WARNING"
+  [ -n "$DAILY_CAP_WARNING" ] && echo "$DAILY_CAP_WARNING"
 fi

@@ -1,0 +1,45 @@
+{
+  "id": "security-03",
+  "category": "security",
+  "description": "JWT algorithm confusion, path traversal, and prototype pollution",
+  "language": "javascript",
+  "code": "const express = require('express');\nconst jwt = require('jsonwebtoken');\nconst fs = require('fs');\nconst path = require('path');\nconst _ = require('lodash');\nconst app = express();\n\nconst JWT_SECRET = 'super-secret-key-2024';\nconst PUBLIC_KEY = fs.readFileSync('./public.pem');\n\n// JWT verification accepting multiple algorithms\nfunction verifyToken(token) {\n  try {\n    const decoded = jwt.decode(token, { complete: true });\n    if (decoded.header.alg === 'RS256') {\n      return jwt.verify(token, PUBLIC_KEY);\n    } else {\n      return jwt.verify(token, JWT_SECRET);\n    }\n  } catch (e) {\n    return null;\n  }\n}\n\napp.use(express.json());\n\n// Auth middleware\napp.use('/api', (req, res, next) => {\n  const token = req.headers.authorization?.replace('Bearer ', '');\n  const user = verifyToken(token);\n  if (!user) return res.status(401).json({ error: 'Unauthorized' });\n  req.user = user;\n  next();\n});\n\n// File download with path traversal\napp.get('/api/files/:filename', (req, res) => {\n  const filePath = path.join('/uploads', req.params.filename);\n  if (!fs.existsSync(filePath)) {\n    return res.status(404).json({ error: 'File not found' });\n  }\n  res.sendFile(filePath);\n});\n\n// User settings with deep merge (prototype pollution)\napp.put('/api/settings', (req, res) => {\n  const currentSettings = req.user.settings || {};\n  const newSettings = _.merge(currentSettings, req.body);\n  req.user.settings = newSettings;\n  res.json({ settings: newSettings });\n});\n\n// Admin check\napp.get('/api/admin/users', (req, res) => {\n  if (req.user.isAdmin) {\n    res.json({ users: [] });\n  } else {\n    res.status(403).json({ error: 'Forbidden' });\n  }\n});\n\napp.listen(3000);",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "jwt_algorithm_confusion",
+      "location": "verifyToken function",
+      "description_contains": ["algorithm", "confusion", "JWT", "HS256", "RS256", "alg", "none"]
+    },
+    {
+      "severity": "critical",
+      "type": "path_traversal",
+      "location": "/api/files endpoint",
+      "description_contains": ["path traversal", "directory traversal", "../", "sanitiz", "resolve"]
+    },
+    {
+      "severity": "critical",
+      "type": "prototype_pollution",
+      "location": "/api/settings endpoint",
+      "description_contains": ["prototype pollution", "merge", "__proto__", "constructor"]
+    },
+    {
+      "severity": "high",
+      "type": "hardcoded_secret",
+      "location": "JWT_SECRET constant",
+      "description_contains": ["hardcoded", "secret", "environment", "key management"]
+    },
+    {
+      "severity": "high",
+      "type": "privilege_escalation",
+      "location": "/api/admin endpoint",
+      "description_contains": ["isAdmin", "prototype", "privilege", "escalat"]
+    },
+    {
+      "severity": "medium",
+      "type": "weak_jwt_secret",
+      "location": "JWT_SECRET",
+      "description_contains": ["weak", "secret", "brute", "entropy"]
+    }
+  ]
+}

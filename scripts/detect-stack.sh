@@ -25,6 +25,7 @@ PROJECT_ROOT=""
 DEEP_SCAN=false
 OUTPUT_FORMAT="json"
 
+# shellcheck disable=SC2034
 while [ $# -gt 0 ]; do
   case "$1" in
     --deep) DEEP_SCAN=true; shift ;;
@@ -70,8 +71,10 @@ add_unique() {
     *['`$();&|']*) return 1 ;;
   esac
   # Check if value already exists in array
+  # shellcheck disable=SC2154 # _items is assigned via eval from target_var
   eval "local _items=(\"\${${target_var}[@]+\"\${${target_var}[@]}\"}\")"
   local item
+  # shellcheck disable=SC2154
   for item in "${_items[@]+"${_items[@]}"}"; do
     if [ "$item" = "$value" ]; then
       return 0
@@ -173,7 +176,7 @@ detect_nodejs() {
 
   # Parse dependencies with jq
   local all_deps
-  all_deps=$(jq -r '(.dependencies // {}) + (.devDependencies // {}) | keys[]' "$PROJECT_ROOT/package.json" 2>/dev/null || true)
+  all_deps=$(jq -r '(.dependencies // {}) + (.devDependencies // {}) | keys[]' "$PROJECT_ROOT/package.json" || true)
 
   if [ -z "$all_deps" ]; then return; fi
 

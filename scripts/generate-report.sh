@@ -49,7 +49,7 @@ if [ -f "$CONSENSUS_FILE" ]; then
   INPUT_JSON=$(cat "$CONSENSUS_FILE")
 else
   # Might be a process substitution or stdin redirect
-  INPUT_JSON=$(cat "$CONSENSUS_FILE" 2>/dev/null || echo "")
+  INPUT_JSON=$(cat "$CONSENSUS_FILE" || echo "")
 fi
 
 if [ -z "$INPUT_JSON" ] || [ "$INPUT_JSON" = "null" ]; then
@@ -59,7 +59,7 @@ fi
 
 # --- Detect input format ---
 # Check if input is consensus format {accepted, rejected, disputed} or plain array
-IS_CONSENSUS=$(echo "$INPUT_JSON" | jq 'has("accepted")' 2>/dev/null || echo "false")
+IS_CONSENSUS=$(echo "$INPUT_JSON" | jq 'has("accepted")' || echo "false")
 
 ACCEPTED="[]"
 REJECTED="[]"
@@ -78,9 +78,9 @@ else
 fi
 
 # --- Counts ---
-ACCEPTED_COUNT=$(echo "$ACCEPTED" | jq 'length' 2>/dev/null || echo "0")
-REJECTED_COUNT=$(echo "$REJECTED" | jq 'length' 2>/dev/null || echo "0")
-DISPUTED_COUNT=$(echo "$DISPUTED" | jq 'length' 2>/dev/null || echo "0")
+ACCEPTED_COUNT=$(echo "$ACCEPTED" | jq 'length' || echo "0")
+REJECTED_COUNT=$(echo "$REJECTED" | jq 'length' || echo "0")
+DISPUTED_COUNT=$(echo "$DISPUTED" | jq 'length' || echo "0")
 TOTAL_FINDINGS=$((ACCEPTED_COUNT + DISPUTED_COUNT))
 
 if [ "$TOTAL_FINDINGS" -eq 0 ]; then
@@ -92,17 +92,20 @@ fi
 count_severity() {
   local json_array="$1"
   local severity="$2"
-  echo "$json_array" | jq --arg sev "$severity" '[.[] | select(.severity == $sev)] | length' 2>/dev/null || echo "0"
+  echo "$json_array" | jq --arg sev "$severity" '[.[] | select(.severity == $sev)] | length' || echo "0"
 }
 
+# shellcheck disable=SC2034 # severity counts used in report template below
+{
 CRITICAL_COUNT=$(count_severity "$ALL_FINDINGS" "critical")
 HIGH_COUNT=$(count_severity "$ALL_FINDINGS" "high")
 MEDIUM_COUNT=$(count_severity "$ALL_FINDINGS" "medium")
 LOW_COUNT=$(count_severity "$ALL_FINDINGS" "low")
+}
 
 # --- Collect models used ---
-MODELS_USED=$(echo "$ALL_FINDINGS" | jq -r '[.[].models[]?] | unique | join(", ")' 2>/dev/null || echo "unknown")
-FILE_COUNT=$(echo "$ALL_FINDINGS" | jq -r '[.[].file] | unique | length' 2>/dev/null || echo "0")
+MODELS_USED=$(echo "$ALL_FINDINGS" | jq -r '[.[].models[]?] | unique | join(", ")' || echo "unknown")
+FILE_COUNT=$(echo "$ALL_FINDINGS" | jq -r '[.[].file] | unique | length' || echo "0")
 
 # --- Focus areas ---
 FOCUS_AREAS=""
@@ -160,7 +163,9 @@ else
   L_CROSS_AGREE="Cross-model agreement"
   L_COST_TITLE="### Estimated Cost"
   L_MANUAL_REVIEW="Manual review required"
+  # shellcheck disable=SC2034
   L_FOR="For"
+  # shellcheck disable=SC2034
   L_AGAINST="Against"
   L_STALE="STALE"
   L_STALE_WARNING="Code changed after review — re-verify findings"
@@ -175,7 +180,7 @@ echo "$L_TITLE"
 echo ""
 
 # Stale review warning banner
-HAS_STALE=$(echo "$ALL_FINDINGS" | jq '[.[] | select(.stale == true)] | length' 2>/dev/null || echo "0")
+HAS_STALE=$(echo "$ALL_FINDINGS" | jq '[.[] | select(.stale == true)] | length' || echo "0")
 if [ "$HAS_STALE" -gt 0 ]; then
   echo "> **${L_STALE}**: ${L_STALE_WARNING}"
   echo ""
@@ -189,7 +194,7 @@ echo ""
 render_findings() {
   local findings_json="$1"
   local count
-  count=$(echo "$findings_json" | jq 'length' 2>/dev/null || echo "0")
+  count=$(echo "$findings_json" | jq 'length' || echo "0")
 
   if [ "$count" -eq 0 ]; then
     return
@@ -233,7 +238,7 @@ render_severity_section() {
   local findings
   findings=$(echo "$ACCEPTED" | jq --arg sev "$severity" '[.[] | select(.severity == $sev)]' 2>/dev/null)
   local count
-  count=$(echo "$findings" | jq 'length' 2>/dev/null || echo "0")
+  count=$(echo "$findings" | jq 'length' || echo "0")
 
   if [ "$count" -gt 0 ]; then
     echo "### ${label} (${count})"
@@ -267,7 +272,7 @@ if [ "$DISPUTED_COUNT" -gt 0 ]; then
     i=0
     while IFS=$'\t' read -r file line title desc confidence models challenger debate_status; do
       i=$((i + 1))
-      short_file=$(basename "$file" 2>/dev/null || echo "$file")
+      short_file=$(basename "$file" || echo "$file")
 
       echo "${i}. **${short_file}:${line}** - ${title}"
       echo "   ${L_CONFIDENCE}: ${confidence}% | ${L_MANUAL_REVIEW}"
@@ -294,7 +299,7 @@ fi
 # =============================================================================
 
 if [ "$SHOW_COST" = "true" ] && [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
-  COST_ESTIMATE=$("$SCRIPT_DIR/cost-estimator.sh" "$CONFIG_FILE" 2>/dev/null) || true
+  COST_ESTIMATE=$("$SCRIPT_DIR/cost-estimator.sh" "$CONFIG_FILE") || true
   if [ -n "$COST_ESTIMATE" ]; then
     echo "$L_COST_TITLE"
     echo "$COST_ESTIMATE"

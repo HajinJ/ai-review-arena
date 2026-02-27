@@ -24,6 +24,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/utils.sh"
+source "$SCRIPT_DIR/benchmark-utils.sh"
 
 ensure_jq
 
@@ -104,7 +105,7 @@ keyword_match_positive() {
 
   # Extract lines containing the keyword
   local matching_lines
-  matching_lines=$(echo "$response" | grep -i "$keyword" 2>/dev/null || echo "")
+  matching_lines=$(echo "$response" | grep -i "$keyword" || echo "")
 
   # Check if ALL matching lines are negated
   local positive_found=false
@@ -140,23 +141,23 @@ check_ground_truth() {
   # 3. Flat array of strings
 
   local gt_type
-  gt_type=$(echo "$ground_truth_json" | jq -r 'type' 2>/dev/null || echo "null")
+  gt_type=$(echo "$ground_truth_json" | jq -r 'type' || echo "null")
 
   local all_keywords="[]"
 
   if [ "$gt_type" = "array" ]; then
     # Check if array of objects (each with description_contains) or flat strings
     local first_type
-    first_type=$(echo "$ground_truth_json" | jq -r '.[0] | type' 2>/dev/null || echo "null")
+    first_type=$(echo "$ground_truth_json" | jq -r '.[0] | type' || echo "null")
 
     if [ "$first_type" = "object" ]; then
       # Array of finding objects: merge all description_contains + check severity/type fields
-      all_keywords=$(echo "$ground_truth_json" | jq '[.[] | .description_contains // [] | .[]] | unique' 2>/dev/null || echo "[]")
+      all_keywords=$(echo "$ground_truth_json" | jq '[.[] | .description_contains // [] | .[]] | unique' || echo "[]")
 
       # Also try structured matching: check if response mentions severity+type
       local struct_matched=0
       local struct_total
-      struct_total=$(echo "$ground_truth_json" | jq 'length' 2>/dev/null || echo "0")
+      struct_total=$(echo "$ground_truth_json" | jq 'length' || echo "0")
 
       local si=0
       while [ "$si" -lt "$struct_total" ]; do
@@ -192,11 +193,11 @@ check_ground_truth() {
     fi
   elif [ "$gt_type" = "object" ]; then
     # Single object with description_contains
-    all_keywords=$(echo "$ground_truth_json" | jq '.description_contains // []' 2>/dev/null || echo "[]")
+    all_keywords=$(echo "$ground_truth_json" | jq '.description_contains // []' || echo "[]")
   fi
 
   local total
-  total=$(echo "$all_keywords" | jq 'length' 2>/dev/null || echo "0")
+  total=$(echo "$all_keywords" | jq 'length' || echo "0")
   if [ "$total" -eq 0 ]; then
     echo "0 0"
     return
@@ -220,10 +221,12 @@ check_ground_truth() {
 # Accumulate results: { model: { category: { tp, fp, fn } } }
 RESULTS="{}"
 CLAUDE_TEST_CASES="[]"
+# shellcheck disable=SC2034 # TIMEOUT used by arena_timeout wrapper in CLI calls
 TIMEOUT=120
 
+# shellcheck disable=SC2034 # TIMEOUT used by arena_timeout wrapper
 if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
-  cfg_timeout=$(jq -r '.timeout // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_timeout=$(jq -r '.timeout // empty' "$CONFIG_FILE" || true)
   if [ -n "$cfg_timeout" ]; then
     TIMEOUT="$cfg_timeout"
   fi
@@ -234,8 +237,8 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
   log_info "Benchmarking category: $BENCH_CATEGORY"
 
   # Read test cases: support both {test_cases: [...]} and single-object format
-  TEST_CASES=$(jq 'if .test_cases then .test_cases elif type == "array" then . else [.] end' "$benchmark_file" 2>/dev/null || echo "[]")
-  TEST_COUNT=$(echo "$TEST_CASES" | jq 'length' 2>/dev/null || echo "0")
+  TEST_CASES=$(jq 'if .test_cases then .test_cases elif type == "array" then . else [.] end' "$benchmark_file" || echo "[]")
+  TEST_COUNT=$(echo "$TEST_CASES" | jq 'length' || echo "0")
 
   if [ "$TEST_COUNT" -eq 0 ]; then
     log_warn "No test cases in $benchmark_file"
@@ -262,13 +265,13 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
 
     if has_model "codex" && command -v codex &>/dev/null; then
       CODEX_TMP=$(mktemp)
-      ( echo "$CODE" | "$SCRIPT_DIR/codex-review.sh" "$TEST_FILE" "${CONFIG_FILE:-/dev/null}" "$TEST_ROLE" > "$CODEX_TMP" 2>/dev/null ) &
+      ( _cli_err=$(mktemp); echo "$CODE" | "$SCRIPT_DIR/codex-review.sh" "$TEST_FILE" "${CONFIG_FILE:-/dev/null}" "$TEST_ROLE" > "$CODEX_TMP" 2>"$_cli_err"; log_stderr_file "benchmark(codex)" "$_cli_err" ) &
       CODEX_PID=$!
     fi
 
     if has_model "gemini" && command -v gemini &>/dev/null; then
       GEMINI_TMP=$(mktemp)
-      ( echo "$CODE" | "$SCRIPT_DIR/gemini-review.sh" "$TEST_FILE" "${CONFIG_FILE:-/dev/null}" "$TEST_ROLE" > "$GEMINI_TMP" 2>/dev/null ) &
+      ( _cli_err=$(mktemp); echo "$CODE" | "$SCRIPT_DIR/gemini-review.sh" "$TEST_FILE" "${CONFIG_FILE:-/dev/null}" "$TEST_ROLE" > "$GEMINI_TMP" 2>"$_cli_err"; log_stderr_file "benchmark(gemini)" "$_cli_err" ) &
       GEMINI_PID=$!
     fi
 
@@ -278,7 +281,7 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
 
     # --- Process Codex results ---
     if [ -n "$CODEX_TMP" ] && [ -f "$CODEX_TMP" ]; then
-      CODEX_TEXT=$(jq -r 'tostring' "$CODEX_TMP" 2>/dev/null || cat "$CODEX_TMP")
+      CODEX_TEXT=$(jq -r 'tostring' "$CODEX_TMP" || cat "$CODEX_TMP")
       read -r matched total <<< "$(check_ground_truth "$CODEX_TEXT" "$GROUND_TRUTH")"
       RESULTS=$(echo "$RESULTS" | jq \
         --arg model "codex" \
@@ -297,7 +300,7 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
 
     # --- Process Gemini results ---
     if [ -n "$GEMINI_TMP" ] && [ -f "$GEMINI_TMP" ]; then
-      GEMINI_TEXT=$(jq -r 'tostring' "$GEMINI_TMP" 2>/dev/null || cat "$GEMINI_TMP")
+      GEMINI_TEXT=$(jq -r 'tostring' "$GEMINI_TMP" || cat "$GEMINI_TMP")
       read -r matched total <<< "$(check_ground_truth "$GEMINI_TEXT" "$GROUND_TRUTH")"
       RESULTS=$(echo "$RESULTS" | jq \
         --arg model "gemini" \
@@ -368,7 +371,7 @@ SCORES=$(echo "$RESULTS" | jq '
 # Output
 # =============================================================================
 
-CLAUDE_COUNT=$(echo "$CLAUDE_TEST_CASES" | jq 'length' 2>/dev/null || echo "0")
+CLAUDE_COUNT=$(echo "$CLAUDE_TEST_CASES" | jq 'length' || echo "0")
 
 OUTPUT=""
 if [ "$CLAUDE_COUNT" -gt 0 ] && has_model "claude"; then
@@ -393,6 +396,6 @@ echo "$OUTPUT"
 
 # --- Save to cache ---
 PROJECT_ROOT=$(find_project_root)
-echo "$OUTPUT" | "$SCRIPT_DIR/cache-manager.sh" write "$PROJECT_ROOT" "benchmarks" "model-scores" 2>/dev/null || true
+echo "$OUTPUT" | "$SCRIPT_DIR/cache-manager.sh" write "$PROJECT_ROOT" "benchmarks" "model-scores" || true
 
 exit 0

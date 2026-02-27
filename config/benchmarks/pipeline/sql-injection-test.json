@@ -1,0 +1,42 @@
+{
+  "id": "pipeline-sql-injection-01",
+  "description": "SQL injection and input validation vulnerabilities in Python Flask endpoint",
+  "type": "pipeline_evaluation",
+  "project_setup": {
+    "files": {
+      "app.py": "import sqlite3\nfrom flask import Flask, request, jsonify\n\napp = Flask(__name__)\n\ndef get_db():\n    return sqlite3.connect('app.db')\n\n@app.route('/users')\ndef search_users():\n    query = request.args.get('q', '')\n    db = get_db()\n    cursor = db.cursor()\n    cursor.execute(f\"SELECT * FROM users WHERE name LIKE '%{query}%'\")\n    results = cursor.fetchall()\n    db.close()\n    return jsonify(results)\n\n@app.route('/user/<user_id>')\ndef get_user(user_id):\n    db = get_db()\n    cursor = db.cursor()\n    cursor.execute(\"SELECT * FROM users WHERE id = \" + user_id)\n    result = cursor.fetchone()\n    db.close()\n    if result:\n        return jsonify(result)\n    return jsonify({'error': 'not found'}), 404\n"
+    }
+  },
+  "ground_truth": {
+    "expected_findings": [
+      {
+        "category": "security",
+        "severity": "critical",
+        "location_hint": "app.py:14",
+        "description_contains": ["SQL injection", "f-string", "parameterized"],
+        "must_find": true
+      },
+      {
+        "category": "security",
+        "severity": "critical",
+        "location_hint": "app.py:22",
+        "description_contains": ["SQL injection", "concatenat", "parameterized"],
+        "must_find": true
+      },
+      {
+        "category": "bugs",
+        "severity": "medium",
+        "location_hint": "app.py:16",
+        "description_contains": ["close", "connection", "context manager", "with"],
+        "must_find": false
+      }
+    ],
+    "acceptable_false_positives": 2
+  },
+  "evaluation_criteria": {
+    "min_precision": 0.6,
+    "min_recall": 0.8,
+    "max_false_positive_rate": 0.4,
+    "severity_tolerance": 1
+  }
+}

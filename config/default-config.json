@@ -32,6 +32,12 @@
     "intensity": "standard",
     "focus_areas": ["security", "bugs", "architecture", "performance", "testing"],
     "confidence_threshold": 75,
+    "severity_threshold_adjustments": {
+      "critical": -30,
+      "high": -15,
+      "medium": 0,
+      "low": 10
+    },
     "max_file_lines": 500,
     "file_extensions": ["ts", "tsx", "js", "jsx", "py", "go", "rs", "java", "kt", "swift", "rb", "php", "c", "cpp", "cs"],
     "exclude_patterns": ["*.test.*", "*.spec.*", "*.d.ts", "node_modules/**", "vendor/**", "dist/**"]
@@ -257,6 +263,9 @@
     "enabled": true,
     "show_before_execution": true,
     "auto_proceed_under_dollars": 5.0,
+    "max_per_review_dollars": 10.0,
+    "max_daily_dollars": 50.0,
+    "warn_threshold_percent": 80,
     "token_cost_per_1k": {
       "claude_input": 0.003,
       "claude_output": 0.015,
@@ -370,6 +379,20 @@
     "compression_strategy": "role_relevant_extract",
     "fallback_on_small_files": true,
     "small_file_threshold_lines": 200
+  },
+  "agent_responsibility_matrix": {
+    "security-reviewer": {"primary": ["injection", "auth", "crypto", "xss", "csrf"], "secondary": ["config", "session"]},
+    "bug-detector": {"primary": ["logic", "null-handling", "race-condition", "error-handling", "concurrency"], "secondary": ["type-mismatch"]},
+    "architecture-reviewer": {"primary": ["solid", "coupling", "cohesion", "dependency-management"], "secondary": ["code-organization"]},
+    "performance-reviewer": {"primary": ["complexity", "memory", "n-plus-one", "blocking"], "secondary": ["allocation"]},
+    "test-coverage-reviewer": {"primary": ["untested-paths", "edge-cases", "test-quality"], "secondary": ["mock-quality"]},
+    "scope-reviewer": {"primary": ["feature-creep", "requirement-alignment"], "secondary": ["change-impact"]},
+    "dependency-reviewer": {"primary": ["version-conflicts", "vulnerability", "license"], "secondary": ["bloat"]},
+    "api-contract-reviewer": {"primary": ["breaking-changes", "schema-validation", "versioning"], "secondary": ["documentation"]},
+    "observability-reviewer": {"primary": ["logging", "tracing", "metrics", "alerting"], "secondary": ["debugging"]},
+    "data-integrity-reviewer": {"primary": ["validation", "migration", "consistency"], "secondary": ["transformation"]},
+    "accessibility-reviewer": {"primary": ["wcag", "aria", "keyboard", "screen-reader"], "secondary": ["color-contrast"]},
+    "configuration-reviewer": {"primary": ["secrets", "env-vars", "infrastructure"], "secondary": ["feature-flags"]}
   },
   "memory_tiers": {
     "enabled": true,

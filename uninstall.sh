@@ -14,12 +14,37 @@ NC='\033[0m'
 echo -e "${CYAN}AI Review Arena - Uninstaller${NC}"
 echo ""
 
+# Offer cache cleanup before removing plugin directory
+CACHE_DIR="$PLUGIN_DIR/cache"
+if [ -d "$CACHE_DIR" ]; then
+  echo ""
+  read -r -p "Remove cached data (reviews, benchmarks, feedback)? [y/N]: " CLEAN_CACHE
+  CLEAN_CACHE="${CLEAN_CACHE:-n}"
+  if [[ "$CLEAN_CACHE" =~ ^[Yy]$ ]]; then
+    rm -rf "$CACHE_DIR"
+    echo -e "${GREEN}✓${NC} Cache data removed"
+  else
+    # Move cache out before plugin removal, then restore
+    _CACHE_BACKUP=$(mktemp -d)
+    cp -a "$CACHE_DIR" "$_CACHE_BACKUP/" 2>/dev/null || true
+    echo -e "${YELLOW}!${NC} Cache data will be preserved"
+  fi
+fi
+
 # Remove plugin directory
 if [ -d "$PLUGIN_DIR" ]; then
   rm -rf "$PLUGIN_DIR"
   echo -e "${GREEN}✓${NC} Removed $PLUGIN_DIR"
 else
   echo -e "${YELLOW}!${NC} Plugin directory not found"
+fi
+
+# Restore cache if user chose to preserve it
+if [ -n "${_CACHE_BACKUP:-}" ] && [ -d "${_CACHE_BACKUP}/cache" ]; then
+  mkdir -p "$PLUGIN_DIR"
+  mv "$_CACHE_BACKUP/cache" "$PLUGIN_DIR/cache" 2>/dev/null || true
+  rm -rf "$_CACHE_BACKUP"
+  echo -e "${GREEN}✓${NC} Cache data preserved at $CACHE_DIR"
 fi
 
 # Remove ARENA-ROUTER.md

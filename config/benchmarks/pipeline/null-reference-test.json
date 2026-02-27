@@ -1,0 +1,49 @@
+{
+  "id": "pipeline-null-reference-01",
+  "description": "Null reference and error handling issues in TypeScript service",
+  "type": "pipeline_evaluation",
+  "project_setup": {
+    "files": {
+      "user-service.ts": "interface User {\n  id: string;\n  name: string;\n  profile?: {\n    avatar?: string;\n    settings?: {\n      theme: string;\n    };\n  };\n}\n\nfunction getUserTheme(user: User): string {\n  return user.profile.settings.theme;\n}\n\nfunction processUsers(users: User[] | null): string[] {\n  return users.map(u => u.name.toUpperCase());\n}\n\nasync function fetchUser(id: string): Promise<User> {\n  const response = await fetch(`/api/users/${id}`);\n  const data = await response.json();\n  return data;\n}\n\nfunction findUser(users: User[], id: string): string {\n  const user = users.find(u => u.id === id);\n  return user.name;\n}\n"
+    }
+  },
+  "ground_truth": {
+    "expected_findings": [
+      {
+        "category": "bugs",
+        "severity": "high",
+        "location_hint": "user-service.ts:13",
+        "description_contains": ["null", "undefined", "optional chaining", "profile"],
+        "must_find": true
+      },
+      {
+        "category": "bugs",
+        "severity": "high",
+        "location_hint": "user-service.ts:17",
+        "description_contains": ["null", "users", "map"],
+        "must_find": true
+      },
+      {
+        "category": "bugs",
+        "severity": "medium",
+        "location_hint": "user-service.ts:21",
+        "description_contains": ["response", "ok", "status", "error"],
+        "must_find": false
+      },
+      {
+        "category": "bugs",
+        "severity": "high",
+        "location_hint": "user-service.ts:27",
+        "description_contains": ["undefined", "find", "null"],
+        "must_find": true
+      }
+    ],
+    "acceptable_false_positives": 2
+  },
+  "evaluation_criteria": {
+    "min_precision": 0.6,
+    "min_recall": 0.75,
+    "max_false_positive_rate": 0.4,
+    "severity_tolerance": 1
+  }
+}

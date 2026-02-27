@@ -1,0 +1,57 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq shellcheck bc
+
+      - name: Validate JSON configs
+        run: |
+          echo "Validating JSON files..."
+          failed=0
+          for f in config/*.json config/benchmarks/*.json config/benchmarks/pipeline/*.json config/schemas/*.json; do
+            if [ -f "$f" ]; then
+              if ! jq empty "$f" 2>/dev/null; then
+                echo "FAIL: $f is not valid JSON"
+                failed=1
+              fi
+            fi
+          done
+          if [ "$failed" -eq 1 ]; then
+            exit 1
+          fi
+          echo "All JSON files valid"
+
+      - name: ShellCheck
+        run: |
+          chmod +x tests/run-shellcheck.sh
+          bash tests/run-shellcheck.sh
+
+      - name: Run unit tests
+        run: |
+          chmod +x tests/run-tests.sh tests/test-helpers.sh
+          chmod +x tests/unit/*.sh tests/integration/*.sh
+          bash tests/run-tests.sh --unit
+
+      - name: Run integration tests
+        run: bash tests/run-tests.sh --integration
+
+      - name: Validate config
+        run: |
+          if [ -f scripts/validate-config.sh ]; then
+            bash scripts/validate-config.sh config/default-config.json
+          fi

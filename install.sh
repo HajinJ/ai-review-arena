@@ -74,7 +74,7 @@ if [ -d "$PLUGIN_DIR" ] && [ "$(ls -A "$PLUGIN_DIR" 2>/dev/null)" ]; then
 fi
 
 # Copy all plugin files
-for item in .claude-plugin agents commands config hooks scripts shared-phases docs requirements.txt CLAUDE.md ARENA-ROUTER.md; do
+for item in .claude-plugin agents commands config hooks scripts shared-phases docs skills requirements.txt marketplace.json CLAUDE.md ARENA-ROUTER.md; do
   if [ -e "$SCRIPT_DIR/$item" ]; then
     cp -r "$SCRIPT_DIR/$item" "$PLUGIN_DIR/"
     echo -e "  ${GREEN}✓${NC} $item"
@@ -105,12 +105,25 @@ if [ ! -f "$CLAUDE_DIR/CLAUDE.md" ]; then
   echo -e "  ${GREEN}✓${NC} Created new CLAUDE.md"
 fi
 
-if grep -q "ARENA-ROUTER.md" "$CLAUDE_DIR/CLAUDE.md" 2>/dev/null; then
-  echo -e "  ${GREEN}✓${NC} ARENA-ROUTER.md already referenced in CLAUDE.md"
+# Ask user about Always-On routing before injecting
+echo ""
+echo -e "${YELLOW}Always-On Routing Configuration:${NC}"
+echo "  Always-On routes ALL requests through the Arena pipeline automatically."
+echo "  On-demand mode only activates via slash commands (/arena, /multi-review, etc.)"
+echo ""
+read -r -p "Enable Always-On routing? [y/N]: " ENABLE_ALWAYS_ON
+ENABLE_ALWAYS_ON="${ENABLE_ALWAYS_ON:-n}"
+
+if [[ "$ENABLE_ALWAYS_ON" =~ ^[Yy]$ ]]; then
+  if ! grep -q "ARENA-ROUTER.md" "$CLAUDE_DIR/CLAUDE.md" 2>/dev/null; then
+    echo "" >> "$CLAUDE_DIR/CLAUDE.md"
+    echo "@plugins/ai-review-arena/ARENA-ROUTER.md" >> "$CLAUDE_DIR/CLAUDE.md"
+    echo -e "  ${GREEN}✓${NC} Added @plugins/ai-review-arena/ARENA-ROUTER.md to CLAUDE.md"
+  else
+    echo -e "  ${GREEN}✓${NC} ARENA-ROUTER.md already referenced in CLAUDE.md"
+  fi
 else
-  echo "" >> "$CLAUDE_DIR/CLAUDE.md"
-  echo "@plugins/ai-review-arena/ARENA-ROUTER.md" >> "$CLAUDE_DIR/CLAUDE.md"
-  echo -e "  ${GREEN}✓${NC} Added @plugins/ai-review-arena/ARENA-ROUTER.md to CLAUDE.md"
+  echo -e "  ${GREEN}✓${NC} On-demand mode — use /arena, /multi-review commands to activate"
 fi
 
 # Install Gemini hooks (optional)

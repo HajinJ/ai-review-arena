@@ -16,6 +16,8 @@ set -uo pipefail
 SESSION_DIR="${1:?Usage: aggregate-findings.sh <session_dir> <config_file>}"
 CONFIG_FILE="${2:-}"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # --- Dependencies ---
 if ! command -v jq &>/dev/null; then
   echo "LGTM"
@@ -27,7 +29,7 @@ fi
 STALE_REVIEW=false
 REVIEW_HASH_FILE="${SESSION_DIR}/.review_commit_hash"
 if [ -f "$REVIEW_HASH_FILE" ]; then
-  REVIEW_HASH=$(cat "$REVIEW_HASH_FILE" 2>/dev/null || true)
+  REVIEW_HASH=$(cat "$REVIEW_HASH_FILE" || true)
   CURRENT_HASH=$(git rev-parse HEAD 2>/dev/null || true)
   if [ -n "$REVIEW_HASH" ] && [ -n "$CURRENT_HASH" ] && [ "$REVIEW_HASH" != "$CURRENT_HASH" ]; then
     STALE_REVIEW=true
@@ -40,7 +42,7 @@ CONFIDENCE_THRESHOLD=40
 LINE_PROXIMITY=3
 
 if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
-  cfg_threshold=$(jq -r '.review.confidence_threshold // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_threshold=$(jq -r '.review.confidence_threshold // empty' "$CONFIG_FILE" || true)
   if [ -n "$cfg_threshold" ]; then
     CONFIDENCE_THRESHOLD="$cfg_threshold"
   fi
@@ -81,8 +83,17 @@ if [ -z "$MERGED_FINDINGS" ] || [ "$MERGED_FINDINGS" = "[]" ] || [ "$MERGED_FIND
   exit 0
 fi
 
+# --- Normalize severity values from external CLIs ---
+NORMALIZER="$SCRIPT_DIR/normalize-severity.sh"
+if [ -f "$NORMALIZER" ] && [ -x "$NORMALIZER" ]; then
+  NORMALIZED=$(echo "$MERGED_FINDINGS" | "$NORMALIZER" 2>/dev/null)
+  if [ -n "$NORMALIZED" ]; then
+    MERGED_FINDINGS="$NORMALIZED"
+  fi
+fi
+
 # --- Check for errors (all entries have error field) ---
-HAS_FINDINGS=$(echo "$MERGED_FINDINGS" | jq '[.[] | select(.title != null and .title != "")] | length' 2>/dev/null || echo "0")
+HAS_FINDINGS=$(echo "$MERGED_FINDINGS" | jq '[.[] | select(.title != null and .title != "")] | length' || echo "0")
 if [ "$HAS_FINDINGS" -eq 0 ]; then
   echo "LGTM"
   exit 0
@@ -113,28 +124,27 @@ AGGREGATED=$(echo "$MERGED_FINDINGS" | jq --argjson proximity "$LINE_PROXIMITY" 
   # Group findings by file and line proximity
   group_by(.file) |
   map(
-    # Within each file group, cluster by line proximity
-    . as $file_findings |
+    # Within each file group, cluster by line proximity + similar title
     reduce .[] as $finding (
       [];
-      # Check if finding matches any existing cluster
-      (
-        [range(length)] |
-        map(select(
-          .[-1].file == $finding.file and
-          ((.[-1].line // 0) - ($finding.line // 0) | fabs) <= $proximity and
-          (
-            (.[-1].title | ascii_downcase | split(" ") | .[0:3] | join(" ")) ==
-            ($finding.title | ascii_downcase | split(" ") | .[0:3] | join(" "))
-          )
-        )) | first // null
-      ) as $match_idx |
+      . as $clusters |
+      # Find matching cluster index (use $clusters to reference outer accumulator)
+      (reduce range($clusters | length) as $i (
+        null;
+        if . != null then . else
+          (if ($clusters[$i] | last | .file) == $finding.file and
+              ((($clusters[$i] | last | .line // 0) - ($finding.line // 0)) | fabs) <= $proximity and
+              (($clusters[$i] | last | .title | ascii_downcase | split(" ")) as $t1 |
+               ($finding.title | ascii_downcase | split(" ")) as $t2 |
+               ([$t1 | length, $t2 | length, 3] | min) as $n |
+               ($t1[0:$n] | join(" ")) == ($t2[0:$n] | join(" ")))
+          then $i else null end)
+        end
+      )) as $match_idx |
       if $match_idx != null then
-        # Merge into existing cluster
         .[$match_idx] += [$finding]
       else
-        # New cluster
-        . += [[$finding]]
+        . + [[$finding]]
       end
     )
   ) |
@@ -187,8 +197,14 @@ AGGREGATED=$(echo "$MERGED_FINDINGS" | jq --argjson proximity "$LINE_PROXIMITY" 
     end
   ) |
 
-  # Filter by confidence threshold
-  map(select(.confidence >= $threshold)) |
+  # Filter by severity-aware confidence threshold
+  map(select(
+    (.severity == "critical" and .confidence >= ($threshold - 30)) or
+    (.severity == "high" and .confidence >= ($threshold - 15)) or
+    (.severity == "medium" and .confidence >= $threshold) or
+    (.severity == "low" and .confidence >= ($threshold + 10)) or
+    (.confidence >= $threshold)
+  )) |
 
   # Sort by confidence descending, then severity
   sort_by(-(

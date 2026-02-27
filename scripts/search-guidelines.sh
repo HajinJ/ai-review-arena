@@ -32,7 +32,8 @@ if [ -z "$FEATURE_KEYWORDS" ]; then
   exit 0
 fi
 
-shift 2 2>/dev/null || true
+shift 2 || true
+# shellcheck disable=SC2034
 while [ $# -gt 0 ]; do
   case "$1" in
     --config) CONFIG_FILE="${2:-}"; shift 2 ;;
@@ -115,14 +116,14 @@ if [ -n "$ALL_MATCHED_RULE_NAMES" ]; then
     CACHED_CONTENT=""
     CACHE_PATH=""
 
-    HASH=$("$SCRIPT_DIR/cache-manager.sh" hash "$PROJECT_ROOT" 2>/dev/null || true)
+    HASH=$("$SCRIPT_DIR/cache-manager.sh" hash "$PROJECT_ROOT" || true)
     if [ -n "$HASH" ]; then
       CACHE_PATH="${PLUGIN_DIR}/cache/${HASH}/guidelines/${CACHE_KEY}"
     fi
 
     if "$SCRIPT_DIR/cache-manager.sh" check "$PROJECT_ROOT" "guidelines" "$CACHE_KEY" 2>/dev/null; then
       IS_CACHED=true
-      CACHED_CONTENT=$("$SCRIPT_DIR/cache-manager.sh" read "$PROJECT_ROOT" "guidelines" "$CACHE_KEY" 2>/dev/null || true)
+      CACHED_CONTENT=$("$SCRIPT_DIR/cache-manager.sh" read "$PROJECT_ROOT" "guidelines" "$CACHE_KEY" || true)
     fi
 
     # Build guideline entry

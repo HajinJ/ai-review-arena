@@ -15,9 +15,11 @@
           "confidence_adjustment": { "type": "number", "minimum": -30, "maximum": 30 },
           "reasoning": { "type": "string" }
         },
-        "required": ["finding_id", "action", "confidence_adjustment", "reasoning"]
+        "required": ["finding_id", "action", "confidence_adjustment", "reasoning"],
+        "additionalProperties": false
       }
     }
   },
-  "required": ["model", "role", "mode", "responses"]
+  "required": ["model", "role", "mode", "responses"],
+  "additionalProperties": false
 }

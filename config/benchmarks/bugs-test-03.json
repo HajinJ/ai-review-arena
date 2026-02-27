@@ -1,0 +1,45 @@
+{
+  "id": "bugs-03",
+  "category": "bugs",
+  "description": "Promise.allSettled misuse, timezone logic errors, event listener leak, and incorrect array mutation",
+  "language": "javascript",
+  "code": "class NotificationService {\n  constructor() {\n    this.subscribers = new Map();\n    this.retryQueue = [];\n  }\n\n  subscribe(userId, handler) {\n    if (!this.subscribers.has(userId)) {\n      this.subscribers.set(userId, []);\n    }\n    this.subscribers.get(userId).push(handler);\n    // No unsubscribe mechanism\n  }\n\n  async notifyAll(message) {\n    const results = await Promise.allSettled(\n      [...this.subscribers.entries()].map(([userId, handlers]) =>\n        this.sendToUser(userId, message, handlers)\n      )\n    );\n    // Treats allSettled results as if they were all resolved\n    const sent = results.filter(r => r.value?.delivered).length;\n    return { total: results.length, sent };\n  }\n\n  async sendToUser(userId, message, handlers) {\n    for (const handler of handlers) {\n      handler(message);\n    }\n    return { delivered: true, userId };\n  }\n\n  scheduleNotification(message, scheduledDate) {\n    // Timezone-unaware date comparison\n    const now = new Date();\n    const scheduled = new Date(scheduledDate);\n    const delayMs = scheduled - now;\n\n    if (delayMs > 0) {\n      setTimeout(() => this.notifyAll(message), delayMs);\n      return { scheduled: true, fireAt: scheduled.toISOString() };\n    }\n    return { scheduled: false, reason: 'Date is in the past' };\n  }\n\n  async retryFailed() {\n    const queue = this.retryQueue;\n    for (let i = 0; i < queue.length; i++) {\n      const item = queue[i];\n      try {\n        await this.sendToUser(item.userId, item.message, item.handlers);\n        queue.splice(i, 1); // Mutating array during iteration\n      } catch (e) {\n        item.retries = (item.retries || 0) + 1;\n        if (item.retries >= 3) {\n          queue.splice(i, 1); // Mutating array during iteration\n        }\n      }\n    }\n  }\n\n  getScheduledForDate(dateStr) {\n    // Parsing user date without timezone consideration\n    const targetDate = new Date(dateStr);\n    const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());\n    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);\n    // Uses local timezone, breaks for users in different timezones\n    return this.retryQueue.filter(item => {\n      const itemDate = new Date(item.scheduledAt);\n      return itemDate >= startOfDay && itemDate < endOfDay;\n    });\n  }\n\n  cleanup(maxAge) {\n    const cutoff = Date.now() - maxAge;\n    this.retryQueue = this.retryQueue.filter(item => item.createdAt > cutoff);\n    // subscribers Map is never cleaned up\n  }\n}",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "promise_allsettled_misuse",
+      "location": "notifyAll method",
+      "description_contains": ["allSettled", "rejected", "status", "fulfilled", "value"]
+    },
+    {
+      "severity": "high",
+      "type": "array_mutation_during_iteration",
+      "location": "retryFailed method",
+      "description_contains": ["splice", "mutating", "iteration", "loop", "index", "skip"]
+    },
+    {
+      "severity": "high",
+      "type": "timezone_logic",
+      "location": "scheduleNotification and getScheduledForDate",
+      "description_contains": ["timezone", "UTC", "local", "date", "offset"]
+    },
+    {
+      "severity": "high",
+      "type": "memory_leak",
+      "location": "subscribe method",
+      "description_contains": ["unsubscribe", "memory", "leak", "handler", "cleanup", "listener"]
+    },
+    {
+      "severity": "medium",
+      "type": "unsafe_settimeout",
+      "location": "scheduleNotification method",
+      "description_contains": ["setTimeout", "32-bit", "overflow", "2147483647", "MAX_TIMEOUT", "delay"]
+    },
+    {
+      "severity": "medium",
+      "type": "missing_error_handling",
+      "location": "sendToUser method",
+      "description_contains": ["handler", "error", "try", "catch", "throw"]
+    }
+  ]
+}

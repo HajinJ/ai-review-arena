@@ -51,23 +51,29 @@ fi
 
 # --- Read config ---
 TIMEOUT=120
-CODEX_MODEL="gpt-5.3-codex-spark"
+CODEX_MODEL=""
 if [ -f "$CONFIG_FILE" ]; then
-  cfg_timeout=$(jq -r '.timeout // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_timeout=$(jq -r '.timeout // empty' "$CONFIG_FILE" || true)
   if [ -n "$cfg_timeout" ]; then
     TIMEOUT="$cfg_timeout"
   fi
 
-  cfg_model=$(jq -r '.codex.model_variant // .models.codex.model_variant // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_model=$(jq -r '.codex.model_variant // .models.codex.model_variant // empty' "$CONFIG_FILE" || true)
   if [ -n "$cfg_model" ]; then
     CODEX_MODEL="$cfg_model"
   fi
 fi
 
+# Build model flag: only pass -m if model is set
+CODEX_MODEL_ARGS=()
+if [ -n "$CODEX_MODEL" ]; then
+  CODEX_MODEL_ARGS=(-m "$CODEX_MODEL")
+fi
+
 # --- Read structured output config ---
 STRUCTURED_OUTPUT=true
 if [ -f "$CONFIG_FILE" ]; then
-  cfg_structured=$(jq -r '.models.codex.structured_output // true' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_structured=$(jq -r '.models.codex.structured_output // true' "$CONFIG_FILE" || true)
   if [ "$cfg_structured" = "false" ]; then
     STRUCTURED_OUTPUT=false
   fi
@@ -77,12 +83,12 @@ SCHEMA_FILE="${PLUGIN_DIR}/config/schemas/codex-review.json"
 # --- Read multi-agent config (experimental) ---
 MULTI_AGENT=false
 if [ -f "$CONFIG_FILE" ]; then
-  cfg_multi_agent=$(jq -r '.models.codex.multi_agent.enabled // false' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_multi_agent=$(jq -r '.models.codex.multi_agent.enabled // false' "$CONFIG_FILE" || true)
   if [ "$cfg_multi_agent" = "true" ]; then
     # Check if codex supports agents feature at runtime
     if codex exec --help 2>&1 | grep -q "agents" 2>/dev/null; then
       MULTI_AGENT=true
-      AGENTS_DIR=$(jq -r '.models.codex.multi_agent.agents_dir // "config/codex-agents"' "$CONFIG_FILE" 2>/dev/null || echo "config/codex-agents")
+      AGENTS_DIR=$(jq -r '.models.codex.multi_agent.agents_dir // "config/codex-agents"' "$CONFIG_FILE" || echo "config/codex-agents")
       AGENT_CONFIG="${PLUGIN_DIR}/${AGENTS_DIR}/${ROLE}.toml"
     fi
   fi
@@ -121,10 +127,11 @@ PARSED_JSON=""
 # Try multi-agent path first (experimental, feature-flagged)
 if [ "$MULTI_AGENT" = "true" ] && [ -f "$AGENT_CONFIG" ]; then
   OUTPUT_FILE=$(mktemp)
+  _cli_err=$(mktemp)
   RAW_OUTPUT=$(
-    timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" \
+    arena_timeout "${TIMEOUT}" codex exec --full-auto "${CODEX_MODEL_ARGS[@]}" \
       --config "agents.${ROLE}.config_file=${AGENT_CONFIG}" \
-      --output-schema "$SCHEMA_FILE" -o "$OUTPUT_FILE" "$FULL_PROMPT" 2>/dev/null
+      --output-schema "$SCHEMA_FILE" -o "$OUTPUT_FILE" "$FULL_PROMPT" 2>"$_cli_err"
   ) || {
     exit_code=$?
     if [ "$exit_code" -eq 124 ]; then
@@ -134,6 +141,7 @@ if [ "$MULTI_AGENT" = "true" ] && [ -f "$AGENT_CONFIG" ]; then
       REVIEW_ERROR=""
     fi
   }
+  log_stderr_file "codex-review(multi-agent)" "$_cli_err"
 
   if [ -z "$REVIEW_ERROR" ] && [ -f "$OUTPUT_FILE" ] && jq . "$OUTPUT_FILE" &>/dev/null; then
     PARSED_JSON=$(cat "$OUTPUT_FILE")
@@ -144,9 +152,10 @@ fi
 # Try structured output (skip if multi-agent already produced valid JSON)
 if [ -z "$PARSED_JSON" ] && [ "$STRUCTURED_OUTPUT" = "true" ] && [ -f "$SCHEMA_FILE" ]; then
   OUTPUT_FILE=$(mktemp)
+  _cli_err=$(mktemp)
   RAW_OUTPUT=$(
-    timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" \
-      --output-schema "$SCHEMA_FILE" -o "$OUTPUT_FILE" "$FULL_PROMPT" 2>/dev/null
+    arena_timeout "${TIMEOUT}" codex exec --full-auto "${CODEX_MODEL_ARGS[@]}" \
+      --output-schema "$SCHEMA_FILE" -o "$OUTPUT_FILE" "$FULL_PROMPT" 2>"$_cli_err"
   ) || {
     exit_code=$?
     if [ "$exit_code" -eq 124 ]; then
@@ -155,6 +164,7 @@ if [ -z "$PARSED_JSON" ] && [ "$STRUCTURED_OUTPUT" = "true" ] && [ -f "$SCHEMA_F
       REVIEW_ERROR="Codex exited with code ${exit_code}"
     fi
   }
+  log_stderr_file "codex-review(structured)" "$_cli_err"
 
   # Read structured output from -o file (clean JSON, no extraction needed)
   if [ -z "$REVIEW_ERROR" ] && [ -f "$OUTPUT_FILE" ] && jq . "$OUTPUT_FILE" &>/dev/null; then
@@ -165,8 +175,9 @@ fi
 
 # Fallback to standard execution if structured output didn't work
 if [ -z "$PARSED_JSON" ] && [ -z "$REVIEW_ERROR" ]; then
+  _cli_err=$(mktemp)
   RAW_OUTPUT=$(
-    timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" "$FULL_PROMPT" 2>/dev/null
+    arena_timeout "${TIMEOUT}" codex exec --full-auto "${CODEX_MODEL_ARGS[@]}" "$FULL_PROMPT" 2>"$_cli_err"
   ) || {
     exit_code=$?
     if [ "$exit_code" -eq 124 ]; then
@@ -175,6 +186,7 @@ if [ -z "$PARSED_JSON" ] && [ -z "$REVIEW_ERROR" ]; then
       REVIEW_ERROR="Codex exited with code ${exit_code}"
     fi
   }
+  log_stderr_file "codex-review(fallback)" "$_cli_err"
 fi
 
 # --- Handle errors ---

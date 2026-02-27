@@ -46,6 +46,22 @@ log_error() {
 }
 
 # =============================================================================
+# Stderr Logging (for replacing dangerous 2>/dev/null)
+# =============================================================================
+
+# Log stderr from a temp file if non-empty, then clean up.
+# Usage: some_command 2>"$errfile" || true; log_stderr_file "label" "$errfile"
+log_stderr_file() {
+  local label="$1" logfile="$2"
+  if [ -f "$logfile" ] && [ -s "$logfile" ]; then
+    log_warn "${label}: $(head -c 500 "$logfile")"
+    rm -f "$logfile"
+  elif [ -f "$logfile" ]; then
+    rm -f "$logfile"
+  fi
+}
+
+# =============================================================================
 # Dependency Checks
 # =============================================================================
 
@@ -53,6 +69,32 @@ ensure_jq() {
   if ! command -v jq &>/dev/null; then
     log_error "jq is required but not found. Install: brew install jq"
     exit 1
+  fi
+}
+
+# macOS-compatible timeout wrapper
+# Usage: arena_timeout <seconds> <command> [args...]
+arena_timeout() {
+  local secs="$1"
+  shift
+  if command -v timeout &>/dev/null; then
+    timeout "${secs}s" "$@"
+  elif command -v gtimeout &>/dev/null; then
+    gtimeout "${secs}s" "$@"
+  else
+    # Pure bash fallback using background process + kill
+    "$@" &
+    local pid=$!
+    (
+      sleep "$secs"
+      kill "$pid" 2>/dev/null
+    ) &
+    local watchdog=$!
+    wait "$pid" 2>/dev/null
+    local ret=$?
+    kill "$watchdog" 2>/dev/null
+    wait "$watchdog" 2>/dev/null
+    return $ret
   fi
 }
 

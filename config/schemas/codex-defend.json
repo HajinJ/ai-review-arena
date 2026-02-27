@@ -15,9 +15,11 @@
           "revised_confidence": { "type": "number", "minimum": 0, "maximum": 100 },
           "defense": { "type": "string" }
         },
-        "required": ["finding_index", "maintain", "revised_confidence", "defense"]
+        "required": ["finding_index", "maintain", "revised_confidence", "defense"],
+        "additionalProperties": false
       }
     }
   },
-  "required": ["model", "round", "phase", "defenses"]
+  "required": ["model", "round", "phase", "defenses"],
+  "additionalProperties": false
 }

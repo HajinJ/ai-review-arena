@@ -1,0 +1,45 @@
+{
+  "id": "bugs-02",
+  "category": "bugs",
+  "description": "Async error propagation, integer overflow, memory leak, and incorrect comparison",
+  "language": "javascript",
+  "code": "class DataPipeline {\n  constructor() {\n    this.listeners = [];\n    this.cache = new Map();\n    this.batchSize = 1000;\n  }\n\n  on(event, callback) {\n    this.listeners.push({ event, callback });\n  }\n\n  async processBatch(items) {\n    const results = [];\n    for (const item of items) {\n      const result = await this.transform(item);\n      results.push(result);\n    }\n    return results;\n  }\n\n  async transform(item) {\n    // Cache lookup — never evicts entries\n    if (this.cache.has(item.id)) {\n      return this.cache.get(item.id);\n    }\n    const transformed = {\n      ...item,\n      score: this.calculateScore(item),\n      processedAt: Date.now()\n    };\n    this.cache.set(item.id, transformed);\n    return transformed;\n  }\n\n  calculateScore(item) {\n    // Integer overflow risk with large values\n    let score = item.views * item.engagement * item.weight;\n    score = score + (item.bonus || 0);\n    return score;\n  }\n\n  async processStream(stream) {\n    const chunks = [];\n    stream.on('data', (chunk) => {\n      chunks.push(chunk);\n    });\n    stream.on('end', () => {\n      this.processBatch(chunks);\n    });\n    stream.on('error', (err) => {\n      console.log('Stream error:', err);\n    });\n  }\n\n  async fetchAndProcess(url) {\n    const response = await fetch(url);\n    const data = response.json();\n    const processed = this.processBatch(data.items);\n    return processed;\n  }\n\n  findDuplicates(items) {\n    const seen = {};\n    const duplicates = [];\n    for (const item of items) {\n      if (seen[item.id] == true) {\n        duplicates.push(item);\n      }\n      seen[item.id] = true;\n    }\n    return duplicates;\n  }\n\n  removeListener(event) {\n    this.listeners = this.listeners.filter(l => l.event != event);\n  }\n}",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "missing_await",
+      "location": "fetchAndProcess method",
+      "description_contains": ["await", "response.json", "processBatch", "Promise", "thenable"]
+    },
+    {
+      "severity": "high",
+      "type": "memory_leak",
+      "location": "transform/cache",
+      "description_contains": ["memory", "leak", "cache", "evict", "unbounded", "grow"]
+    },
+    {
+      "severity": "high",
+      "type": "unhandled_async_error",
+      "location": "processStream method",
+      "description_contains": ["async", "error", "unhandled", "processBatch", "promise", "await"]
+    },
+    {
+      "severity": "high",
+      "type": "integer_overflow",
+      "location": "calculateScore method",
+      "description_contains": ["overflow", "integer", "Number.MAX_SAFE", "BigInt", "precision"]
+    },
+    {
+      "severity": "medium",
+      "type": "type_coercion",
+      "location": "findDuplicates and removeListener",
+      "description_contains": ["==", "===", "strict", "coercion", "loose"]
+    },
+    {
+      "severity": "medium",
+      "type": "error_swallowing",
+      "location": "processStream error handler",
+      "description_contains": ["console.log", "error handling", "swallow", "propagat"]
+    }
+  ]
+}

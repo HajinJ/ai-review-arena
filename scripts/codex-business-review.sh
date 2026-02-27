@@ -85,11 +85,11 @@ source "$SCRIPT_DIR/utils.sh"
 # --- Read config for timeouts and model ---
 TIMEOUT_ROUND1=120
 TIMEOUT_ROUND2=180
-CODEX_MODEL="gpt-5.3-codex-spark"
+CODEX_MODEL=""
 
 if [ -f "$CONFIG_FILE" ]; then
-  cfg_timeout_r1=$(jq -r '.fallback.external_cli_timeout_seconds // empty' "$CONFIG_FILE" 2>/dev/null || true)
-  cfg_timeout_r2=$(jq -r '.fallback.external_cli_debate_timeout_seconds // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_timeout_r1=$(jq -r '.fallback.external_cli_timeout_seconds // empty' "$CONFIG_FILE" || true)
+  cfg_timeout_r2=$(jq -r '.fallback.external_cli_debate_timeout_seconds // empty' "$CONFIG_FILE" || true)
 
   if [ -n "$cfg_timeout_r1" ]; then
     TIMEOUT_ROUND1="$cfg_timeout_r1"
@@ -98,7 +98,7 @@ if [ -f "$CONFIG_FILE" ]; then
     TIMEOUT_ROUND2="$cfg_timeout_r2"
   fi
 
-  cfg_model=$(jq -r '.codex.model_variant // .models.codex.model_variant // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_model=$(jq -r '.codex.model_variant // .models.codex.model_variant // empty' "$CONFIG_FILE" || true)
   if [ -n "$cfg_model" ]; then
     CODEX_MODEL="$cfg_model"
   fi
@@ -109,10 +109,16 @@ if [ "$MODE" = "round2" ]; then
   TIMEOUT=$TIMEOUT_ROUND2
 fi
 
+# Build model flag: only pass -m if model is set
+CODEX_MODEL_ARGS=()
+if [ -n "$CODEX_MODEL" ]; then
+  CODEX_MODEL_ARGS=(-m "$CODEX_MODEL")
+fi
+
 # --- Read structured output config ---
 STRUCTURED_OUTPUT=true
 if [ -f "$CONFIG_FILE" ]; then
-  cfg_structured=$(jq -r '.models.codex.structured_output // true' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_structured=$(jq -r '.models.codex.structured_output // true' "$CONFIG_FILE" || true)
   if [ "$cfg_structured" = "false" ]; then
     STRUCTURED_OUTPUT=false
   fi
@@ -257,9 +263,10 @@ PARSED_JSON=""
 # Try structured output first
 if [ "$STRUCTURED_OUTPUT" = "true" ] && [ -f "$SCHEMA_FILE" ]; then
   OUTPUT_FILE=$(mktemp)
+  _cli_err=$(mktemp)
   RAW_OUTPUT=$(
-    timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" \
-      --output-schema "$SCHEMA_FILE" -o "$OUTPUT_FILE" "$FULL_PROMPT" 2>/dev/null
+    arena_timeout "${TIMEOUT}" codex exec --full-auto "${CODEX_MODEL_ARGS[@]}" \
+      --output-schema "$SCHEMA_FILE" -o "$OUTPUT_FILE" "$FULL_PROMPT" 2>"$_cli_err"
   ) || {
     exit_code=$?
     if [ "$exit_code" -eq 124 ]; then
@@ -268,6 +275,7 @@ if [ "$STRUCTURED_OUTPUT" = "true" ] && [ -f "$SCHEMA_FILE" ]; then
       REVIEW_ERROR="Codex exited with code ${exit_code}"
     fi
   }
+  log_stderr_file "codex-business-review(structured)" "$_cli_err"
 
   # Read structured output from -o file (clean JSON, no extraction needed)
   if [ -z "$REVIEW_ERROR" ] && [ -f "$OUTPUT_FILE" ] && jq . "$OUTPUT_FILE" &>/dev/null; then
@@ -278,8 +286,9 @@ fi
 
 # Fallback to standard execution if structured output didn't work
 if [ -z "$PARSED_JSON" ] && [ -z "$REVIEW_ERROR" ]; then
+  _cli_err=$(mktemp)
   RAW_OUTPUT=$(
-    timeout "${TIMEOUT}s" codex exec --full-auto -m "$CODEX_MODEL" "$FULL_PROMPT" 2>/dev/null
+    arena_timeout "${TIMEOUT}" codex exec --full-auto "${CODEX_MODEL_ARGS[@]}" "$FULL_PROMPT" 2>"$_cli_err"
   ) || {
     exit_code=$?
     if [ "$exit_code" -eq 124 ]; then
@@ -288,6 +297,7 @@ if [ -z "$PARSED_JSON" ] && [ -z "$REVIEW_ERROR" ]; then
       REVIEW_ERROR="Codex exited with code ${exit_code}"
     fi
   }
+  log_stderr_file "codex-business-review(fallback)" "$_cli_err"
 fi
 
 # --- Handle errors ---

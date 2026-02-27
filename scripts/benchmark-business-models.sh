@@ -27,6 +27,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/utils.sh"
+source "$SCRIPT_DIR/benchmark-utils.sh"
 
 ensure_jq
 
@@ -133,7 +134,7 @@ check_finding_match() {
 
   # Count keyword matches
   local total_keywords
-  total_keywords=$(echo "$gt_keywords_json" | jq 'length' 2>/dev/null || echo "0")
+  total_keywords=$(echo "$gt_keywords_json" | jq 'length' || echo "0")
   if [ "$total_keywords" -eq 0 ]; then
     echo "0"
     return
@@ -166,10 +167,10 @@ score_findings() {
   local ground_truth_json="$2"
 
   local total_findings
-  total_findings=$(echo "$findings_json" | jq 'length' 2>/dev/null || echo "0")
+  total_findings=$(echo "$findings_json" | jq 'length' || echo "0")
 
   local total_expected
-  total_expected=$(echo "$ground_truth_json" | jq 'length' 2>/dev/null || echo "0")
+  total_expected=$(echo "$ground_truth_json" | jq 'length' || echo "0")
 
   if [ "$total_expected" -eq 0 ]; then
     echo "0 $total_findings 0"
@@ -254,16 +255,20 @@ compute_f1() {
     echo "$f1"
   else
     # Use bc for accurate calculation
-    local precision=$(echo "scale=4; $correct / $total_found" | bc)
-    local recall=$(echo "scale=4; $correct / $total_expected" | bc)
+    local precision
+    precision=$(echo "scale=4; $correct / $total_found" | bc)
+    local recall
+    recall=$(echo "scale=4; $correct / $total_expected" | bc)
 
-    local sum=$(echo "scale=4; $precision + $recall" | bc)
+    local sum
+    sum=$(echo "scale=4; $precision + $recall" | bc)
     if [ "$(echo "$sum == 0" | bc)" = "1" ]; then
       echo "0"
       return
     fi
 
-    local f1=$(echo "scale=2; 2 * $precision * $recall / $sum * 100" | bc | cut -d. -f1)
+    local f1
+    f1=$(echo "scale=2; 2 * $precision * $recall / $sum * 100" | bc | cut -d. -f1)
     echo "$f1"
   fi
 }
@@ -275,7 +280,7 @@ CLAUDE_TEST_CASES="[]"
 TIMEOUT=120
 
 if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
-  cfg_timeout=$(jq -r '.timeout // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_timeout=$(jq -r '.timeout // empty' "$CONFIG_FILE" || true)
   if [ -n "$cfg_timeout" ]; then
     TIMEOUT="$cfg_timeout"
   fi
@@ -310,7 +315,9 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
   if has_model "codex" && [ -x "$SCRIPT_DIR/codex-business-review.sh" ]; then
     log_info "  Running Codex for $TEST_ID..."
     (
-      echo "$CONTENT" | timeout "$TIMEOUT" "$SCRIPT_DIR/codex-business-review.sh" "${CONFIG_FILE:-/dev/null}" --mode round1 --category "$BENCH_CATEGORY" > "$CODEX_RESULT_FILE" 2>/dev/null || echo '{"findings":[]}' > "$CODEX_RESULT_FILE"
+      _cli_err=$(mktemp)
+      echo "$CONTENT" | arena_timeout "$TIMEOUT" "$SCRIPT_DIR/codex-business-review.sh" "${CONFIG_FILE:-/dev/null}" --mode round1 --category "$BENCH_CATEGORY" > "$CODEX_RESULT_FILE" 2>"$_cli_err" || echo '{"findings":[]}' > "$CODEX_RESULT_FILE"
+      log_stderr_file "benchmark-business(codex)" "$_cli_err"
     ) &
     _bench_pids+=($!)
   fi
@@ -318,7 +325,9 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
   if has_model "gemini" && [ -x "$SCRIPT_DIR/gemini-business-review.sh" ]; then
     log_info "  Running Gemini for $TEST_ID..."
     (
-      echo "$CONTENT" | timeout "$TIMEOUT" "$SCRIPT_DIR/gemini-business-review.sh" "${CONFIG_FILE:-/dev/null}" --mode round1 --category "$BENCH_CATEGORY" > "$GEMINI_RESULT_FILE" 2>/dev/null || echo '{"findings":[]}' > "$GEMINI_RESULT_FILE"
+      _cli_err=$(mktemp)
+      echo "$CONTENT" | arena_timeout "$TIMEOUT" "$SCRIPT_DIR/gemini-business-review.sh" "${CONFIG_FILE:-/dev/null}" --mode round1 --category "$BENCH_CATEGORY" > "$GEMINI_RESULT_FILE" 2>"$_cli_err" || echo '{"findings":[]}' > "$GEMINI_RESULT_FILE"
+      log_stderr_file "benchmark-business(gemini)" "$_cli_err"
     ) &
     _bench_pids+=($!)
   fi
@@ -330,9 +339,9 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
 
   # Process Codex results
   if [ -f "$CODEX_RESULT_FILE" ]; then
-    CODEX_RESPONSE=$(cat "$CODEX_RESULT_FILE" 2>/dev/null || echo '{"findings":[]}')
+    CODEX_RESPONSE=$(cat "$CODEX_RESULT_FILE" || echo '{"findings":[]}')
     rm -f "$CODEX_RESULT_FILE"
-    CODEX_FINDINGS=$(echo "$CODEX_RESPONSE" | jq '.findings // []' 2>/dev/null || echo "[]")
+    CODEX_FINDINGS=$(echo "$CODEX_RESPONSE" | jq '.findings // []' || echo "[]")
 
     read -r correct found expected <<< "$(score_findings "$CODEX_FINDINGS" "$GROUND_TRUTH")"
     f1=$(compute_f1 "$correct" "$found" "$expected")
@@ -353,9 +362,9 @@ for benchmark_file in "${BENCHMARK_FILES[@]}"; do
 
   # Process Gemini results
   if [ -f "$GEMINI_RESULT_FILE" ]; then
-    GEMINI_RESPONSE=$(cat "$GEMINI_RESULT_FILE" 2>/dev/null || echo '{"findings":[]}')
+    GEMINI_RESPONSE=$(cat "$GEMINI_RESULT_FILE" || echo '{"findings":[]}')
     rm -f "$GEMINI_RESULT_FILE"
-    GEMINI_FINDINGS=$(echo "$GEMINI_RESPONSE" | jq '.findings // []' 2>/dev/null || echo "[]")
+    GEMINI_FINDINGS=$(echo "$GEMINI_RESPONSE" | jq '.findings // []' || echo "[]")
 
     read -r correct found expected <<< "$(score_findings "$GEMINI_FINDINGS" "$GROUND_TRUTH")"
     f1=$(compute_f1 "$correct" "$found" "$expected")
@@ -426,13 +435,13 @@ SCORES=$(echo "$RESULTS" | jq '
       }
     ) | map({(.category): .avg_f1}) | add
   ) | map({(.[0].key): .[0].value}) | add // {}
-' 2>/dev/null || echo "{}")
+' || echo "{}")
 
 # =============================================================================
 # Output
 # =============================================================================
 
-CLAUDE_COUNT=$(echo "$CLAUDE_TEST_CASES" | jq 'length' 2>/dev/null || echo "0")
+CLAUDE_COUNT=$(echo "$CLAUDE_TEST_CASES" | jq 'length' || echo "0")
 
 OUTPUT=""
 if [ "$CLAUDE_COUNT" -gt 0 ] && has_model "claude"; then
@@ -468,7 +477,7 @@ echo "$OUTPUT"
 
 # --- Save to cache ---
 PROJECT_ROOT=$(find_project_root)
-echo "$OUTPUT" | "$SCRIPT_DIR/cache-manager.sh" write "$PROJECT_ROOT" "benchmarks" "business-model-scores" 2>/dev/null || true
+echo "$OUTPUT" | "$SCRIPT_DIR/cache-manager.sh" write "$PROJECT_ROOT" "benchmarks" "business-model-scores" || true
 
 log_info "Business model benchmarking complete."
 

@@ -69,6 +69,7 @@ fi
 
 # --- Resolve paths ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC2034 # PLUGIN_DIR used by sourced review prompts
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/utils.sh"
 
@@ -85,24 +86,30 @@ fi
 
 # --- Read config ---
 TIMEOUT=120
-MODEL_VARIANT="gemini-3-pro-preview"
+MODEL_VARIANT=""
 
 if [ -f "$CONFIG_FILE" ]; then
   # Read timeout based on mode
   if [ "$MODE" = "round1" ]; then
-    cfg_timeout=$(jq -r '.fallback.external_cli_timeout_seconds // .timeout // empty' "$CONFIG_FILE" 2>/dev/null || true)
+    cfg_timeout=$(jq -r '.fallback.external_cli_timeout_seconds // .timeout // empty' "$CONFIG_FILE" || true)
   else
-    cfg_timeout=$(jq -r '.fallback.external_cli_debate_timeout_seconds // .debate.round2_timeout_seconds // empty' "$CONFIG_FILE" 2>/dev/null || true)
+    cfg_timeout=$(jq -r '.fallback.external_cli_debate_timeout_seconds // .debate.round2_timeout_seconds // empty' "$CONFIG_FILE" || true)
   fi
   if [ -n "$cfg_timeout" ]; then
     TIMEOUT="$cfg_timeout"
   fi
 
   # Read model variant
-  cfg_model=$(jq -r '.models.gemini.model_variant // .gemini.model_variant // empty' "$CONFIG_FILE" 2>/dev/null || true)
+  cfg_model=$(jq -r '.models.gemini.model_variant // .gemini.model_variant // empty' "$CONFIG_FILE" || true)
   if [ -n "$cfg_model" ]; then
     MODEL_VARIANT="$cfg_model"
   fi
+fi
+
+# Build model flag: only pass --model if model is set
+GEMINI_MODEL_ARGS=()
+if [ -n "$MODEL_VARIANT" ]; then
+  GEMINI_MODEL_ARGS=(--model "$MODEL_VARIANT")
 fi
 
 # --- Read input from stdin ---
@@ -263,8 +270,9 @@ fi
 RAW_OUTPUT=""
 REVIEW_ERROR=""
 
+_cli_err=$(mktemp)
 RAW_OUTPUT=$(
-  timeout "${TIMEOUT}s" gemini --model "$MODEL_VARIANT" "$FULL_PROMPT" 2>/dev/null
+  arena_timeout "${TIMEOUT}" gemini "${GEMINI_MODEL_ARGS[@]}" "$FULL_PROMPT" 2>"$_cli_err"
 ) || {
   exit_code=$?
   if [ "$exit_code" -eq 124 ]; then
@@ -273,6 +281,7 @@ RAW_OUTPUT=$(
     REVIEW_ERROR="Gemini exited with code ${exit_code}"
   fi
 }
+log_stderr_file "gemini-business-review" "$_cli_err"
 
 # --- Handle errors (always exit 0 for graceful degradation) ---
 if [ -n "$REVIEW_ERROR" ]; then

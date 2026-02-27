@@ -20,7 +20,7 @@ set -o pipefail
 
 # --- Source utils ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/utils.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/utils.sh" || true
 
 # =============================================================================
 # Constants & Defaults
@@ -259,7 +259,7 @@ for filepath in "${FILES[@]}"; do
   # Count pattern matches once (reused for both filtered_lines and density)
   match_count=0
   if [ -n "$INCLUDE_PATTERNS" ]; then
-    match_count=$(grep -c -E "$INCLUDE_PATTERNS" "$filepath" 2>/dev/null || true)
+    match_count=$(grep -c -E "$INCLUDE_PATTERNS" "$filepath" || true)
     match_count=$(echo "$match_count" | tr -dc '0-9')
     match_count=${match_count:-0}
   fi

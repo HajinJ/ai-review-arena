@@ -17,15 +17,17 @@
   - Debate: debate-arbitrator, business-debate-arbitrator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell/Python scripts (25 files)
+- `scripts/` - Shell/Python scripts (29 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
   - Review: aggregate-findings.sh, run-debate.sh, generate-report.sh, cost-estimator.sh
   - Arena: detect-stack.sh, cache-manager.sh, benchmark-models.sh, benchmark-business-models.sh, search-best-practices.sh, search-guidelines.sh
+  - Benchmark: run-benchmark.sh, run-solo-benchmark.sh, benchmark-utils.sh
   - External integrations: openai-ws-debate.py (WebSocket debate), gemini-hook-adapter.sh (Gemini hook adapter)
   - Evaluation: evaluate-pipeline.sh
   - Feedback: feedback-tracker.sh
   - Context: context-filter.sh (role-based code filtering for review agents)
+  - Validation: validate-config.sh, normalize-severity.sh
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
   - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation)
@@ -34,9 +36,13 @@
   - codex-agents/ - Codex multi-agent TOML configs (5 files: security, bugs, performance, architecture, testing)
   - compliance-rules.json - Feature→guideline mapping
   - tech-queries.json - Technology→search query mapping (31 technologies)
-  - benchmarks/ - Model benchmark test cases (16 files: 4 code + 12 business)
-- `docs/` - Documentation and TODO files
+  - benchmarks/ - Model benchmark test cases (20 files: 8 code + 12 business)
+- `docs/` - Documentation, ADRs, and reference
+  - adr-001-bash-architecture.md - ADR: Why bash + trade-offs
+  - adr-002-markdown-pipelines.md - ADR: Why markdown-as-code pipelines
+  - router-examples.md, context-forwarding.md, safety-protocol.md - Router reference docs
   - TODO-external-integrations.md - Research-backed TODO items for external API integrations
+- `tests/` - Test suite (18 test files: 8 unit + 8 integration + 2 e2e)
 - `shared-phases/` - Common phase definitions shared by code and business pipelines
   - `intensity-decision.md` - Phase 0.1/B0.1: Agent Teams intensity debate (shared template)
   - `cost-estimation.md` - Phase 0.2/B0.2: Cost & time estimation using cost-estimator.sh

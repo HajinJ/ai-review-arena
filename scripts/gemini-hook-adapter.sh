@@ -74,7 +74,7 @@ fi
 
 # Check if gemini hooks are enabled in config
 if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
-  GEMINI_HOOKS_ENABLED=$(jq -r '.gemini_hooks.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+  GEMINI_HOOKS_ENABLED=$(jq -r '.gemini_hooks.enabled // false' "$CONFIG_FILE" || echo "false")
   if [ "$GEMINI_HOOKS_ENABLED" != "true" ]; then
     exit 0
   fi
@@ -96,5 +96,7 @@ if [ -f "$PLUGIN_DIR/scripts/orchestrate-review.sh" ]; then
                   else $tool_name end),
       tool_input: { file_path: $file_path }
     }')
-  echo "$TRANSLATED_JSON" | "$PLUGIN_DIR/scripts/orchestrate-review.sh" 2>/dev/null || true
+  _cli_err=$(mktemp)
+  echo "$TRANSLATED_JSON" | "$PLUGIN_DIR/scripts/orchestrate-review.sh" 2>"$_cli_err" || true
+  log_stderr_file "gemini-hook-adapter" "$_cli_err"
 fi

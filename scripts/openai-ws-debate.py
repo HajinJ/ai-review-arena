@@ -449,7 +449,13 @@ def main():
     # Config
     ws_config = config.get("websocket", {})
     debate_config = config.get("debate", {})
-    model = ws_config.get("model", "gpt-5.3-codex-spark")
+    model = ws_config.get("model", "") or config.get("models", {}).get("codex", {}).get("model_variant", "")
+    if not model:
+        print(json.dumps({
+            "accepted": findings, "rejected": [], "disputed": [],
+            "error": "No model configured for WebSocket debate (set websocket.model or models.codex.model_variant in config)"
+        }))
+        sys.exit(1)
     store = ws_config.get("store", False)
     connection_timeout = ws_config.get("connection_timeout_seconds", 30)
     ws_url = ws_config.get("url", "wss://api.openai.com/v1/responses")

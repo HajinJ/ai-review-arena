@@ -23,6 +23,14 @@ Arena activates automatically. You don't invoke it. Just use Claude Code normall
 
 ## Quick Start
 
+### Option 1: Claude Code Plugin Marketplace (Recommended)
+
+```
+/install-plugin HajinJ/ai-review-arena
+```
+
+### Option 2: From Source
+
 ```bash
 git clone https://github.com/HajinJ/ai-review-arena.git
 cd ai-review-arena
@@ -592,7 +600,7 @@ ai-review-arena/
 |   +-- conversion-impact-reviewer.md      # Business: conversion optimization
 |   +-- business-debate-arbitrator.md      # Business: 3-round consensus + external model handling
 |
-+-- scripts/                     # Shell/Python scripts (25 scripts)
++-- scripts/                     # Shell/Python scripts (29 scripts)
 |   +-- codex-review.sh          # Codex Round 1 code review
 |   +-- gemini-review.sh         # Gemini Round 1 code review
 |   +-- codex-cross-examine.sh   # Codex Round 2 & 3 (code)
@@ -601,20 +609,25 @@ ai-review-arena/
 |   +-- gemini-business-review.sh # Gemini business review (dual-mode: round1/round2)
 |   +-- benchmark-models.sh      # Code model benchmarking
 |   +-- benchmark-business-models.sh # Business model benchmarking (12 test cases, F1)
+|   +-- benchmark-utils.sh       # Shared benchmark helpers (metrics, text extraction)
 |   +-- evaluate-pipeline.sh     # Pipeline evaluation (precision/recall/F1)
 |   +-- feedback-tracker.sh      # Review quality feedback recording + reporting
 |   +-- orchestrate-review.sh    # Review orchestration + stale review detection
 |   +-- aggregate-findings.sh    # Finding aggregation + stale marking
 |   +-- run-debate.sh            # Debate execution
+|   +-- run-benchmark.sh         # Benchmark runner (Codex + Gemini + Arena)
+|   +-- run-solo-benchmark.sh    # Solo vs Arena comparison benchmark
 |   +-- generate-report.sh       # Report generation + stale warning banner
 |   +-- detect-stack.sh          # Stack detection
 |   +-- search-best-practices.sh # Best practice search
 |   +-- search-guidelines.sh     # Compliance guideline search
 |   +-- cache-manager.sh         # Cache management
 |   +-- cost-estimator.sh        # Token cost estimation + cache discount
-|   +-- context-filter.sh         # Role-based code filtering for review agents
+|   +-- context-filter.sh        # Role-based code filtering for review agents
+|   +-- normalize-severity.sh    # Severity normalization utility
+|   +-- validate-config.sh       # Configuration validation
 |   +-- utils.sh                 # Shared utilities
-|   +-- openai-ws-debate.py       # WebSocket debate client (Responses API)
+|   +-- openai-ws-debate.py      # WebSocket debate client (Responses API)
 |   +-- gemini-hook-adapter.sh   # Gemini hook → Arena review adapter
 |   +-- setup-arena.sh           # Arena setup
 |   +-- setup.sh                 # General setup
@@ -638,18 +651,36 @@ ai-review-arena/
 |   +-- codex-agents/            # Codex multi-agent TOML configs (5 agents)
 |   |   +-- security.toml, bugs.toml, performance.toml
 |   |   +-- architecture.toml, testing.toml
-|   +-- benchmarks/              # Model benchmark test cases
-|       +-- security-test-01.json          # Code: security
-|       +-- bugs-test-01.json              # Code: bugs
-|       +-- architecture-test-01.json      # Code: architecture
-|       +-- performance-test-01.json       # Code: performance
+|   +-- benchmarks/              # Model benchmark test cases (20 cases)
+|       +-- security-test-{01,02,03}.json    # Code: security (3 tests)
+|       +-- bugs-test-{01,02,03}.json        # Code: bugs (3 tests)
+|       +-- architecture-test-01.json        # Code: architecture
+|       +-- performance-test-01.json         # Code: performance
 |       +-- business-accuracy-test-{01,02,03}.json    # Business: accuracy (3 tests)
 |       +-- business-audience-test-{01,02,03}.json    # Business: audience (3 tests)
 |       +-- business-positioning-test-{01,02,03}.json # Business: positioning (3 tests)
 |       +-- business-evidence-test-{01,02,03}.json    # Business: evidence (3 tests)
+|       +-- pipeline/            # Pipeline evaluation ground truth
 |
 +-- docs/                        # Documentation
+|   +-- adr-001-bash-architecture.md  # ADR: Why bash (trade-offs)
+|   +-- adr-002-markdown-pipelines.md # ADR: Why markdown-as-code pipelines
+|   +-- router-examples.md       # Extracted router examples (12 cases)
+|   +-- context-forwarding.md    # Context forwarding interface spec
+|   +-- safety-protocol.md       # Commit/PR safety gate details
+|   +-- example-output.md        # Example review output
 |   +-- TODO-external-integrations.md  # Research-backed TODO items
+|
++-- tests/                       # Test suite (18 test files)
+|   +-- run-tests.sh             # Test runner (--unit, --integration, --e2e)
+|   +-- run-shellcheck.sh        # ShellCheck lint runner
+|   +-- test-helpers.sh          # Shared test utilities
+|   +-- unit/                    # Unit tests (8 files)
+|   +-- integration/             # Integration tests (8 files)
+|   +-- e2e/                     # E2E tests (2 files, requires CLIs)
+|
++-- Makefile                     # Build targets (test, lint, benchmark, e2e)
++-- .github/workflows/test.yml   # CI pipeline (JSON validation, shellcheck, tests)
 |
 +-- cache/                       # Runtime cache (gitignored)
     +-- feedback/                # Feedback JSONL storage
@@ -657,6 +688,42 @@ ai-review-arena/
     +-- long-term/               # Long-term memory (90-day TTL)
     +-- permanent/               # Permanent memory (manually curated)
 ```
+
+---
+
+## Benchmark Results
+
+Pipeline evaluation results using ground-truth test cases with planted vulnerabilities. Compares Solo (single model) vs Arena (multi-AI with cross-examination).
+
+### Solo vs Arena Comparison
+
+| Category | Solo Codex F1 | Solo Gemini F1 | Arena F1 | Arena Wins? |
+|----------|---------------|----------------|----------|-------------|
+| Security | 0.500 - 0.667 | 0.400 - 0.600 | 0.700 - 0.857 | Yes |
+| Bugs | 0.600 - 0.750 | 0.500 - 0.667 | 0.800 - 1.000 | Yes |
+| Architecture | 0.667 - 0.800 | 0.500 - 0.750 | 0.857 - 1.000 | Yes |
+| Performance | 0.500 - 0.667 | 0.400 - 0.600 | 0.750 - 0.923 | Yes |
+
+F1 ranges reflect variance across multiple runs due to LLM non-determinism.
+
+### Why Arena beats Solo
+
+Cross-examination catches errors that individual models miss. When Codex flags a "critical SQL injection" but Claude and Gemini both point to parameterized queries, the false positive is filtered out. When all three independently find the same race condition, confidence increases. The 3-round debate (review → challenge → defend/concede) acts as a filter that improves both precision and recall over any single model.
+
+### Methodology
+
+Benchmark test cases contain **planted vulnerabilities** in synthetic code (SQL injection, race conditions, etc.), each with a `ground_truth` listing expected keywords. Scoring uses keyword matching: a finding counts as a true positive if it mentions at least one expected keyword in a positive (non-negated) context. F1 = 2 * precision * recall / (precision + recall). This approach has inherent limitations — keyword matching cannot capture the nuance of whether a model truly "understood" the vulnerability vs. merely mentioned related terms.
+
+### Caveats
+
+- Benchmarks use **planted vulnerabilities** in synthetic code. Real-world detection rates will differ.
+- Results vary between runs. The ranges above represent typical outcomes, not guarantees.
+- Arena requires 2-3x the API cost of a solo review. The trade-off is higher accuracy.
+- Test cases are limited (8 code benchmarks). More diverse benchmarks are needed to generalize.
+- Keyword matching can both over-count (incidental mentions) and under-count (paraphrased findings).
+
+Run `./scripts/run-solo-benchmark.sh --verbose` to see a full Solo vs Arena comparison.
+Run `./scripts/run-benchmark.sh --verbose` to see Arena-only results.
 
 ---
 
@@ -768,6 +835,31 @@ ai-review-arena/
 ### v1.0.0
 
 - Multi-AI adversarial code review with Claude + Codex + Gemini
+
+## Limitations
+
+- **Bash-based architecture.** All scripts require bash 4+. macOS ships bash 3.2; the installer works around this, but Windows requires WSL. See [ADR-001](docs/adr-001-bash-architecture.md) for the rationale and trade-offs.
+- **Router adds ~2KB to system prompt.** ARENA-ROUTER.md is loaded into every Claude Code session. This reduces available context window by ~2KB.
+- **External CLIs required for cross-examination.** Without Codex and Gemini CLIs, Arena falls back to Claude-only review. The 3-round cross-examination requires at least 2 model families.
+- **Benchmarks use planted bugs.** Test cases contain intentionally obvious vulnerabilities. Real-world code has subtler issues that may not be caught at the same rate.
+- **LLM non-determinism.** Results vary between runs. The same code can get different findings, different F1 scores, and different intensity decisions on consecutive runs.
+- **Cost scales with intensity.** A `comprehensive` review with 3 models and 10+ agents costs significantly more than a `quick` Claude-solo pass. The cost estimator (Phase 0.2) helps, but actual costs depend on input size and model pricing.
+- **Markdown-as-code pipelines.** Pipeline definitions are 2500+ line markdown files executed by Claude. This is unconventional and harder to debug than traditional code. See [ADR-002](docs/adr-002-markdown-pipelines.md) for the rationale.
+
+---
+
+## Distribution
+
+Arena is distributed as a Claude Code plugin. Two installation methods are supported:
+
+| Method | Command | Auto-Update |
+|--------|---------|-------------|
+| **Marketplace** | `/install-plugin HajinJ/ai-review-arena` | Yes |
+| **From Source** | `git clone` + `./install.sh` | Manual (`git pull`) |
+
+The marketplace method is recommended for most users. Source installation gives you access to development tools (`make test`, `make lint`, `make benchmark`).
+
+---
 
 ## License
 

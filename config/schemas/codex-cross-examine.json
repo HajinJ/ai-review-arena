@@ -15,9 +15,11 @@
           "confidence_adjustment": { "type": "number", "minimum": -20, "maximum": 20 },
           "evidence": { "type": "string" }
         },
-        "required": ["finding_index", "agree", "confidence_adjustment", "evidence"]
+        "required": ["finding_index", "agree", "confidence_adjustment", "evidence"],
+        "additionalProperties": false
       }
     }
   },
-  "required": ["model", "round", "phase", "responses"]
+  "required": ["model", "round", "phase", "responses"],
+  "additionalProperties": false
 }

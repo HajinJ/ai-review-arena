@@ -72,7 +72,7 @@ is_fresh() {
   fi
 
   local stored_epoch
-  stored_epoch=$(cat "$ts_file" 2>/dev/null || echo "0")
+  stored_epoch=$(cat "$ts_file" || echo "0")
   local now_epoch
   now_epoch=$(date +%s)
   local ttl_seconds=$((ttl_days * 86400))
@@ -204,7 +204,7 @@ cmd_list() {
       local size_bytes=0
 
       if [ -f "$ts_file" ]; then
-        stored_epoch=$(cat "$ts_file" 2>/dev/null || echo "0")
+        stored_epoch=$(cat "$ts_file" || echo "0")
       fi
       size_bytes=$(wc -c < "$entry" 2>/dev/null | tr -d ' ')
 
@@ -256,7 +256,7 @@ cmd_cleanup() {
   for ts_file in "$base"/*/*.timestamp "$base"/*/*/*.timestamp; do
     [ -f "$ts_file" ] || continue
     local stored_epoch
-    stored_epoch=$(cat "$ts_file" 2>/dev/null || echo "0")
+    stored_epoch=$(cat "$ts_file" || echo "0")
     local age=$((now_epoch - stored_epoch))
 
     if [ "$age" -gt "$max_age_seconds" ]; then
@@ -292,7 +292,7 @@ cmd_cleanup() {
       fi
     done < <(find "$base" -maxdepth 3 -name '*.timestamp' -type f -print0 2>/dev/null | \
       while IFS= read -r -d '' ts_file; do
-        echo "$(cat "$ts_file" 2>/dev/null || echo 0) $ts_file"
+        echo "$(cat "$ts_file" || echo 0) $ts_file"
       done | sort -n)
   fi
 
@@ -333,10 +333,10 @@ cmd_cleanup_sessions() {
     local dir_mtime
     if stat -f %m "$session_dir" &>/dev/null 2>&1; then
       # macOS / BSD
-      dir_mtime=$(stat -f %m "$session_dir" 2>/dev/null || echo "0")
+      dir_mtime=$(stat -f %m "$session_dir" || echo "0")
     else
       # GNU/Linux
-      dir_mtime=$(stat -c %Y "$session_dir" 2>/dev/null || echo "0")
+      dir_mtime=$(stat -c %Y "$session_dir" || echo "0")
     fi
 
     local age=$((now_epoch - dir_mtime))
@@ -353,9 +353,9 @@ cmd_cleanup_sessions() {
 
     local file_mtime
     if stat -f %m "$tmp_config" &>/dev/null 2>&1; then
-      file_mtime=$(stat -f %m "$tmp_config" 2>/dev/null || echo "0")
+      file_mtime=$(stat -f %m "$tmp_config" || echo "0")
     else
-      file_mtime=$(stat -c %Y "$tmp_config" 2>/dev/null || echo "0")
+      file_mtime=$(stat -c %Y "$tmp_config" || echo "0")
     fi
 
     local age=$((now_epoch - file_mtime))
@@ -446,7 +446,7 @@ cmd_memory_list() {
       key=$(basename "$entry")
       local ts_file="${entry}.timestamp"
       local stored_epoch="0"
-      [ -f "$ts_file" ] && stored_epoch=$(cat "$ts_file" 2>/dev/null || echo "0")
+      [ -f "$ts_file" ] && stored_epoch=$(cat "$ts_file" || echo "0")
 
       entries_jsonl="${entries_jsonl}$(jq -cn \
         --arg tier "$tier" \
@@ -477,7 +477,7 @@ cmd_memory_list() {
         key=$(basename "$entry")
         local ts_file="${entry}.timestamp"
         local stored_epoch="0"
-        [ -f "$ts_file" ] && stored_epoch=$(cat "$ts_file" 2>/dev/null || echo "0")
+        [ -f "$ts_file" ] && stored_epoch=$(cat "$ts_file" || echo "0")
 
         all_entries_jsonl="${all_entries_jsonl}$(jq -cn \
           --arg tier "$t" \

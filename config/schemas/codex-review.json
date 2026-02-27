@@ -11,16 +11,18 @@
         "type": "object",
         "properties": {
           "severity": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
-          "confidence": { "type": "number", "minimum": 0, "maximum": 100 },
+          "confidence": { "type": "number" },
           "line": { "type": "integer" },
           "title": { "type": "string" },
           "description": { "type": "string" },
           "suggestion": { "type": "string" }
         },
-        "required": ["severity", "title", "description"]
+        "required": ["severity", "title", "description", "line", "suggestion", "confidence"],
+        "additionalProperties": false
       }
     },
     "summary": { "type": "string" }
   },
-  "required": ["model", "role", "file", "findings", "summary"]
+  "required": ["model", "role", "file", "findings", "summary"],
+  "additionalProperties": false
 }

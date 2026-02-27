@@ -26,6 +26,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/utils.sh"
 
+# Fallback level tracking for external CLI failures
+DEBATE_FALLBACK_LEVEL=0
+
 # --- Dependencies ---
 if ! command -v jq &>/dev/null; then
   echo '{"accepted":[],"rejected":[],"disputed":[],"error":"jq not found"}'
@@ -39,7 +42,7 @@ _DEBATE_CFG=$(jq -r '[
   (.debate.consensus_threshold // 80),
   (.debate.challenge_threshold // 60),
   (.timeout // 120)
-] | @tsv' "$CONFIG_FILE" 2>/dev/null) || _DEBATE_CFG=""
+] | @tsv' "$CONFIG_FILE") || _DEBATE_CFG=""
 
 if [ -n "$_DEBATE_CFG" ]; then
   IFS=$'\t' read -r DEBATE_ENABLED MAX_ROUNDS CONSENSUS_THRESHOLD CHALLENGE_THRESHOLD TIMEOUT <<< "$_DEBATE_CFG"
@@ -82,7 +85,7 @@ if ! echo "$FINDINGS" | jq . &>/dev/null 2>&1; then
 fi
 
 # --- WebSocket fast path ---
-WS_ENABLED=$(jq -r '.websocket.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+WS_ENABLED=$(jq -r '.websocket.enabled // false' "$CONFIG_FILE" || echo "false")
 
 if [ "$WS_ENABLED" = "true" ] && command -v python3 &>/dev/null; then
   # Check if openai package is available
@@ -91,7 +94,7 @@ if [ "$WS_ENABLED" = "true" ] && command -v python3 &>/dev/null; then
     if [ -f "$WS_SCRIPT" ]; then
       # Build input JSON for WebSocket client (include code_context)
       # Validate CODE_CONTEXT is valid JSON; default to empty object
-      local _ws_code_ctx="null"
+      _ws_code_ctx="null"
       if [ -n "$CODE_CONTEXT" ] && echo "$CODE_CONTEXT" | jq . &>/dev/null; then
         _ws_code_ctx="$CODE_CONTEXT"
       fi
@@ -101,8 +104,12 @@ if [ "$WS_ENABLED" = "true" ] && command -v python3 &>/dev/null; then
         --slurpfile config "$CONFIG_FILE" \
         '{ findings: $findings, code_context: ($code_context // {}), config: $config[0] }')
 
-      WS_TIMEOUT=$(jq -r '.fallback.external_cli_debate_timeout_seconds // 300' "$CONFIG_FILE" 2>/dev/null || echo "300")
-      WS_RESULT=$(echo "$WS_INPUT" | timeout "${WS_TIMEOUT}s" python3 "$WS_SCRIPT" 2>/dev/null) || true
+      WS_TIMEOUT=$(jq -r '.fallback.external_cli_debate_timeout_seconds // 300' "$CONFIG_FILE" || echo "300")
+      if ! WS_RESULT=$(echo "$WS_INPUT" | arena_timeout "${WS_TIMEOUT}" python3 "$WS_SCRIPT" 2>&1); then
+        log_warn "WebSocket debate failed: ${WS_RESULT:0:200}"
+        WS_RESULT=""
+        DEBATE_FALLBACK_LEVEL=$((DEBATE_FALLBACK_LEVEL > 4 ? DEBATE_FALLBACK_LEVEL : 4))
+      fi
 
       if [ -n "$WS_RESULT" ] && echo "$WS_RESULT" | jq -e '.accepted' &>/dev/null 2>&1; then
         # WebSocket debate succeeded — output result and exit
@@ -168,7 +175,7 @@ run_challenge() {
     (.description // ""),
     (.severity // "medium"),
     (.models[0] // "unknown")
-  ] | @tsv' 2>/dev/null) || _challenge_fields=""
+  ] | @tsv') || _challenge_fields=""
 
   local file_path line title description severity original_model
   IFS=$'\t' read -r file_path line title description severity original_model <<< "$_challenge_fields"
@@ -207,15 +214,37 @@ CHALLENGE_EOF
   local result=""
   if [ "$challenger" = "codex" ]; then
     local codex_model
-    codex_model=$(jq -r '.models.codex.model_variant // "gpt-5.3-codex-spark"' "$CONFIG_FILE" 2>/dev/null)
-    result=$(echo "$challenge_prompt" | timeout "${TIMEOUT}s" codex exec --full-auto -m "$codex_model" 2>/dev/null) || true
+    codex_model=$(jq -r '.models.codex.model_variant // ""' "$CONFIG_FILE" 2>/dev/null)
+    if [ -n "$codex_model" ]; then
+      if ! result=$(echo "$challenge_prompt" | arena_timeout "${TIMEOUT}" codex exec --full-auto -m "$codex_model" 2>&1); then
+        log_warn "Codex challenge failed: ${result:0:200}"
+        result=""
+      fi
+    else
+      if ! result=$(echo "$challenge_prompt" | arena_timeout "${TIMEOUT}" codex exec --full-auto 2>&1); then
+        log_warn "Codex challenge failed: ${result:0:200}"
+        result=""
+      fi
+    fi
   elif [ "$challenger" = "gemini" ]; then
     local model_variant
-    model_variant=$(jq -r '.models.gemini.model_variant // "gemini-3-pro-preview"' "$CONFIG_FILE" 2>/dev/null)
-    result=$(timeout "${TIMEOUT}s" gemini --model "$model_variant" "$challenge_prompt" 2>/dev/null) || true
+    model_variant=$(jq -r '.models.gemini.model_variant // ""' "$CONFIG_FILE" 2>/dev/null)
+    if [ -n "$model_variant" ]; then
+      if ! result=$(arena_timeout "${TIMEOUT}" gemini --model "$model_variant" "$challenge_prompt" 2>&1); then
+        log_warn "Gemini challenge failed: ${result:0:200}"
+        result=""
+      fi
+    else
+      if ! result=$(arena_timeout "${TIMEOUT}" gemini "$challenge_prompt" 2>&1); then
+        log_warn "Gemini challenge failed: ${result:0:200}"
+        result=""
+      fi
+    fi
   fi
 
   if [ -z "$result" ]; then
+    # Track CLI failure for fallback level
+    DEBATE_FALLBACK_LEVEL=4
     echo '{"agree":true,"confidence_adjustment":0,"evidence":"Challenger did not respond"}'
     return
   fi
@@ -241,7 +270,7 @@ CURRENT_FINDINGS="$FINDINGS"
 
 for round in $(seq 1 "$MAX_ROUNDS"); do
   ROUND_LOG="[]"
-  FINDINGS_COUNT=$(echo "$CURRENT_FINDINGS" | jq 'length' 2>/dev/null || echo "0")
+  FINDINGS_COUNT=$(echo "$CURRENT_FINDINGS" | jq 'length' || echo "0")
 
   if [ "$FINDINGS_COUNT" -eq 0 ]; then
     break
@@ -261,7 +290,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
         (.file // ""),
         (.line // 0)
       ] | @tsv
-    ' 2>/dev/null) || _FINDING_FIELDS=""
+    ') || _FINDING_FIELDS=""
 
     if [ -z "$_FINDING_FIELDS" ]; then
       idx=$((idx + 1))
@@ -304,11 +333,11 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
       START_LINE=$((LINE_NUM - 5))
       [ "$START_LINE" -lt 1 ] && START_LINE=1
       END_LINE=$((LINE_NUM + 15))
-      CODE_SNIPPET=$(sed -n "${START_LINE},${END_LINE}p" "$FILE_TO_READ" 2>/dev/null || true)
+      CODE_SNIPPET=$(sed -n "${START_LINE},${END_LINE}p" "$FILE_TO_READ" || true)
     fi
 
     if [ -z "$CODE_SNIPPET" ] && [ -n "$FILE_TO_READ" ] && [ -f "$FILE_TO_READ" ]; then
-      CODE_SNIPPET=$(head -n 50 "$FILE_TO_READ" 2>/dev/null || true)
+      CODE_SNIPPET=$(head -n 50 "$FILE_TO_READ" || true)
     fi
 
     # Run the challenge
@@ -319,7 +348,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
       (if .agree then "true" else "false" end),
       (.confidence_adjustment // 0 | floor),
       (.evidence // "")
-    ] | @tsv' 2>/dev/null) || _CHAL_FIELDS=""
+    ] | @tsv') || _CHAL_FIELDS=""
     IFS=$'\t' read -r AGREE CONF_ADJ EVIDENCE <<< "$_CHAL_FIELDS"
     AGREE="${AGREE:-true}"
     CONF_ADJ="${CONF_ADJ:-0}"
@@ -331,7 +360,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
     [ "$NEW_CONFIDENCE" -lt 0 ] && NEW_CONFIDENCE=0
 
     # Normalize AGREE to valid JSON boolean for --argjson
-    local _agree_bool="true"
+    _agree_bool="true"
     [ "$AGREE" = "false" ] && _agree_bool="false"
 
     # Update finding
@@ -340,7 +369,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
       .[$idx].debate_status = (if $agree then "confirmed" else "challenged") |
       .[$idx].challenger = $challenger |
       .[$idx].models = (.[$idx].models + [$challenger] | unique)
-    ' 2>/dev/null || echo "$UPDATED_FINDINGS")
+    ' || echo "$UPDATED_FINDINGS")
 
     # Log debate entry
     DEBATE_ENTRY=$(jq -n \
@@ -365,7 +394,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
         new_confidence: $new_conf
       }')
 
-    ROUND_LOG=$(echo "$ROUND_LOG" | jq ". += [$DEBATE_ENTRY]" 2>/dev/null || echo "$ROUND_LOG")
+    ROUND_LOG=$(echo "$ROUND_LOG" | jq ". += [$DEBATE_ENTRY]" || echo "$ROUND_LOG")
 
     idx=$((idx + 1))
   done
@@ -375,7 +404,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
   # Append round log to debate log
   if [ -f "$DEBATE_LOG" ]; then
     EXISTING_LOG=$(cat "$DEBATE_LOG")
-    echo "$EXISTING_LOG" | jq ". += $ROUND_LOG" > "$DEBATE_LOG" 2>/dev/null || true
+    echo "$EXISTING_LOG" | jq ". += $ROUND_LOG" > "$DEBATE_LOG" || true
   fi
 done
 
@@ -413,5 +442,10 @@ CONSENSUS_RESULT=$(echo "$CURRENT_FINDINGS" | jq --argjson threshold "$CONSENSUS
     disputed: [.[] | select(categorize == "disputed")]
   }
 ')
+
+# Include fallback_level if any degradation occurred
+if [ "$DEBATE_FALLBACK_LEVEL" -gt 0 ]; then
+  CONSENSUS_RESULT=$(echo "$CONSENSUS_RESULT" | jq --argjson fl "$DEBATE_FALLBACK_LEVEL" '. + {fallback_level: $fl}')
+fi
 
 echo "$CONSENSUS_RESULT"

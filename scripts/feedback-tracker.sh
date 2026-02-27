@@ -169,10 +169,10 @@ cmd_report() {
   local cutoff_ts
   if date -u -r 0 +%Y-%m-%dT%H:%M:%SZ &>/dev/null 2>&1; then
     # macOS / BSD
-    cutoff_ts=$(date -u -r "$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "1970-01-01T00:00:00Z")
+    cutoff_ts=$(date -u -r "$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ || echo "1970-01-01T00:00:00Z")
   else
     # GNU/Linux
-    cutoff_ts=$(date -u -d "@$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "1970-01-01T00:00:00Z")
+    cutoff_ts=$(date -u -d "@$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ || echo "1970-01-01T00:00:00Z")
   fi
 
   # Use jq to slurp the JSONL, filter, and compute per-model and per-category stats
@@ -291,9 +291,9 @@ cmd_recommend() {
 
   local cutoff_ts
   if date -u -r 0 +%Y-%m-%dT%H:%M:%SZ &>/dev/null 2>&1; then
-    cutoff_ts=$(date -u -r "$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "1970-01-01T00:00:00Z")
+    cutoff_ts=$(date -u -r "$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ || echo "1970-01-01T00:00:00Z")
   else
-    cutoff_ts=$(date -u -d "@$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "1970-01-01T00:00:00Z")
+    cutoff_ts=$(date -u -d "@$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ || echo "1970-01-01T00:00:00Z")
   fi
 
   # Load benchmark scores if available
@@ -303,7 +303,7 @@ cmd_recommend() {
   local benchmark_cache
   benchmark_cache=$(cache_base_dir "$project_root")/benchmarks/model-scores
   if [ -f "$benchmark_cache" ]; then
-    benchmark_scores=$(jq '.scores // {}' "$benchmark_cache" 2>/dev/null || echo "{}")
+    benchmark_scores=$(jq '.scores // {}' "$benchmark_cache" || echo "{}")
   fi
 
   # Compute per-model-category accuracy from feedback, then combine with benchmarks

@@ -32,6 +32,7 @@ if [ -z "$TECHNOLOGY" ]; then
 fi
 
 shift 1
+# shellcheck disable=SC2034
 while [ $# -gt 0 ]; do
   case "$1" in
     --version) VERSION="${2:-}"; shift 2 ;;
@@ -78,7 +79,7 @@ if [ -n "$VERSION" ]; then
 fi
 
 CACHE_PATH=""
-CACHE_PATH=$("$SCRIPT_DIR/cache-manager.sh" hash "$PROJECT_ROOT" 2>/dev/null || true)
+CACHE_PATH=$("$SCRIPT_DIR/cache-manager.sh" hash "$PROJECT_ROOT" || true)
 if [ -n "$CACHE_PATH" ]; then
   CACHE_PATH="${PLUGIN_DIR}/cache/${CACHE_PATH}/best-practices/${CACHE_KEY}"
 fi
@@ -86,7 +87,7 @@ fi
 # Check if cached and fresh
 if "$SCRIPT_DIR/cache-manager.sh" check "$PROJECT_ROOT" "best-practices" "$CACHE_KEY" --ttl "$TTL_DAYS" 2>/dev/null; then
   # Cache hit - return cached content
-  CACHED_CONTENT=$("$SCRIPT_DIR/cache-manager.sh" read "$PROJECT_ROOT" "best-practices" "$CACHE_KEY" --ttl "$TTL_DAYS" 2>/dev/null || true)
+  CACHED_CONTENT=$("$SCRIPT_DIR/cache-manager.sh" read "$PROJECT_ROOT" "best-practices" "$CACHE_KEY" --ttl "$TTL_DAYS" || true)
   if [ -n "$CACHED_CONTENT" ]; then
     jq -n \
       --arg tech "$TECHNOLOGY" \
