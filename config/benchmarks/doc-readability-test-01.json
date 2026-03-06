@@ -1,0 +1,32 @@
+{
+  "id": "doc-readability-01",
+  "category": "readability",
+  "doc_type": "tutorial",
+  "content": "# Quick Start Guide\n\nBefore proceeding with the implementation of the WebSocket-based real-time bidirectional communication layer, ensure that your development environment has been properly configured with the requisite dependencies including but not limited to the Node.js runtime environment (version 18 or higher), the pnpm package manager, and a properly configured TLS certificate for the secure WebSocket (wss://) protocol.\n\n## Step 1: Initialize the Pub/Sub Broker\n\nFirst, instantiate the message broker with the appropriate AMQP connection parameters. The broker utilizes a fan-out exchange topology with dead-letter queue (DLQ) routing for message durability:\n\n```typescript\nconst broker = new PubSubBroker({\n  amqpUrl: process.env.RABBITMQ_URL,\n  exchange: { name: 'events', type: 'fanout', durable: true },\n  dlq: { enabled: true, ttl: 86400000 },\n  prefetch: parseInt(process.env.BROKER_PREFETCH || '10'),\n  reconnect: { maxRetries: Infinity, backoff: 'exponential' }\n});\nawait broker.connect();\n```\n\nNote that the prefetch count should be calibrated based on your consumer throughput capacity to prevent memory pressure under high-volume scenarios.\n\n## Step 2: Configure the WebSocket Gateway\n\nThe gateway implements the RFC 6455 protocol with custom subprotocol negotiation for schema versioning:\n\n```typescript\nconst gateway = new WSGateway({\n  server: httpsServer,\n  subprotocols: ['v1.events', 'v2.events'],\n  heartbeat: { interval: 30000, timeout: 10000 },\n  compression: { threshold: 1024, algorithm: 'permessage-deflate' }\n});\n```",
+  "ground_truth": [
+    {
+      "severity": "high",
+      "type": "audience_mismatch",
+      "section": "Quick Start Guide",
+      "description_contains": ["beginner", "quick start", "complex", "terminology", "audience"]
+    },
+    {
+      "severity": "high",
+      "type": "missing_progressive_disclosure",
+      "section": "Step 1",
+      "description_contains": ["progressive", "disclosure", "AMQP", "DLQ", "undefined", "term"]
+    },
+    {
+      "severity": "medium",
+      "type": "excessive_complexity",
+      "section": "Quick Start Guide",
+      "description_contains": ["sentence", "complex", "long", "readab"]
+    },
+    {
+      "severity": "medium",
+      "type": "jargon_overload",
+      "section": "Step 2",
+      "description_contains": ["RFC 6455", "subprotocol", "jargon", "unexplained"]
+    }
+  ]
+}

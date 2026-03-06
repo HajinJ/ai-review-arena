@@ -1,4 +1,4 @@
-# ARENA-ROUTER.md - AI Review Arena Routing System v3.2
+# ARENA-ROUTER.md - AI Review Arena Routing System v3.3
 
 ## Core Rule
 
@@ -22,6 +22,8 @@
 | "Why is this erroring?" | F or A |
 | "Run the tests" / "Update the README" | F (quick) |
 | "Refactor this code" | E |
+| "Review the documentation" / "Are the docs accurate?" | J |
+| "Update docs for this code change" | K |
 | "Analyze the market" | H |
 
 **When in doubt: route it.**
@@ -39,7 +41,7 @@ PLUGIN_DIR = ~/.claude/plugins/ai-review-arena
 ## Process: 3 Steps
 
 1. **Context Discovery** — Gather external info (issues, PRs, Figma, files, git state)
-2. **Route Selection** — Classify intent into one of 9 routes
+2. **Route Selection** — Classify intent into one of 11 routes
 3. **Pipeline Execution** — Read command file via Read tool, execute pipeline
 
 ### Step 1: Context Discovery
@@ -53,6 +55,7 @@ PLUGIN_DIR = ~/.claude/plugins/ai-review-arena
 | Ambiguous request | `git diff`, `git status` |
 | External library mention | WebSearch for docs |
 | Business document reference | Read docs/ directory |
+| Documentation reference | Glob `**/*.md`, `**/*.rst`, Read doc files |
 | Competitor/market analysis | WebSearch for market data |
 
 Skip discovery if the request already contains sufficient context.
@@ -80,15 +83,27 @@ Works regardless of language (Korean, English, Japanese, etc.).
 | **H: Business Analysis** | Market research, SWOT, competitive analysis, strategy |
 | **I: Communication** | Investor Q&A, customer emails, presentations |
 
+#### Documentation Routes (J-K)
+
+| Route | Intent |
+|-------|--------|
+| **J: Documentation Review** | Review existing docs for accuracy, completeness, freshness, readability, examples, consistency |
+| **K: Documentation Generation** | Generate or update documentation based on code changes |
+
 #### Multi-Route Requests
 
-Requests with 2+ distinct intents are decomposed and run sequentially with context forwarding. Business routes execute before code routes. See `docs/context-forwarding.md` for the forwarding interface and token limits.
+Requests with 2+ distinct intents are decomposed and run sequentially with context forwarding. Code routes execute first, then documentation routes, then business routes. See `docs/context-forwarding.md` for the forwarding interface and token limits.
+
+```
+Code (A-F) → Documentation (J-K) → Business (G-I)
+```
+Documentation accuracy depends on final code state; business content may reference documentation.
 
 #### Route Selection Principles
 
 1. Clear intent → go directly to that route
 2. Complex intent → choose the more comprehensive route (A over F, G over I)
-3. Unknown code intent → default Route A; unknown business intent → default Route G
+3. Unknown code intent → default Route A; unknown business intent → default Route G; unknown doc intent → default Route J
 4. Multi-route detected → decompose and execute sequentially
 
 ### Step 3: Pipeline Execution
@@ -112,6 +127,8 @@ Requests with 2+ distinct intents are decomposed and run sequentially with conte
 | G: Business Content | `${PLUGIN_DIR}/commands/arena-business.md` | `--type content` |
 | H: Business Analysis | `${PLUGIN_DIR}/commands/arena-business.md` | `--type strategy` |
 | I: Communication | `${PLUGIN_DIR}/commands/arena-business.md` | `--type communication` |
+| J: Documentation Review | `${PLUGIN_DIR}/commands/arena-docs.md` | `--category <accuracy\|completeness\|freshness\|readability\|examples\|consistency\|all>` |
+| K: Documentation Generation | `${PLUGIN_DIR}/commands/arena-docs.md` | `--mode generate` |
 
 #### Commit/PR Safety Protocol
 
@@ -132,18 +149,20 @@ Determined in two stages: a **fast pre-filter**, then an **Agent Teams debate** 
 
 **Auto-assign `standard`** when: Route D with `--pr` and diff < 500 lines, or Route E with single file.
 
-**Always require debate** for: Route A, B, C, G, H, I; auth/payment/security tasks; multi-module tasks; issue-based work.
+**Auto-assign `quick`** when Route K AND: single README update, single doc typo fix, CHANGELOG entry addition.
+
+**Always require debate** for: Route A, B, C, G, H, I, J (full doc audit); auth/payment/security tasks; multi-module tasks; issue-based work.
 
 Commits and PRs are NOT eligible for auto-quick — they always go through the Safety Protocol.
 
 ### Intensity Phase Scope
 
-| Intensity | Code Phases | Business Phases |
-|-----------|-------------|-----------------|
-| `quick` | 0 → 0.1-Pre → 0.5 | B0 → B0.1-Pre → B0.5 |
-| `standard` | 0 → 0.1 → 0.2 → 0.5 → 1 → 5.5 → 5.8 → 6 → 6.5 → 6.6 → 6.7 → 7 | B0 → B0.1 → B0.2 → B0.5 → B1 → B1.5 → B5.5(+scenarios) → B6 → B6.5 → B7(+consistency) |
-| `deep` | + Phase 2, 2.9, 3, 5.9, Round 4 escalation | + B2, B2.9, B3, B5.6, B5.7 |
-| `comprehensive` | + Phase 4, 5 | + B4 |
+| Intensity | Code Phases | Business Phases | Documentation Phases |
+|-----------|-------------|-----------------|---------------------|
+| `quick` | 0 → 0.1-Pre → 0.5 | B0 → B0.1-Pre → B0.5 | D0 → D0.1-Pre → D0.5 |
+| `standard` | 0 → 0.1 → 0.2 → 0.5 → 1 → 5.5 → 5.8 → 6 → 6.5 → 6.6 → 6.7 → 7 | B0 → B0.1 → B0.2 → B0.5 → B1 → B1.5 → B5.5(+scenarios) → B6 → B6.5 → B7(+consistency) | D0 → D0.1 → D0.2 → D0.5 → D1 → D5.5 → D6 → D6.5 → D6.6 → D7 |
+| `deep` | + Phase 2, 2.9, 3, 5.9, Round 4 escalation | + B2, B2.9, B3, B5.6, B5.7 | + D2(+debate), D3(+debate) |
+| `comprehensive` | + Phase 4, 5 | + B4 | + D4(benchmark) |
 
 ---
 
@@ -159,6 +178,8 @@ Commits and PRs are NOT eligible for auto-quick — they always go through the S
 | Business type | `--type <type>` |
 | Target audience | `--audience <audience>` |
 | Tone | `--tone <tone>` |
+| Doc category | `--category <category>` |
+| Doc mode | `--mode <review\|generate>` |
 
 ---
 
@@ -182,6 +203,19 @@ Request: "Rename this function to calculateScore"
 Request: "Implement OAuth login system"
 → Route A → Phase 0.1 Debate → comprehensive (security-critical)
 → Execute all phases
+```
+
+### Documentation Review
+```
+Request: "Review the API documentation for accuracy"
+→ Route J → Phase D0.1 Debate → standard
+→ Execute doc review phases
+```
+
+### Documentation Update
+```
+Request: "Update the README to reflect the new auth changes"
+→ Route K → Phase D0.1-Pre: auto-quick → Phase D0.5 → Claude solo
 ```
 
 For more examples, see `docs/router-examples.md`.

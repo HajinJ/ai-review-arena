@@ -1,0 +1,39 @@
+{
+  "id": "doc-example-01",
+  "category": "examples",
+  "doc_type": "tutorial",
+  "content": "# Authentication Guide\n\n## Basic Usage\n\n```javascript\nconst auth = require('mylib/auth');\n\nconst token = auth.createToken({\n  userId: 123,\n  apiKey: 'sk-abc123-real-key-here',\n  expiresIn: '24h'\n});\n\nconsole.log(token); // 'eyJhbGciOiJIUzI1NiJ9...'\n```\n\n## Verifying Tokens\n\n```javascript\nconst decoded = auth.verifyToken(token);\nconsole.log(decoded.userId); // 123\nconsole.log(decoded.exp); // 1709251200\n```\n\n## Using with Express\n\n```javascript\napp.use(auth.middleware());\n\napp.get('/protected', (req, res) => {\n  res.json({ user: req.user });\n});\n```",
+  "source_code": "// package.json: \"type\": \"module\"\n// auth/index.ts\nexport function createToken(payload: TokenPayload, secret: string): string { ... }\nexport function verifyToken(token: string, secret: string): TokenPayload | null { ... }\nexport function authMiddleware(options?: MiddlewareOptions): RequestHandler { ... }\n// Note: createToken requires a `secret` parameter (2nd arg), was changed in v3.0\n// Note: middleware export renamed from middleware() to authMiddleware() in v3.0",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "security_issue",
+      "section": "Basic Usage",
+      "description_contains": ["apiKey", "hardcoded", "secret", "key", "security"]
+    },
+    {
+      "severity": "high",
+      "type": "missing_parameter",
+      "section": "Basic Usage",
+      "description_contains": ["secret", "parameter", "missing", "createToken"]
+    },
+    {
+      "severity": "high",
+      "type": "wrong_import",
+      "section": "Basic Usage",
+      "description_contains": ["require", "import", "ESM", "module"]
+    },
+    {
+      "severity": "high",
+      "type": "wrong_method_name",
+      "section": "Using with Express",
+      "description_contains": ["middleware", "authMiddleware", "renamed", "method"]
+    },
+    {
+      "severity": "medium",
+      "type": "missing_parameter",
+      "section": "Verifying Tokens",
+      "description_contains": ["secret", "parameter", "verifyToken", "missing"]
+    }
+  ]
+}

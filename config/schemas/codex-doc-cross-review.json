@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "model": { "type": "string" },
+    "role": { "type": "string" },
+    "mode": { "type": "string" },
+    "responses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "finding_id": { "type": "string" },
+          "action": { "type": "string", "enum": ["challenge", "support"] },
+          "confidence_adjustment": { "type": "number", "minimum": -30, "maximum": 30 },
+          "reasoning": { "type": "string" }
+        },
+        "required": ["finding_id", "action", "confidence_adjustment", "reasoning"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["model", "role", "mode", "responses"],
+  "additionalProperties": false
+}

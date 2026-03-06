@@ -1,0 +1,39 @@
+{
+  "id": "doc-freshness-01",
+  "category": "freshness",
+  "doc_type": "tutorial",
+  "content": "# Getting Started\n\n## Prerequisites\n\n- Node.js 14.x or higher\n- npm 6.x\n- MongoDB 4.4\n\n## Installation\n\n```bash\nnpm install\n```\n\n## Build\n\nWe use Babel for transpilation:\n\n```bash\nnpx babel src --out-dir dist\n```\n\n## Configuration\n\nCopy the config template:\n\n```bash\ncp config.sample.json config.json\n```\n\nSet your MongoDB connection string:\n```json\n{\n  \"database\": \"mongodb://localhost:27017/myapp\"\n}\n```\n\n## Testing\n\n```bash\nnpm test  # runs mocha tests\n```",
+  "source_code": "// package.json\n{\n  \"engines\": { \"node\": \">=20.0.0\" },\n  \"packageManager\": \"pnpm@9.0.0\",\n  \"scripts\": {\n    \"build\": \"swc src -d dist\",\n    \"test\": \"vitest run\"\n  },\n  \"devDependencies\": {\n    \"@swc/cli\": \"^0.4.0\",\n    \"vitest\": \"^2.0.0\"\n  }\n}\n// docker-compose.yml has PostgreSQL, not MongoDB\n// config is now via environment variables (config.sample.json deleted 8 months ago)",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "stale_prerequisite",
+      "section": "Prerequisites",
+      "description_contains": ["Node", "14", "20", "version", "outdated"]
+    },
+    {
+      "severity": "high",
+      "type": "wrong_tool",
+      "section": "Build",
+      "description_contains": ["Babel", "SWC", "build", "tool", "changed"]
+    },
+    {
+      "severity": "high",
+      "type": "wrong_database",
+      "section": "Configuration",
+      "description_contains": ["MongoDB", "PostgreSQL", "database", "changed"]
+    },
+    {
+      "severity": "high",
+      "type": "wrong_test_runner",
+      "section": "Testing",
+      "description_contains": ["mocha", "vitest", "test", "runner", "changed"]
+    },
+    {
+      "severity": "medium",
+      "type": "stale_package_manager",
+      "section": "Installation",
+      "description_contains": ["npm", "pnpm", "package", "manager"]
+    }
+  ]
+}

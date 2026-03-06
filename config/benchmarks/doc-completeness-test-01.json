@@ -1,0 +1,33 @@
+{
+  "id": "doc-completeness-01",
+  "category": "completeness",
+  "doc_type": "api_reference",
+  "content": "# Payment API\n\n## POST /api/payments/charge\n\nCharges a payment method.\n\n**Body:**\n- `amount` (number) - Amount in cents\n- `currency` (string) - ISO currency code\n- `paymentMethodId` (string) - Payment method ID\n\n**Response:** Payment object\n\n## GET /api/payments/:id\n\nRetrieves a payment by ID.\n\n## POST /api/payments/refund\n\nRefunds a payment.\n\n**Body:**\n- `paymentId` (string) - Payment to refund\n- `amount` (number) - Refund amount",
+  "source_code": "// paymentRoutes.ts\nrouter.post('/api/payments/charge', chargeHandler);\nrouter.get('/api/payments/:id', getPaymentHandler);\nrouter.post('/api/payments/refund', refundHandler);\nrouter.get('/api/payments/list', listPaymentsHandler);\nrouter.post('/api/payments/subscribe', subscriptionHandler);\nrouter.delete('/api/payments/:id/cancel', cancelPaymentHandler);\nrouter.get('/api/payments/webhooks/config', webhookConfigHandler);\nrouter.post('/api/payments/webhooks/config', updateWebhookHandler);\nrouter.get('/api/payments/balance', balanceHandler);\nrouter.post('/api/payments/payout', payoutHandler);\nrouter.get('/api/payments/disputes', disputesHandler);\nrouter.post('/api/payments/disputes/:id/respond', respondDisputeHandler);",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "undocumented_endpoints",
+      "section": "Payment API",
+      "description_contains": ["endpoint", "undocumented", "12", "3", "documented", "missing"]
+    },
+    {
+      "severity": "high",
+      "type": "missing_response_schema",
+      "section": "POST /api/payments/charge",
+      "description_contains": ["response", "schema", "Payment object", "fields", "missing"]
+    },
+    {
+      "severity": "high",
+      "type": "missing_error_docs",
+      "section": "Payment API",
+      "description_contains": ["error", "status", "code", "missing", "handling"]
+    },
+    {
+      "severity": "medium",
+      "type": "missing_params",
+      "section": "GET /api/payments/:id",
+      "description_contains": ["parameter", "description", "response", "missing"]
+    }
+  ]
+}

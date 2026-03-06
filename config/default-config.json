@@ -289,6 +289,105 @@
     "test_case_prefix": "business-",
     "script": "scripts/benchmark-business-models.sh"
   },
+  "docs": {
+    "enabled": true,
+    "default_category": "all",
+    "focus_areas": ["accuracy", "completeness", "freshness", "readability", "examples", "consistency"],
+    "confidence_threshold": 70,
+    "doc_extensions": ["md", "mdx", "rst", "txt", "adoc", "asciidoc", "html", "htm"],
+    "code_doc_patterns": {
+      "readme": ["README.md", "README.rst", "README.txt", "README"],
+      "api": ["**/api/**", "**/reference/**", "**/docs/api*"],
+      "tutorial": ["**/tutorial*", "**/guide*", "**/getting-started*", "**/quickstart*"],
+      "changelog": ["CHANGELOG*", "CHANGES*", "HISTORY*", "RELEASE*"],
+      "config": ["**/config*", "**/setup*", "**/install*"],
+      "architecture": ["**/adr*", "**/architecture*", "**/design*"]
+    },
+    "exclude_patterns": ["node_modules/**", "vendor/**", "dist/**", ".git/**", "*.min.*"],
+    "doc_type_detection": {
+      "readme": ["README"],
+      "api_reference": ["api", "reference", "endpoint"],
+      "tutorial": ["tutorial", "guide", "getting-started", "quickstart", "walkthrough"],
+      "changelog": ["changelog", "changes", "history", "release-notes"],
+      "adr": ["adr", "architecture-decision"],
+      "runbook": ["runbook", "playbook", "ops-guide"],
+      "contributing": ["contributing", "contributor"]
+    }
+  },
+  "docs_intensity_presets": {
+    "quick": {
+      "phases": ["inventory"],
+      "agent_team": false,
+      "review_agents": 0,
+      "debate_rounds": 0,
+      "reviewer_roles": [],
+      "description_ko": "문서 인벤토리 분석 + Claude 단독 처리",
+      "description_en": "Documentation inventory analysis + Claude solo"
+    },
+    "standard": {
+      "phases": ["inventory", "code_doc_diff", "strategy", "review", "examples", "report"],
+      "agent_team": true,
+      "review_agents": 6,
+      "reviewer_roles": ["doc-accuracy-reviewer", "doc-completeness-reviewer", "doc-freshness-reviewer", "doc-readability-reviewer", "doc-example-reviewer", "doc-consistency-reviewer"],
+      "external_models_cross_review": true,
+      "debate_rounds": 3,
+      "description_ko": "표준 문서 리뷰 - 6 에이전트 + 외부 모델 교차검토, 3라운드 토론",
+      "description_en": "Standard doc review - 6 agents + external model cross-review, 3-round debate"
+    },
+    "deep": {
+      "phases": ["inventory", "code_doc_diff", "standards_research", "crossref", "strategy", "review", "examples", "report"],
+      "agent_team": true,
+      "review_agents": 6,
+      "reviewer_roles": ["doc-accuracy-reviewer", "doc-completeness-reviewer", "doc-freshness-reviewer", "doc-readability-reviewer", "doc-example-reviewer", "doc-consistency-reviewer"],
+      "external_models_cross_review": true,
+      "debate_rounds": 3,
+      "description_ko": "심층 문서 리뷰 - 6 에이전트 + 외부 모델 교차검토, 리서치+상호참조 검증",
+      "description_en": "Deep doc review - 6 agents + external model cross-review, research + cross-reference validation"
+    },
+    "comprehensive": {
+      "phases": ["inventory", "code_doc_diff", "standards_research", "crossref", "benchmark", "strategy", "review", "examples", "report"],
+      "agent_team": true,
+      "review_agents": 6,
+      "reviewer_roles": ["doc-accuracy-reviewer", "doc-completeness-reviewer", "doc-freshness-reviewer", "doc-readability-reviewer", "doc-example-reviewer", "doc-consistency-reviewer"],
+      "external_models": true,
+      "debate_rounds": 3,
+      "description_ko": "종합 문서 리뷰 - 6 에이전트 + 외부 모델, 벤치마크 기반 역할 배정, 전체 토론",
+      "description_en": "Comprehensive doc review - 6 agents + external models, benchmark-driven role assignment, full debates"
+    }
+  },
+  "docs_debate": {
+    "enabled": true,
+    "max_rounds": 3,
+    "challenge_threshold": 60,
+    "consensus_threshold": 75,
+    "require_majority": true,
+    "web_search_enabled": true,
+    "round2_timeout_seconds": 180,
+    "round3_timeout_seconds": 180
+  },
+  "docs_models": {
+    "codex": {
+      "enabled": true,
+      "role": "cross-reviewer",
+      "timeout_seconds": 120,
+      "script": "scripts/codex-doc-review.sh"
+    },
+    "gemini": {
+      "enabled": true,
+      "role": "cross-reviewer",
+      "timeout_seconds": 120,
+      "script": "scripts/gemini-doc-review.sh"
+    }
+  },
+  "docs_benchmarks": {
+    "enabled": true,
+    "auto_run": true,
+    "rerun_threshold_days": 14,
+    "min_score_for_role": 60,
+    "test_cases_dir": "config/benchmarks",
+    "test_case_prefix": "doc-",
+    "script": "scripts/benchmark-doc-models.sh"
+  },
   "cost_estimation": {
     "enabled": true,
     "show_before_execution": true,
@@ -397,6 +496,36 @@
         "include_patterns": ["env", "config", "secret", "credential", "token", "key", "password", "connection", "database", "redis", "port", "host", "url", "endpoint", "feature_flag", "toggle", "docker", "kubernetes", "k8s", "helm", "terraform", "ansible", "ci", "cd", "pipeline", "deploy"],
         "include_file_patterns": ["*.env*", "*.yml", "*.yaml", "*.toml", "*.ini", "*.cfg", "*config*", "*setting*", "Dockerfile*", "docker-compose*", ".github/*", "*.tf"],
         "priority": "environment_secrets_and_infrastructure"
+      },
+      "doc-accuracy": {
+        "include_patterns": ["function", "def", "class", "interface", "type", "export", "import", "param", "return", "throws", "error", "config", "option", "setting", "endpoint", "route", "api"],
+        "include_file_patterns": ["*.md", "*.mdx", "*.rst", "*.txt", "*doc*", "*readme*", "*api*", "*reference*"],
+        "priority": "function_signatures_and_api_surface"
+      },
+      "doc-completeness": {
+        "include_patterns": ["export", "public", "module", "class", "function", "def", "interface", "type", "enum", "const", "endpoint", "route", "handler"],
+        "include_file_patterns": ["*.md", "*.mdx", "*.rst", "*doc*", "*readme*", "*api*", "*reference*", "*.ts", "*.js", "*.py", "*.go", "*.rs"],
+        "priority": "public_api_surface_and_documentation_files"
+      },
+      "doc-freshness": {
+        "include_patterns": ["version", "deprecated", "removed", "renamed", "migration", "upgrade", "breaking", "changelog", "release", "update"],
+        "include_file_patterns": ["*.md", "*.mdx", "*.rst", "CHANGELOG*", "HISTORY*", "package.json", "Cargo.toml", "go.mod", "requirements.txt"],
+        "priority": "version_references_and_changelog"
+      },
+      "doc-readability": {
+        "include_patterns": ["#", "##", "###", "####", "```", "- ", "1.", "> ", "**", "!["],
+        "include_file_patterns": ["*.md", "*.mdx", "*.rst", "*.txt", "*.adoc", "*.html"],
+        "priority": "document_structure_and_formatting"
+      },
+      "doc-examples": {
+        "include_patterns": ["```", "import", "require", "from", "const", "let", "var", "function", "def", "class", "new", "await", "async"],
+        "include_file_patterns": ["*.md", "*.mdx", "*.rst", "*example*", "*tutorial*", "*guide*", "*quickstart*"],
+        "priority": "code_blocks_and_examples"
+      },
+      "doc-consistency": {
+        "include_patterns": ["[", "](", "href", "link", "see", "refer", "import", "from"],
+        "include_file_patterns": ["*.md", "*.mdx", "*.rst", "*.txt", "*.adoc"],
+        "priority": "cross_references_and_terminology"
       }
     },
     "chunking": {
@@ -422,7 +551,13 @@
     "observability-reviewer": {"primary": ["logging", "tracing", "metrics", "alerting"], "secondary": ["debugging"]},
     "data-integrity-reviewer": {"primary": ["validation", "migration", "consistency"], "secondary": ["transformation"]},
     "accessibility-reviewer": {"primary": ["wcag", "aria", "keyboard", "screen-reader"], "secondary": ["color-contrast"]},
-    "configuration-reviewer": {"primary": ["secrets", "env-vars", "infrastructure"], "secondary": ["feature-flags"]}
+    "configuration-reviewer": {"primary": ["secrets", "env-vars", "infrastructure"], "secondary": ["feature-flags"]},
+    "doc-accuracy-reviewer": {"primary": ["code-doc-mismatch", "api-accuracy", "config-accuracy", "behavior-accuracy"], "secondary": ["signature-mismatch"]},
+    "doc-completeness-reviewer": {"primary": ["undocumented-api", "missing-sections", "missing-params", "missing-errors"], "secondary": ["migration-guide"]},
+    "doc-freshness-reviewer": {"primary": ["deprecated-refs", "stale-versions", "dead-links", "tech-drift"], "secondary": ["changelog-gaps"]},
+    "doc-readability-reviewer": {"primary": ["progressive-disclosure", "audience-fit", "structure", "scannability"], "secondary": ["cognitive-load"]},
+    "doc-example-reviewer": {"primary": ["runnable-examples", "output-accuracy", "import-completeness", "security-examples"], "secondary": ["best-practices"]},
+    "doc-consistency-reviewer": {"primary": ["terminology", "crossref-integrity", "naming-convention", "version-alignment"], "secondary": ["tone-consistency"]}
   },
   "memory_tiers": {
     "enabled": true,

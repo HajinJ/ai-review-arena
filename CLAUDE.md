@@ -3,25 +3,28 @@
 ## Project Structure
 - `.claude-plugin/` - Plugin manifest (v3.3.0)
 - `hooks/` - PostToolUse hook for auto-review + Gemini CLI AfterTool hook
-- `commands/` - Slash commands (7 files)
+- `commands/` - Slash commands (8 files)
   - `arena` - Full lifecycle orchestrator (research → compliance → benchmark → review → auto-fix)
   - `arena-business` - Business content lifecycle orchestrator
+  - `arena-docs` - Documentation review lifecycle orchestrator (inventory → code-doc diff → review → examples → report)
   - `arena-research` - Standalone pre-implementation research
   - `arena-stack` - Project stack detection + best practices
   - `multi-review` - Multi-AI adversarial code review
   - `multi-review-config` - Review config management
   - `multi-review-status` - Review status dashboard
-- `agents/` - Claude agent definitions (33 agents)
+- `agents/` - Claude agent definitions (40 agents)
   - Code review: security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer, scope-reviewer, dependency-reviewer, api-contract-reviewer, observability-reviewer, data-integrity-reviewer, accessibility-reviewer, configuration-reviewer
   - Business review: accuracy-evidence-reviewer, audience-fit-reviewer, competitive-positioning-reviewer, communication-narrative-reviewer, financial-credibility-reviewer, legal-compliance-reviewer, market-fit-reviewer, conversion-impact-reviewer, localization-reviewer, investor-readiness-reviewer
+  - Documentation review: doc-accuracy-reviewer, doc-completeness-reviewer, doc-freshness-reviewer, doc-readability-reviewer, doc-example-reviewer, doc-consistency-reviewer
   - Threat modeling: threat-modeler, threat-defender, threat-arbitrator
   - Red team: skeptical-investor-agent, competitor-response-agent, regulatory-risk-agent
-  - Debate: debate-arbitrator, business-debate-arbitrator
+  - Debate: debate-arbitrator, business-debate-arbitrator, doc-debate-arbitrator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell/Python scripts (31 files)
+- `scripts/` - Shell/Python scripts (35 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
+  - Documentation: codex-doc-review.sh, gemini-doc-review.sh, doc-inventory.sh, benchmark-doc-models.sh
   - Review: aggregate-findings.sh, run-debate.sh, generate-report.sh, cost-estimator.sh
   - Arena: detect-stack.sh, cache-manager.sh, benchmark-models.sh, benchmark-business-models.sh, search-best-practices.sh, search-guidelines.sh
   - Benchmark: run-benchmark.sh, run-solo-benchmark.sh, benchmark-utils.sh
@@ -34,13 +37,13 @@
   - Validation: validate-config.sh, normalize-severity.sh
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
-  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation)
-  - review-prompts/ - Role-specific review prompts (9 files)
-  - schemas/ - Codex structured output JSON schemas (5 files: review, cross-examine, defend, business-review, business-cross-review)
+  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks)
+  - review-prompts/ - Role-specific review prompts (15 files: 9 code + 6 doc)
+  - schemas/ - Codex structured output JSON schemas (7 files: review, cross-examine, defend, business-review, business-cross-review, doc-review, doc-cross-review)
   - codex-agents/ - Codex multi-agent TOML configs (5 files: security, bugs, performance, architecture, testing)
   - compliance-rules.json - Feature→guideline mapping
   - tech-queries.json - Technology→search query mapping (31 technologies)
-  - benchmarks/ - Model benchmark test cases (20 files: 8 code + 12 business)
+  - benchmarks/ - Model benchmark test cases (28 files: 8 code + 12 business + 8 doc)
 - `docs/` - Documentation, ADRs, and reference
   - adr-001-bash-architecture.md - ADR: Why bash + trade-offs
   - adr-002-markdown-pipelines.md - ADR: Why markdown-as-code pipelines
@@ -71,7 +74,7 @@
 - Support both Korean and English output via config `output.language`
 - Cache operations use `cache-manager.sh` interface exclusively
 - Config loading uses `load_config()` from utils.sh (deep merges default → global → project)
-- Shared phases in `shared-phases/` should be referenced by both arena.md and arena-business.md
+- Shared phases in `shared-phases/` should be referenced by arena.md, arena-business.md, and arena-docs.md
 
 ## Configuration
 - Project config: `.ai-review-arena.json` in project root
@@ -88,7 +91,7 @@
 - Stale review detection: git-hash-based invalidation (Code Factory pattern) in aggregate-findings.sh
 
 ## Agent Design
-- All 27 agents have three hardened sections before `## Rules`: `## Reporting Threshold` (or `Escalation Threshold`/`Research Threshold`) + `## Error Recovery Protocol`
+- All 34 agents have three hardened sections before `## Rules`: `## Reporting Threshold` (or `Escalation Threshold`/`Research Threshold`) + `## Error Recovery Protocol`
 - Reporting Threshold uses **positive framing** ("report ONLY when criteria met") to avoid the "pink elephant effect" (arxiv 2602.11988: negative instructions increase agent focus on excluded patterns)
 - Each threshold lists **recognized patterns** (secure patterns, accepted conventions, genre norms) as confirmation of mitigation, not as prohibitions
 - "Error Recovery Protocol" ensures graceful degradation (retry, partial submit, team lead notification)

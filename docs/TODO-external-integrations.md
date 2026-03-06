@@ -325,6 +325,57 @@ These research findings have been applied to the current codebase:
 
 ---
 
+## 7. Documentation Review Pipeline (Route J-K)
+
+**Status**: Implemented (2026-03-06) — active by default
+**Priority**: High
+**Blocked by**: None — implemented
+
+### Implementation (2026-03-06)
+
+Added complete documentation review pipeline with 6 specialized review agents and full lifecycle orchestration:
+
+**Pipeline Command**: `commands/arena-docs.md`
+- 12 phases (D0 through D7) following business pipeline pattern
+- Doc-specific phases: D0.5 (Documentation Inventory), D1 (Code-Doc Diff Analysis), D6.6 (Example Code Validation)
+- Intensity levels: quick/standard/deep/comprehensive
+- Arguments: `--category`, `--mode review|generate`
+
+**6 Review Agents** (all with hardened reporting threshold + error recovery + rules):
+- `doc-accuracy-reviewer`: Code-documentation alignment, API signature verification
+- `doc-completeness-reviewer`: Undocumented public APIs, missing sections/params/errors
+- `doc-freshness-reviewer`: Deprecated references, stale versions, dead links, tech drift
+- `doc-readability-reviewer`: Progressive disclosure, audience fit, structure, scannability
+- `doc-example-reviewer`: Code example runnability, output accuracy, security
+- `doc-consistency-reviewer`: Terminology, cross-references, naming conventions, tone
+- `doc-debate-arbitrator`: Synthesizes consensus with category-specific weighting
+
+**External CLI Integration**:
+- `scripts/codex-doc-review.sh`: Codex CLI wrapper with 6 doc categories, structured output schema
+- `scripts/gemini-doc-review.sh`: Gemini CLI wrapper with 6 doc categories
+- `scripts/benchmark-doc-models.sh`: Doc-specific benchmarking with `doc-` prefix test cases
+- `scripts/doc-inventory.sh`: Documentation inventory scanner with type classification
+
+**Schemas**: `codex-doc-review.json`, `codex-doc-cross-review.json`
+- Doc-specific `location` object (file + section + line) instead of flat section string
+- `doc_type` and `related_source` fields for code-doc correlation
+
+**Benchmarks**: 8 test cases covering all 6 categories
+- doc-accuracy-test-01/02: Signature/config mismatch detection
+- doc-completeness-test-01: Undocumented endpoint detection
+- doc-freshness-test-01: Stale tooling/version detection
+- doc-readability-test-01: Audience mismatch detection
+- doc-example-test-01: Security/import/method issues in code examples
+- doc-consistency-test-01/02: Terminology conflicts, command inconsistencies
+
+**Review Prompts**: 6 category-specific prompts for Codex CLI
+
+**Config**: `docs`, `docs_intensity_presets`, `docs_debate`, `docs_models`, `docs_benchmarks` + agent responsibility matrix + context density role filters
+
+**Router**: Routes J (Documentation Review) and K (Documentation Generation) added to ARENA-ROUTER.md. Multi-route execution order: Code → Documentation → Business.
+
+---
+
 ## Summary: Priority Matrix
 
 | Item | Priority | Status | Can Start Now? |
@@ -342,3 +393,4 @@ These research findings have been applied to the current codebase:
 | WebSocket compaction on reconnect | **Done** | Applied | Completed |
 | BM25 feedback search | **Done** | Applied | Completed |
 | Visual verification phase | **Done** | Applied | Completed |
+| Documentation review pipeline (Route J-K) | High | **Done** | Implemented (active by default) |

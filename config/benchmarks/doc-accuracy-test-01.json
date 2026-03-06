@@ -1,0 +1,33 @@
+{
+  "id": "doc-accuracy-01",
+  "category": "accuracy",
+  "doc_type": "api_reference",
+  "content": "# UserService API Reference\n\n## createUser(name, email)\n\nCreates a new user account.\n\n**Parameters:**\n- `name` (string, required) - User's full name\n- `email` (string, required) - User's email address\n\n**Returns:** `User` object with `id`, `name`, `email`, `createdAt`\n\n**Example:**\n```javascript\nconst user = await createUser('John', 'john@example.com');\nconsole.log(user.id); // '123'\n```\n\n## deleteUser(userId)\n\nDeletes a user by ID.\n\n**Parameters:**\n- `userId` (number, required) - The user's numeric ID\n\n**Returns:** `boolean` - true if deleted\n\n**HTTP:** `GET /api/users/:id/delete`",
+  "source_code": "// userService.ts\nexport async function createUser(userData: { name: string; email: string; role?: UserRole }): Promise<User> {\n  // role parameter is required since v2.0\n  if (!userData.role) throw new ValidationError('role is required');\n  return db.users.create(userData);\n}\n\nexport async function deleteUser(userId: string): Promise<{ deleted: boolean; deletedAt: Date }> {\n  return db.users.softDelete(userId);\n}\n\n// routes.ts\nrouter.delete('/api/users/:id', deleteUserHandler);",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "signature_mismatch",
+      "section": "createUser",
+      "description_contains": ["role", "parameter", "missing", "required", "object"]
+    },
+    {
+      "severity": "high",
+      "type": "type_mismatch",
+      "section": "deleteUser",
+      "description_contains": ["userId", "string", "number", "type", "wrong"]
+    },
+    {
+      "severity": "high",
+      "type": "return_type_mismatch",
+      "section": "deleteUser",
+      "description_contains": ["return", "boolean", "object", "deletedAt"]
+    },
+    {
+      "severity": "high",
+      "type": "http_method_mismatch",
+      "section": "deleteUser",
+      "description_contains": ["GET", "DELETE", "HTTP", "method"]
+    }
+  ]
+}

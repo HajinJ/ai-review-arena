@@ -1,0 +1,33 @@
+{
+  "id": "doc-accuracy-02",
+  "category": "accuracy",
+  "doc_type": "readme",
+  "content": "# Config Reference\n\n## Environment Variables\n\n| Variable | Type | Default | Description |\n|----------|------|---------|-------------|\n| `PORT` | number | 3000 | Server port |\n| `DB_HOST` | string | localhost | Database host |\n| `CACHE_TTL` | number | 3600 | Cache TTL in minutes |\n| `LOG_LEVEL` | string | info | Log level (debug/info/warn/error) |\n| `MAX_RETRIES` | number | 5 | Maximum retry attempts |\n\n## Usage\n\n```bash\nPORT=8080 DB_HOST=db.example.com node server.js\n```",
+  "source_code": "// config.ts\nexport const config = {\n  port: parseInt(process.env.PORT || '8080'),\n  dbHost: process.env.DATABASE_URL || 'localhost',\n  cacheTtl: parseInt(process.env.CACHE_TTL || '300'), // seconds, not minutes\n  logLevel: process.env.LOG_LEVEL || 'warn',\n  maxRetries: parseInt(process.env.MAX_RETRIES || '3'),\n};",
+  "ground_truth": [
+    {
+      "severity": "high",
+      "type": "default_value_mismatch",
+      "section": "Environment Variables",
+      "description_contains": ["PORT", "default", "3000", "8080"]
+    },
+    {
+      "severity": "high",
+      "type": "key_name_mismatch",
+      "section": "Environment Variables",
+      "description_contains": ["DB_HOST", "DATABASE_URL", "environment", "variable"]
+    },
+    {
+      "severity": "medium",
+      "type": "unit_mismatch",
+      "section": "Environment Variables",
+      "description_contains": ["CACHE_TTL", "minutes", "seconds", "unit"]
+    },
+    {
+      "severity": "medium",
+      "type": "default_value_mismatch",
+      "section": "Environment Variables",
+      "description_contains": ["LOG_LEVEL", "info", "warn", "default"]
+    }
+  ]
+}

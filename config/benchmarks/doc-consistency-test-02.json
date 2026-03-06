@@ -1,0 +1,32 @@
+{
+  "id": "doc-consistency-02",
+  "category": "consistency",
+  "doc_type": "api_reference",
+  "content": "# CLI Reference\n\n## Commands\n\n### `app init`\n\nInitialize a new project.\n\n```bash\napp init --template react\n```\n\nSee [Templates Guide](./templates.md) for available templates.\n\n### `app build`\n\nBuild the project for production.\n\n```bash\napp build --output ./build\n```\n\nOutput directory defaults to `./dist`.\n\n### `app deploy`\n\nDeploy to the cloud.\n\n```bash\napplication deploy --env production\n```\n\nRequires `APP_TOKEN` environment variable. See [Auth Setup](./authentication-setup.md).\n\n### `app test`\n\nRun the test suite.\n\n```bash\napp test --coverage\napp tests --watch  # watch mode\n```",
+  "ground_truth": [
+    {
+      "severity": "high",
+      "type": "command_name_inconsistency",
+      "section": "app deploy",
+      "description_contains": ["app", "application", "command", "name", "inconsistent"]
+    },
+    {
+      "severity": "medium",
+      "type": "output_inconsistency",
+      "section": "app build",
+      "description_contains": ["build", "dist", "output", "directory", "inconsistent", "example"]
+    },
+    {
+      "severity": "medium",
+      "type": "command_typo",
+      "section": "app test",
+      "description_contains": ["tests", "test", "typo", "command", "watch"]
+    },
+    {
+      "severity": "medium",
+      "type": "link_naming",
+      "section": "app deploy",
+      "description_contains": ["authentication-setup", "Auth Setup", "link", "naming"]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "id": "doc-consistency-01",
+  "category": "consistency",
+  "doc_type": "general",
+  "content": "# ProjectX Documentation\n\n## Overview\n\nProjectX uses **workspaces** to organize your content. Each workspace contains multiple projects.\n\n## Getting Started\n\nCreate your first **project** to begin. Projects are the top-level container in ProjectX.\n\nSee [Installation Guide](./docs/install.md) for setup instructions.\n\n## Configuration\n\nConfigure your **space** settings in the admin panel. Spaces can be shared across teams.\n\nFor advanced configuration, refer to the [API Reference](./api/reference.md).\n\n## API\n\n### POST /api/workspaces\n\nCreates a new workspace.\n\n### GET /api/projects/:id\n\nRetrieves a project (also called a space).\n\n### PUT /api/containers/:id\n\nUpdates a container's settings.\n\n## Troubleshooting\n\nIf your space is not loading, see [Debugging Guide](./docs/debugging-guide.md).\nFor workspace issues, contact support.\nCheck the [FAQ](./docs/frequently-asked-questions.md) for common project questions.",
+  "ground_truth": [
+    {
+      "severity": "high",
+      "type": "terminology_conflict",
+      "section": "Overview",
+      "description_contains": ["workspace", "project", "space", "container", "terminology", "inconsistent"]
+    },
+    {
+      "severity": "high",
+      "type": "hierarchy_contradiction",
+      "section": "Getting Started",
+      "description_contains": ["workspace", "project", "top-level", "container", "contradict"]
+    },
+    {
+      "severity": "medium",
+      "type": "broken_crossref",
+      "section": "Configuration",
+      "description_contains": ["link", "reference", "api/reference.md", "cross"]
+    },
+    {
+      "severity": "medium",
+      "type": "naming_inconsistency",
+      "section": "API",
+      "description_contains": ["workspaces", "projects", "containers", "endpoint", "naming"]
+    }
+  ]
+}
