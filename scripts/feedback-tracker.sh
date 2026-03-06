@@ -8,6 +8,7 @@
 #   feedback-tracker.sh report [--model <model>] [--category <cat>] [--days <N>]
 #   feedback-tracker.sh stats
 #   feedback-tracker.sh recommend [--days <N>] [--min-samples <N>]
+#   feedback-tracker.sh search <query> [--mode bm25|semantic|hybrid] [--top <N>] [--days <N>]
 #
 # Storage:
 #   ~/.claude/plugins/ai-review-arena/cache/feedback/feedback-log.jsonl
@@ -405,13 +406,161 @@ cmd_recommend() {
 }
 
 # =============================================================================
+# BM25-style Search (C3: QMD memory system philosophy)
+#
+# Instead of naive grep, uses BM25 term frequency scoring to find the most
+# relevant feedback records for a given query. This enables pattern-based
+# routing from accumulated review feedback.
+#
+# Reference: QMD memory system (knowledge-base C3) — BM25 + semantic search
+# for intelligent retrieval. We implement the BM25 component here since
+# feedback data is structured JSONL suitable for term-frequency scoring.
+# =============================================================================
+
+cmd_search() {
+  local query="${1:?Usage: feedback-tracker.sh search <query> [--mode bm25|semantic|hybrid] [--top <N>] [--days <N>]}"
+  shift 1
+
+  local mode="bm25"
+  local top_n=5
+  local filter_days="$DEFAULT_REPORT_DAYS"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --mode) mode="${2:?--mode requires a value}"; shift 2 ;;
+      --top) top_n="${2:?--top requires a value}"; shift 2 ;;
+      --days) filter_days="${2:?--days requires a value}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  ensure_feedback_log
+
+  if [ ! -s "$FEEDBACK_LOG" ]; then
+    jq -n '{"status":"no_data","results":[]}'
+    exit 0
+  fi
+
+  local cutoff_epoch
+  cutoff_epoch=$(( $(date +%s) - (filter_days * 86400) ))
+
+  local cutoff_ts
+  if date -u -r 0 +%Y-%m-%dT%H:%M:%SZ &>/dev/null 2>&1; then
+    cutoff_ts=$(date -u -r "$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ || echo "1970-01-01T00:00:00Z")
+  else
+    cutoff_ts=$(date -u -d "@$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ || echo "1970-01-01T00:00:00Z")
+  fi
+
+  # Also search across memory tiers if available
+  local memory_results="[]"
+  local memory_base="${PLUGIN_DIR}/cache"
+  for tier_dir in "short-term" "long-term" "permanent"; do
+    local tier_path="${memory_base}/${tier_dir}"
+    if [ -d "$tier_path" ]; then
+      # Collect matching JSONL files from memory tiers
+      while IFS= read -r match_file; do
+        if [ -f "$match_file" ]; then
+          local tier_data
+          tier_data=$(jq -s --arg tier "$tier_dir" --arg file "$match_file" \
+            'map(. + {memory_tier: $tier, source_file: $file})' "$match_file" 2>/dev/null || echo "[]")
+          memory_results=$(echo "$memory_results" "$tier_data" | jq -s 'add')
+        fi
+      done < <(grep -rl "$query" "$tier_path" 2>/dev/null || true)
+    fi
+  done
+
+  # BM25 scoring via jq: term frequency * inverse document frequency
+  # Each feedback record's text fields (category, model, verdict, severity, finding_id)
+  # are scored against query terms
+  jq -s \
+    --arg cutoff "$cutoff_ts" \
+    --arg query "$query" \
+    --argjson top_n "$top_n" \
+    --arg mode "$mode" \
+    --argjson memory "$memory_results" \
+    '
+    # Filter by date range
+    [ .[] | select(.timestamp >= $cutoff) ] |
+
+    . as $corpus |
+    ($corpus | length) as $N |
+
+    # Tokenize query into terms (lowercase, split on spaces/underscores/hyphens)
+    ($query | ascii_downcase | split(" ") | map(select(length > 0))) as $terms |
+    ([$query | ascii_downcase | gsub("[_-]"; " ") | split(" ") | .[] | select(length > 0)] | unique) as $all_terms |
+
+    # Compute IDF for each term (log(N / df))
+    ($all_terms | map(
+      . as $term |
+      {
+        term: $term,
+        df: ([ $corpus[] |
+          ((.category // "") + " " + (.model // "") + " " + (.verdict // "") +
+           " " + (.severity // "") + " " + (.finding_id // "") + " " + (.session_id // ""))
+          | ascii_downcase | test($term)
+        ] | length),
+        idf: (
+          [ $corpus[] |
+            ((.category // "") + " " + (.model // "") + " " + (.verdict // "") +
+             " " + (.severity // "") + " " + (.finding_id // "") + " " + (.session_id // ""))
+            | ascii_downcase | test($term)
+          ] | length |
+          if . > 0 then (($N + 1) / (. + 0.5)) | log / (2 | log) else 0 end
+        )
+      }
+    )) as $idf_table |
+
+    # Score each document using BM25 formula: sum(idf * tf * (k1+1) / (tf + k1*(1-b+b*dl/avgdl)))
+    # k1=1.2, b=0.75 (standard BM25 parameters)
+    ([ $corpus[] | ((.category // "") + " " + (.model // "") + " " + (.verdict // "") +
+       " " + (.severity // "") + " " + (.finding_id // "")) | length ] |
+     add / (length + 0.001)) as $avgdl |
+
+    [
+      $corpus[] |
+      . as $doc |
+      ((.category // "") + " " + (.model // "") + " " + (.verdict // "") +
+       " " + (.severity // "") + " " + (.finding_id // "") + " " + (.session_id // "")) as $doc_text |
+      ($doc_text | ascii_downcase) as $doc_lower |
+      ($doc_text | length) as $dl |
+
+      # BM25 score
+      ([ $all_terms[] as $term |
+        ($idf_table[] | select(.term == $term) | .idf) as $idf |
+        # TF: count occurrences (simplified: 1 if present, 0 if not)
+        (if ($doc_lower | test($term)) then 1 else 0 end) as $tf |
+        ($idf * $tf * 2.2 / ($tf + 1.2 * (0.25 + 0.75 * $dl / ($avgdl + 0.001))))
+      ] | add // 0) as $score |
+
+      select($score > 0) |
+      $doc + {bm25_score: ($score * 100 | round | . / 100)}
+    ] |
+
+    sort_by(-.bm25_score) |
+    .[:$top_n] |
+
+    # Include memory tier results summary
+    {
+      query: $query,
+      mode: $mode,
+      total_corpus: $N,
+      results: .,
+      memory_tier_matches: ($memory | length),
+      memory_tiers_searched: (if ($memory | length) > 0 then
+        [$memory[] | .memory_tier] | unique
+      else [] end)
+    }
+    ' "$FEEDBACK_LOG"
+}
+
+# =============================================================================
 # Main Dispatch
 # =============================================================================
 
 COMMAND="${1:-}"
 
 if [ -z "$COMMAND" ]; then
-  log_error "Usage: feedback-tracker.sh <record|report|stats|recommend> ..."
+  log_error "Usage: feedback-tracker.sh <record|report|stats|recommend|search> ..."
   exit 0
 fi
 
@@ -422,6 +571,7 @@ case "$COMMAND" in
   report)    cmd_report "$@" ;;
   stats)     cmd_stats "$@" ;;
   recommend) cmd_recommend "$@" ;;
+  search)    cmd_search "$@" ;;
   *)
     log_error "Unknown command: $COMMAND"
     exit 0

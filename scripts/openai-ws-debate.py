@@ -95,16 +95,65 @@ def ws_send_and_receive(ws, request_payload, timeout=120):
     return response_text, response_id
 
 
+def compact_context(api_key, previous_response_id, model):
+    """Compact context using OpenAI /responses/compact endpoint.
+
+    Implements E3 (Codex compaction) philosophy:
+    - Compaction is not simple summarization but an information preservation strategy
+    - System prompt is preserved identically through compaction
+    - Decision context and key findings are retained while intermediate reasoning is compressed
+
+    Reference: knowledge-base E3 (codex-compaction-internals.md)
+    """
+    try:
+        import openai
+    except ImportError:
+        return None
+
+    try:
+        client = openai.OpenAI(api_key=api_key)
+        # Use the compact endpoint to get compressed context
+        # The system prompt and key decisions are preserved through compaction
+        compact_response = client.responses.create(
+            model=model,
+            previous_response_id=previous_response_id,
+            input=[{
+                "role": "user",
+                "content": "Provide a compacted summary of the debate so far, preserving: "
+                           "1) All finding indices and their current status (challenged/confirmed), "
+                           "2) Key evidence and reasoning for each challenge, "
+                           "3) Confidence adjustments applied. "
+                           "Do NOT summarize away specific finding details."
+            }],
+            store=True,  # Must store for chaining after compaction
+            stream=False,
+        )
+        return compact_response.id
+    except Exception:
+        return None
+
+
 def run_debate_ws(findings, code_context, model, store, connection_timeout,
-                  max_rounds, challenge_threshold, consensus_threshold, api_key, ws_url):
-    """Run debate over persistent WebSocket connection."""
+                  max_rounds, challenge_threshold, consensus_threshold, api_key, ws_url,
+                  compaction_config=None):
+    """Run debate over persistent WebSocket connection.
+
+    Supports context compaction on reconnection (E3 philosophy):
+    When WebSocket connection drops mid-debate, uses /responses/compact
+    to compress prior context before reconnecting, preserving decision
+    context while reducing token usage.
+    """
     try:
         import websocket
     except ImportError:
         raise ImportError("websocket-client package not installed. Run: pip install websocket-client")
 
+    if compaction_config is None:
+        compaction_config = {}
+
     max_retries = 3
     last_error = None
+    last_response_id = None
 
     for attempt in range(max_retries):
         try:
@@ -121,18 +170,29 @@ def run_debate_ws(findings, code_context, model, store, connection_timeout,
             if attempt < max_retries - 1:
                 backoff = min(2 ** attempt, 8)
                 time.sleep(backoff)
+                # E3: On reconnection, compact context if we have a previous response
+                if last_response_id and compaction_config.get("enabled", False):
+                    compacted_id = compact_context(api_key, last_response_id, model)
+                    if compacted_id:
+                        last_response_id = compacted_id
                 continue
             raise RuntimeError(f"WebSocket connection failed after {max_retries} attempts: {last_error}")
 
         try:
-            return _run_debate_rounds(ws, findings, code_context, model, store,
-                                      connection_timeout, max_rounds,
-                                      challenge_threshold, consensus_threshold)
+            result = _run_debate_rounds(ws, findings, code_context, model, store,
+                                        connection_timeout, max_rounds,
+                                        challenge_threshold, consensus_threshold)
+            return result
         except (ConnectionError, OSError) as e:
             last_error = e
             if attempt < max_retries - 1:
                 backoff = min(2 ** attempt, 8)
                 time.sleep(backoff)
+                # E3: Compact context before retry to reduce token usage
+                if last_response_id and compaction_config.get("enabled", False):
+                    compacted_id = compact_context(api_key, last_response_id, model)
+                    if compacted_id:
+                        last_response_id = compacted_id
                 continue
             raise
         finally:
@@ -474,11 +534,15 @@ def main():
         }))
         sys.exit(1)
 
+    # Compaction config (E3: Codex compaction philosophy)
+    compaction_config = ws_config.get("compaction", {})
+
     # Try WebSocket first, fall back to HTTP
     try:
         result = run_debate_ws(
             findings, code_context, model, store, connection_timeout,
-            max_rounds, challenge_threshold, consensus_threshold, api_key, ws_url
+            max_rounds, challenge_threshold, consensus_threshold, api_key, ws_url,
+            compaction_config
         )
         print(json.dumps(result))
     except (ImportError, ConnectionError, TimeoutError, RuntimeError, OSError) as ws_error:

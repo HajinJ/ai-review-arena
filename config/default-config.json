@@ -70,7 +70,13 @@
     "connection_timeout_seconds": 30,
     "max_connection_minutes": 55,
     "store": false,
-    "model": "gpt-5.4"
+    "model": "gpt-5.4",
+    "compaction": {
+      "enabled": true,
+      "on_reconnect": true,
+      "preserve_decisions": true,
+      "preserve_finding_status": true
+    }
   },
   "output": {
     "language": "ko",
@@ -534,5 +540,23 @@
     "enabled": true,
     "checks": ["numerical", "claim", "tone"],
     "fail_on_inconsistency": false
+  },
+  "visual_verification": {
+    "enabled": true,
+    "min_intensity": "standard",
+    "risk_threshold": "medium",
+    "agentation_mcp": true,
+    "storybook_integration": true,
+    "output_mode": "standard",
+    "frontend_extensions": ["tsx", "jsx", "vue", "svelte", "html", "css", "scss"]
+  },
+  "memory_search": {
+    "enabled": true,
+    "default_mode": "bm25",
+    "bm25_k1": 1.2,
+    "bm25_b": 0.75,
+    "default_top_n": 5,
+    "search_memory_tiers": true,
+    "tier_search_order": ["short-term", "long-term", "permanent"]
   }
 }

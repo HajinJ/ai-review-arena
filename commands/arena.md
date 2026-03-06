@@ -62,6 +62,11 @@ Team Lead (You - this session)
 │   ├── Filter critical/high findings with confidence >= 70
 │   ├── Detect test framework and directory
 │   └── Generate regression test stubs
+├── Phase 6.7: Visual Verification (standard+, frontend only)
+│   ├── Detect frontend files and visual feedback tools
+│   ├── Extract CSS selectors from affected components
+│   ├── Generate visual regression checklist
+│   └── Agentation MCP integration (if available)
 ├── Phase 7: Final Report & Cleanup
 │   ├── Generate enriched report with compliance + scale sections
 │   ├── Shutdown all teammates
@@ -154,9 +159,9 @@ Establish project context, load configuration, and prepare the session environme
 
    **Intensity determines Phase scope** (decided by Phase 0.1 debate or `--intensity` flag):
    - `quick`: Phase 0 → 0.1 → 0.5 only (Claude solo, no Agent Team)
-   - `standard`: Phase 0 → 0.1 → 0.5 → 1(cached) → 5.5 → 5.8 → 6 → 6.5 → 6.6 → 7
-   - `deep`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 5.5 → 5.8 → 5.9 → 6(+R4) → 6.5 → 6.6 → 7
-   - `comprehensive`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 4 → 5 → 5.5 → 5.8 → 5.9 → 6(+R4) → 6.5 → 6.6 → 7
+   - `standard`: Phase 0 → 0.1 → 0.5 → 1(cached) → 5.5 → 5.8 → 6 → 6.5 → 6.6 → 6.7 → 7
+   - `deep`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 5.5 → 5.8 → 5.9 → 6(+R4) → 6.5 → 6.6 → 6.7 → 7
+   - `comprehensive`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 4 → 5 → 5.5 → 5.8 → 5.9 → 6(+R4) → 6.5 → 6.6 → 6.7 → 7
 
    **Quick Intensity Mode** (`--intensity quick` or decided by Phase 0.1):
    - Run Phase 0 + Phase 0.1 + Phase 0.5 only
@@ -231,12 +236,22 @@ Establish project context, load configuration, and prepare the session environme
          ```
        - If not found: Inform user and suggest installation, continue without it
 
-    d. Record MCP availability status for session:
+    d. **Agentation MCP Detection** (C2: visual feedback philosophy):
+       - Check if changed files include frontend code (tsx, jsx, vue, svelte, html, css)
+       - If frontend files detected:
+         ```
+         ToolSearch(query: "agentation")
+         ```
+       - If not found: Note for Phase 6.7 — will fall back to static CSS selector analysis
+       - If found: Record for Phase 6.7 integration
+
+    e. Record MCP availability status for session:
        ```json
        {
          "figma_mcp": "available|installed|unavailable",
          "playwright_mcp": "available|installed|unavailable",
-         "notion_mcp": "available|installed|unavailable"
+         "notion_mcp": "available|installed|unavailable",
+         "agentation_mcp": "available|installed|unavailable"
        }
        ```
 
@@ -2358,6 +2373,46 @@ Read `${PLUGIN_DIR}/shared-phases/test-generation.md` and execute the phase with
 - Cannot detect test framework: Use generic pseudo-code with TODO comments.
 - Write fails: Log warning, continue with remaining tests.
 - No eligible findings: Skip phase (not an error).
+
+---
+
+## Phase 6.7: Visual Verification (standard/deep/comprehensive intensity)
+
+**Applies to**: standard, deep, comprehensive intensity. Skip for quick.
+
+**Purpose**: Verify frontend changes visually using structured CSS selector feedback. The key insight from C2 (visual-feedback-tools) is that frontend AI coding bottlenecks stem from feedback delivery accuracy, not model performance.
+
+Read `${PLUGIN_DIR}/shared-phases/visual-verification.md` and execute the phase with:
+
+- `FILES_CHANGED`: Files in the review scope
+- `DETECTED_STACK`: Stack detection results from Phase 1
+- `ACCEPTED_FINDINGS`: Confirmed findings from Phase 6 debate
+- `PROJECT_ROOT`: Project root directory
+
+**Steps:**
+
+1. **Check applicability**: Filter FILES_CHANGED for frontend file extensions (tsx, jsx, vue, svelte, html, css, scss). If no frontend files, skip phase.
+
+2. **Detect visual tools**: Check for Agentation MCP, Storybook, and screenshot capabilities via ToolSearch.
+
+3. **Extract CSS selectors** from affected components and generate structured visual feedback with risk assessment (high/medium/low).
+
+4. **Generate visual regression checklist** for changes with risk >= config threshold.
+
+5. **Display results**:
+   ```
+   ## Visual Verification (Phase 6.7)
+   - Frontend files: {N}
+   - Components with visual changes: {list}
+   - High-risk changes: {count}
+   - Tools: {agentation, storybook status}
+   - Checklist: {items}
+   ```
+
+**Error Handling:**
+- No frontend files: Skip phase (not an error).
+- Agentation unavailable: Fall back to static CSS selector analysis.
+- Cannot determine component structure: Use generic selectors from file paths.
 
 ---
 

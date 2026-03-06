@@ -54,6 +54,7 @@
   - `static-analysis.md` - Phase 5.8: Static analysis scanner integration
   - `threat-modeling.md` - Phase 5.9: STRIDE 3-agent threat modeling debate
   - `test-generation.md` - Phase 6.6: Regression test stub generation
+  - `visual-verification.md` - Phase 6.7: Visual verification with CSS selector extraction (C2 philosophy)
   - `framework-selection.md` - Phase B1.5: Business framework selection debate
   - `quantitative-validation.md` - Phase B5.6: Numerical claim cross-validation
   - `adversarial-red-team.md` - Phase B5.7: Adversarial red team stress test
@@ -93,6 +94,9 @@
 - "Error Recovery Protocol" ensures graceful degradation (retry, partial submit, team lead notification)
 - Context density config (`context_density.role_filters`) provides per-role include patterns for focused agent context
 - External CLI prompts use **duplicate prompt technique** (arxiv 2512.14982) for improved accuracy in non-reasoning mode
+- Feedback search uses **BM25 scoring** (C3: QMD memory system) instead of naive grep for pattern-based routing
+- WebSocket debate uses **context compaction** (E3: Codex compaction philosophy) on reconnection to preserve decision context
+- Frontend reviews include **visual verification** (C2: Agentation) with CSS selector extraction and risk assessment
 
 ## Testing
 - Test with intentionally buggy code to verify detection

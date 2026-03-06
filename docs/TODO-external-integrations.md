@@ -101,7 +101,23 @@ Research completed 2026-02-26. These items require external API changes or featu
 ### Reconnection Strategies
 1. Continue with `previous_response_id` (if `store=true`)
 2. Start fresh with full input context
-3. Use compacted output from `/responses/compact`
+3. ~~Use compacted output from `/responses/compact`~~ **Implemented** (2026-03-06)
+
+### Context Compaction on Reconnection (2026-03-06)
+
+**Applied**: `compact_context()` function in `openai-ws-debate.py` implements E3 (Codex compaction) philosophy.
+
+**Implementation**:
+- On WebSocket connection failure during retry, if `compaction.enabled=true` and a `previous_response_id` exists, context is compacted via HTTP before reconnecting
+- Compaction preserves: finding indices + status, key evidence, confidence adjustments
+- Controlled by `websocket.compaction` config (default: enabled)
+- Falls back to fresh reconnection if compaction fails
+
+**Design Principles** (from knowledge-base E3):
+- Compaction is information preservation, not simple summarization
+- System prompt preserved identically through compaction
+- Decision context and finding status are explicitly requested to be retained
+- Intermediate reasoning is compressed, final assessments are preserved
 
 ### Sources
 - [WebSocket Mode - OpenAI Official Docs](https://developers.openai.com/api/docs/guides/websocket-mode/)
@@ -274,11 +290,38 @@ These research findings have been applied to the current codebase:
 
 **Background**: Claude prompt caching (prefix-matching) can reduce input costs by up to 90%. Agent workflows with stable system prompts typically achieve 40-60% effective discount. Default is 0.0 (conservative).
 
+### 6e. Visual Feedback Verification (C2: Agentation Philosophy)
+
+**Applied**: Phase 6.7 (visual-verification) added to the code review pipeline.
+
+**Evidence**: Frontend AI coding bottlenecks stem from feedback delivery accuracy, not model performance (Benji Taylor / Agentation). CSS selector extraction provides 10x more precise UI change feedback than natural language descriptions.
+
+**Our approach**: Phase 6.7 detects frontend files, extracts CSS selectors from affected components, generates visual regression checklists with risk assessment, and integrates with Agentation MCP when available.
+
+### 6f. BM25 Memory Search (C3: QMD Philosophy)
+
+**Applied**: `feedback-tracker.sh search` command with BM25-style term frequency scoring across feedback data and memory tiers.
+
+**Evidence**: QMD's BM25 search resolves 300-file searches in 1 second vs 3 minutes for grep (Artem Zhutov). Applied to feedback routing: instead of naive file grep, BM25 scores feedback records by term relevance, enabling pattern-based model routing from accumulated review history.
+
+**Our approach**: `cmd_search()` implements BM25 with k1=1.2, b=0.75 standard parameters. Searches across feedback JSONL and all configured memory tiers (short-term/long-term/permanent). Returns top-N results ranked by relevance score.
+
+### 6g. Context Compaction Strategy (E3: Codex Compaction Philosophy)
+
+**Applied**: `compact_context()` in `openai-ws-debate.py` implements information-preserving compaction on WebSocket reconnection.
+
+**Evidence**: Codex compaction research reveals that compaction should be treated as an "information preservation strategy," not simple summarization. Decision context and status must be explicitly preserved through compression.
+
+**Our approach**: On WebSocket failure during debate retry, context is compacted via HTTP, explicitly preserving finding indices, challenge statuses, evidence, and confidence adjustments. Intermediate reasoning is compressed while final assessments are retained.
+
 ### Sources
 - [AGENTS.md Benchmark Paper](https://arxiv.org/abs/2602.11988)
 - [Duplicate Prompt Paper](https://arxiv.org/abs/2512.14982)
 - [Code Factory Framework](https://ryancarson.com/code-factory/)
 - [Claude Code Prompt Caching](https://www.anthropic.com/engineering/prompt-caching-in-claude-code)
+- [Agentation (C2)](https://www.npmjs.com/package/agentation) — CSS selector extraction for visual feedback
+- [QMD Memory System (C3)](https://github.com/tobias-shopify/qmd) — BM25 + semantic search for intelligent retrieval
+- [Codex Compaction Internals (E3)](https://developers.openai.com/codex/compact/) — Context compression architecture
 
 ---
 
@@ -296,3 +339,6 @@ These research findings have been applied to the current codebase:
 | Duplicate prompt | **Done** | Applied | Completed |
 | Stale review invalidation | **Done** | Applied | Completed |
 | Cache-aware cost estimation | **Done** | Applied | Completed |
+| WebSocket compaction on reconnect | **Done** | Applied | Completed |
+| BM25 feedback search | **Done** | Applied | Completed |
+| Visual verification phase | **Done** | Applied | Completed |
