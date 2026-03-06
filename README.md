@@ -665,6 +665,7 @@ ai-review-arena/
 |   +-- search-guidelines.sh     # Compliance guideline search
 |   +-- cache-manager.sh         # Cache management
 |   +-- cost-estimator.sh        # Token cost estimation + cache discount
+|   +-- check-model-updates.sh    # API-based model version detection
 |   +-- context-filter.sh        # Role-based code filtering for review agents
 |   +-- normalize-severity.sh    # Severity normalization utility
 |   +-- validate-config.sh       # Configuration validation

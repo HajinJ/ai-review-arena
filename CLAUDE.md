@@ -27,6 +27,7 @@
   - Benchmark: run-benchmark.sh, run-solo-benchmark.sh, benchmark-utils.sh
   - External integrations: openai-ws-debate.py (WebSocket debate), gemini-hook-adapter.sh (Gemini hook adapter)
   - Evaluation: evaluate-pipeline.sh
+  - Check: check-model-updates.sh (API-based model version detection)
   - Feedback: feedback-tracker.sh
   - Context: context-filter.sh (role-based code filtering for review agents)
   - Static analysis: static-analysis.sh, normalize-scanner-output.sh

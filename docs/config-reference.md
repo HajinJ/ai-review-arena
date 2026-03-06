@@ -47,7 +47,7 @@ AI model configuration. Three model families: `claude`, `codex`, `gemini`.
 | `roles` | string[] | `["bugs", "performance"]` | Review categories assigned to Codex |
 | `command` | string | `"codex exec --full-auto"` | CLI command to invoke Codex |
 | `timeout_seconds` | int | `120` | Max seconds per Codex invocation |
-| `model_variant` | string | `"gpt-5.3-codex-spark"` | Codex model to use |
+| `model_variant` | string | `"gpt-5.4"` | Codex model to use |
 | `structured_output` | bool | `true` | Use `--output-schema` for guaranteed-valid JSON |
 | `multi_agent.enabled` | bool | `true` | Enable Codex multi-agent sub-agents (5 TOML configs). Dual-gated: config AND runtime feature check |
 | `multi_agent.max_threads` | int | `3` | Max parallel Codex sub-agent threads |
@@ -160,7 +160,7 @@ OpenAI WebSocket debate acceleration.
 | `connection_timeout_seconds` | int | `30` | Connection establishment timeout |
 | `max_connection_minutes` | int | `55` | Max connection lifetime before reconnect |
 | `store` | bool | `false` | Store responses server-side (not needed for WebSocket chaining) |
-| `model` | string | `"gpt-5.3-codex-spark"` | Model to use for WebSocket debate |
+| `model` | string | `"gpt-5.4"` | Model to use for WebSocket debate |
 
 ---
 
@@ -267,6 +267,55 @@ TTL overrides by cache type:
 | `compliance` | 7 |
 | `benchmarks` | 14 |
 | `figma` | 1 |
+| `model_updates` | 7 |
+
+---
+
+## `model_updates`
+
+API-based model version detection. Checks provider APIs for newer model versions and notifies via stderr. Never modifies config automatically.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | bool | `true` | Enable model update checking |
+| `check_on_startup` | bool | `true` | Check during Phase 0 pipeline startup |
+| `ttl_days` | int | `7` | Cache TTL for model check results |
+| `api_timeout_seconds` | int | `10` | Timeout for each provider API call |
+
+### `model_updates.providers`
+
+Per-provider configuration. Each provider has:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | bool | `true` | Enable checking this provider |
+| `family_pattern` | string | varies | Regex pattern to filter model families |
+| `api_endpoint` | string | varies | API endpoint URL for model listing |
+
+Provider defaults:
+
+| Provider | `family_pattern` | API Endpoint |
+|----------|-----------------|-------------|
+| `openai` | `^gpt-5` | `https://api.openai.com/v1/models` |
+| `gemini` | `gemini-3` | `https://generativelanguage.googleapis.com/v1beta/models` |
+| `anthropic` | `^claude-` | `https://api.anthropic.com/v1/models` |
+
+**Example: Disable model update checks**
+```json
+{ "model_updates": { "enabled": false } }
+```
+
+**Example: Only check OpenAI**
+```json
+{
+  "model_updates": {
+    "providers": {
+      "gemini": { "enabled": false },
+      "anthropic": { "enabled": false }
+    }
+  }
+}
+```
 
 ---
 
@@ -472,8 +521,8 @@ Token costs (per 1K tokens):
 |-------|-------|--------|
 | `claude_input` | $0.003 | -- |
 | `claude_output` | -- | $0.015 |
-| `codex_input` | $0.003 | -- |
-| `codex_output` | -- | $0.012 |
+| `codex_input` | $0.0025 | -- |
+| `codex_output` | -- | $0.015 |
 | `gemini_input` | $0.00125 | -- |
 | `gemini_output` | -- | $0.005 |
 

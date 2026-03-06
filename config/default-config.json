@@ -11,7 +11,7 @@
       "roles": ["bugs", "performance"],
       "command": "codex exec --full-auto",
       "timeout_seconds": 120,
-      "model_variant": "gpt-5.3-codex-spark",
+      "model_variant": "gpt-5.4",
       "structured_output": true,
       "multi_agent": {
         "enabled": true,
@@ -70,7 +70,7 @@
     "connection_timeout_seconds": 30,
     "max_connection_minutes": 55,
     "store": false,
-    "model": "gpt-5.3-codex-spark"
+    "model": "gpt-5.4"
   },
   "output": {
     "language": "ko",
@@ -136,10 +136,34 @@
       "research": 3,
       "compliance": 7,
       "benchmarks": 14,
-      "figma": 1
+      "figma": 1,
+      "model_updates": 7
     },
     "max_cache_size_mb": 50,
     "cleanup_age_days": 30
+  },
+  "model_updates": {
+    "enabled": true,
+    "check_on_startup": true,
+    "ttl_days": 7,
+    "api_timeout_seconds": 10,
+    "providers": {
+      "openai": {
+        "enabled": true,
+        "family_pattern": "^gpt-5",
+        "api_endpoint": "https://api.openai.com/v1/models"
+      },
+      "gemini": {
+        "enabled": true,
+        "family_pattern": "gemini-3",
+        "api_endpoint": "https://generativelanguage.googleapis.com/v1beta/models"
+      },
+      "anthropic": {
+        "enabled": true,
+        "family_pattern": "^claude-",
+        "api_endpoint": "https://api.anthropic.com/v1/models"
+      }
+    }
   },
   "benchmarks": {
     "enabled": true,
@@ -269,8 +293,8 @@
     "token_cost_per_1k": {
       "claude_input": 0.003,
       "claude_output": 0.015,
-      "codex_input": 0.003,
-      "codex_output": 0.012,
+      "codex_input": 0.0025,
+      "codex_output": 0.015,
       "gemini_input": 0.00125,
       "gemini_output": 0.005
     },

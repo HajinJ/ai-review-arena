@@ -663,6 +663,7 @@ ai-review-arena/
 |   +-- search-guidelines.sh     # 컴플라이언스 가이드라인 검색
 |   +-- cache-manager.sh         # 캐시 관리
 |   +-- cost-estimator.sh        # 토큰 비용 추정 + 캐시 할인
+|   +-- check-model-updates.sh    # API 기반 모델 버전 감지
 |   +-- context-filter.sh        # 역할 기반 코드 필터링 (리뷰 에이전트용)
 |   +-- normalize-severity.sh    # 심각도 정규화 유틸리티
 |   +-- validate-config.sh       # 설정 유효성 검증

@@ -240,6 +240,19 @@ Establish project context, load configuration, and prepare the session environme
        }
        ```
 
+11. **Model Version Check** (non-blocking):
+
+    캐시 기반 모델 업데이트 확인 (7일 TTL, 보통 즉시 완료):
+
+    ```bash
+    MODEL_UPDATE_RESULTS=$(bash "${SCRIPTS_DIR}/check-model-updates.sh" "${CONFIG_FILE}" --json 2>&1 || echo '{}')
+    ```
+
+    - 업데이트 감지 시 stderr로 경고 표시
+    - 파이프라인 실행을 절대 블로킹하지 않음
+    - 실패 시 (네트워크, 타임아웃, 키 없음) silent continue
+    - 강제 확인: `--force`, 비활성화: `model_updates.enabled: false`
+
 ---
 
 ## Phase 0.1: Intensity Decision (Agent Teams Debate)

@@ -57,6 +57,9 @@ docs/         - Documentation
 # Test cache operations
 ./scripts/cache-manager.sh write test-key "test-value"
 ./scripts/cache-manager.sh read test-key
+
+# Test model update detection
+bash tests/unit/test-check-model-updates.sh
 ```
 
 ## PR Guidelines
