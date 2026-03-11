@@ -108,12 +108,24 @@ INCLUDE_PATTERNS=""
 INCLUDE_FILE_PATTERNS=""
 FALLBACK_SMALL="true"
 
+# Project context injection settings
+PROJECT_CONTEXT_ENABLED="true"
+PROJECT_CONTEXT_FILENAME=".ai-review-arena-context.md"
+PROJECT_CONTEXT_MAX_TOKENS=1500
+PROJECT_CONTEXT_INJECT_BEFORE="true"
+
 if [ -f "$CONFIG_FILE" ] && command -v jq &>/dev/null; then
   jq empty "$CONFIG_FILE" 2>/dev/null || log_warn "Malformed JSON in config: $CONFIG_FILE. Using defaults."
   ENABLED=$(jq -r '.context_density.enabled // true' "$CONFIG_FILE")
   BUDGET_CFG=$(jq -r '.context_density.agent_context_budget_tokens // empty' "$CONFIG_FILE")
   SMALL_FILE_THRESHOLD_CFG=$(jq -r '.context_density.small_file_threshold_lines // empty' "$CONFIG_FILE")
   FALLBACK_SMALL=$(jq -r '.context_density.fallback_on_small_files // true' "$CONFIG_FILE")
+
+  # Load project context settings
+  PROJECT_CONTEXT_ENABLED=$(jq -r 'if .project_context.enabled == false then "false" else "true" end' "$CONFIG_FILE")
+  PROJECT_CONTEXT_FILENAME=$(jq -r '.project_context.filename // ".ai-review-arena-context.md"' "$CONFIG_FILE")
+  PROJECT_CONTEXT_MAX_TOKENS=$(jq -r '.project_context.max_tokens // 1500' "$CONFIG_FILE")
+  PROJECT_CONTEXT_INJECT_BEFORE=$(jq -r 'if .project_context.inject_before_code == false then "false" else "true" end' "$CONFIG_FILE")
 
   # Override budget from config if not set via CLI
   if [ "$BUDGET" = "$DEFAULT_BUDGET" ] && [ -n "$BUDGET_CFG" ]; then
@@ -126,6 +138,42 @@ if [ -f "$CONFIG_FILE" ] && command -v jq &>/dev/null; then
   if [ -n "$FILTER_KEY" ]; then
     INCLUDE_PATTERNS=$(jq -r --arg key "$FILTER_KEY" '.context_density.role_filters[$key].include_patterns // [] | join("|")' "$CONFIG_FILE")
     INCLUDE_FILE_PATTERNS=$(jq -r --arg key "$FILTER_KEY" '.context_density.role_filters[$key].include_file_patterns // [] | .[]' "$CONFIG_FILE")
+  fi
+fi
+
+# =============================================================================
+# Project Context: detect and load shared context document
+# =============================================================================
+
+PROJECT_CONTEXT_CONTENT=""
+PROJECT_CONTEXT_LINES=0
+
+if [ "$PROJECT_CONTEXT_ENABLED" = "true" ]; then
+  # Search for context file: current dir, then git root
+  PROJECT_CONTEXT_FILE=""
+  if [ -f "$PROJECT_CONTEXT_FILENAME" ]; then
+    PROJECT_CONTEXT_FILE="$PROJECT_CONTEXT_FILENAME"
+  else
+    GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [ -n "$GIT_ROOT" ] && [ -f "${GIT_ROOT}/${PROJECT_CONTEXT_FILENAME}" ]; then
+      PROJECT_CONTEXT_FILE="${GIT_ROOT}/${PROJECT_CONTEXT_FILENAME}"
+    fi
+  fi
+
+  if [ -n "$PROJECT_CONTEXT_FILE" ]; then
+    PROJECT_CONTEXT_MAX_LINES=$((PROJECT_CONTEXT_MAX_TOKENS / TOKENS_PER_LINE))
+    PROJECT_CONTEXT_CONTENT=$(head -n "$PROJECT_CONTEXT_MAX_LINES" "$PROJECT_CONTEXT_FILE")
+    PROJECT_CONTEXT_LINES=$(echo "$PROJECT_CONTEXT_CONTENT" | wc -l | tr -d ' ')
+    PROJECT_CONTEXT_TOKENS=$((PROJECT_CONTEXT_LINES * TOKENS_PER_LINE))
+
+    # Deduct project context tokens from the available budget
+    BUDGET=$((BUDGET - PROJECT_CONTEXT_TOKENS))
+    if [ "$BUDGET" -le 0 ]; then
+      BUDGET=100
+      log_warn "Project context consumed most of the budget. Minimal code budget remaining."
+    fi
+
+    log_info "Project context loaded: ${PROJECT_CONTEXT_FILE} (${PROJECT_CONTEXT_LINES} lines, ~${PROJECT_CONTEXT_TOKENS} tokens)"
   fi
 fi
 
@@ -338,6 +386,14 @@ done
 EMITTED_LINES=0
 EMITTED_FILES=0
 TOTAL_SOURCE_LINES=0
+
+# Emit project context before code if enabled and available
+if [ -n "$PROJECT_CONTEXT_CONTENT" ] && [ "$PROJECT_CONTEXT_INJECT_BEFORE" = "true" ]; then
+  echo "=== PROJECT CONTEXT ==="
+  echo "$PROJECT_CONTEXT_CONTENT"
+  echo "=== END PROJECT CONTEXT ==="
+  echo ""
+fi
 
 for idx in "${SORTED_INDICES[@]}"; do
   filepath="${MATCHED_FILES[$idx]}"

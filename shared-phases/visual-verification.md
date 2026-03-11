@@ -103,19 +103,110 @@
     4. Compare extracted selectors with the expected changes above"
    ```
 
+5.5. **Playwright MCP Browser Verification** (if available):
+
+   Check for Playwright MCP:
+   ```
+   ToolSearch(query: "playwright browser")
+   ```
+
+   If Playwright MCP is found:
+
+   a. **Dev Server Detection**: Check if a dev server is running on configured ports:
+      ```bash
+      for port in $(echo "$DEV_SERVER_DETECT_PORTS" | jq -r '.[]'); do
+        curl -s -o /dev/null -w "%{http_code}" "http://localhost:${port}/" --connect-timeout 2 && echo "port:${port}:running" || echo "port:${port}:down"
+      done
+      ```
+      If no server detected, log: "No dev server running — skipping Playwright browser verification." and skip to Step 6.
+
+   b. **Navigate to Changed Routes**: For each frontend file that maps to a route:
+      ```
+      Extract route from file path heuristics:
+        - src/pages/about.tsx → /about
+        - src/app/dashboard/page.tsx → /dashboard
+        - src/routes/settings.svelte → /settings
+        - components without route mapping → use root "/" or Storybook URL
+
+      For each route:
+        playwright_navigate(url: "{dev_server_url}{route}")
+      ```
+      Timeout: `navigation_timeout_ms` (default 10000ms). On timeout → skip that page and continue.
+
+   c. **Accessibility Snapshot**: Capture accessibility tree to verify DOM structure:
+      ```
+      snapshot = playwright_snapshot()
+      ```
+      Cross-reference CSS selectors from Step 3 against the snapshot:
+      - For each extracted selector: check if it exists in the accessibility tree
+      - Report: "Selector `{selector}` — {found|NOT FOUND in DOM}"
+      - Selectors in code but not in DOM may indicate rendering issues
+
+   d. **Responsive Screenshots**: Capture screenshots at configured breakpoints:
+      ```
+      FOR each breakpoint in config.visual_verification.responsive_breakpoints:
+        playwright_screenshot(
+          width: breakpoint.width,
+          height: breakpoint.height,
+          fullPage: config.screenshot_capture.full_page
+        )
+        Save to: "visual-baselines/{route_slug}_{breakpoint.name}.{format}"
+      ```
+      Timeout: `screenshot_timeout_ms` per screenshot. On failure → skip that breakpoint.
+
+   e. **Baseline Comparison**: If baselines exist in cache:
+      ```bash
+      BASELINE_KEY="{route_slug}_{breakpoint_name}"
+      bash "${SCRIPTS_DIR}/cache-manager.sh" read "${PROJECT_ROOT}" \
+        "${BASELINE_CACHE_CATEGORY}" "${BASELINE_KEY}" > /dev/null 2>&1
+      ```
+      - If baseline found: compare dimensions and note visual changes
+      - If no baseline: store current screenshot as new baseline:
+        ```bash
+        cat screenshot.png | bash "${SCRIPTS_DIR}/cache-manager.sh" write \
+          "${PROJECT_ROOT}" "${BASELINE_CACHE_CATEGORY}" "${BASELINE_KEY}" \
+          --ttl ${BASELINE_TTL_DAYS}
+        ```
+
+   f. **DOM Selector Cross-Validation**:
+      Compare selectors extracted from code (Step 3) against selectors found in DOM (Step 5.5c):
+      ```
+      FOR each selector in extracted_selectors:
+        IF selector NOT found in DOM snapshot:
+          Report: "⚠ Selector '{selector}' exists in code but not rendered in DOM"
+          visual_risk = "high" (potential rendering bug)
+      ```
+
+   If Playwright MCP is NOT found:
+   - Log: "Playwright MCP not available — using static CSS selector analysis (fallback)."
+   - Continue with existing Step 3-5 static analysis (current behavior preserved).
+
+   **Error Handling**:
+   - Dev server not running → skip Playwright steps entirely
+   - Navigation timeout → skip that specific page, continue with others
+   - Screenshot failure → skip that breakpoint, continue with others
+   - Playwright MCP tool call error → fall back to static analysis
+
 6. **Display Results**:
    ```
    ## Visual Verification (Phase 6.7)
    - Frontend files affected: {N}
    - Components with visual changes: {list}
    - High-risk visual changes: {count}
-   - Visual feedback tools: {agentation: available/unavailable, storybook: available/unavailable}
+   - Visual feedback tools: {agentation: available/unavailable, storybook: available/unavailable, playwright: available/unavailable}
 
    ### Verification Checklist
    {generated checklist}
 
    ### CSS Selectors to Monitor
    {selector table}
+
+   ### Playwright Browser Verification (if executed)
+   - Dev server: {url} (port {port})
+   - Pages verified: {count}
+   - Responsive screenshots: {breakpoint_count} breakpoints x {page_count} pages
+   - DOM selector mismatches: {count} (selectors in code but not in DOM)
+   - Baseline comparisons: {new_count} new, {compared_count} compared
    ```
 
 ## Configuration
@@ -127,6 +218,25 @@ Settings from `config.visual_verification`:
 - `agentation_mcp`: Auto-detect Agentation MCP (default: true)
 - `storybook_integration`: Check for Storybook (default: true)
 - `output_mode`: Selector output detail level — compact|standard|detailed|forensic (default: standard)
+
+### Playwright Integration (`config.visual_verification.playwright_integration`)
+- `enabled`: Enable Playwright MCP browser verification (default: true)
+- `dev_server_url`: Base URL for the dev server (default: "http://localhost:3000")
+- `dev_server_detect_ports`: Ports to auto-detect running dev servers (default: [3000, 5173, 8080, 4200])
+- `navigation_timeout_ms`: Max wait for page navigation (default: 10000)
+- `screenshot_timeout_ms`: Max wait per screenshot capture (default: 5000)
+
+### Screenshot Capture (`config.visual_verification.screenshot_capture`)
+- `enabled`: Enable screenshot capture (default: true)
+- `format`: Image format — png|jpeg (default: "png")
+- `full_page`: Capture full scrollable page (default: false)
+- `store_baselines`: Save screenshots as baselines for future comparison (default: true)
+- `baseline_cache_category`: Cache category name for baselines (default: "visual-baselines")
+- `baseline_ttl_days`: TTL for stored baselines (default: 30)
+
+### Responsive Breakpoints (`config.visual_verification.responsive_breakpoints`)
+Array of `{name, width, height}` objects defining viewport sizes for responsive testing.
+Defaults: mobile (375x812), tablet (768x1024), desktop (1024x768), wide (1440x900)
 
 ## Output Modes (C2 Agentation Philosophy)
 
@@ -143,3 +253,8 @@ Settings from `config.visual_verification`:
 - Agentation unavailable: Fall back to static CSS selector analysis from code
 - Cannot determine component structure: Generate generic selectors from file paths
 - Storybook unavailable: Skip Storybook integration, continue with other checks
+- Playwright MCP unavailable: Fall back to static analysis (Steps 3-5), skip browser verification
+- Dev server not running: Skip Playwright browser verification, log message, continue with static analysis
+- Page navigation timeout: Skip that specific page, continue with remaining pages
+- Screenshot capture failure: Skip that breakpoint, continue with remaining breakpoints
+- Playwright tool call error: Fall back to static analysis for that page

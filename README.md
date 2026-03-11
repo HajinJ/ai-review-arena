@@ -14,10 +14,11 @@ The same problem applies to business content. A pitch deck with wrong market num
 
 Arena makes Claude, OpenAI Codex, and Google Gemini **independently review your code or business content, then cross-examine each other's findings in a 3-round adversarial debate**. Models challenge each other, defend their positions, or concede when they're wrong. What survives is a set of findings validated by multiple AI perspectives, each with a confidence score you can actually trust.
 
-**Two pipelines, one system:**
+**Three pipelines, one system:**
 
-- **Code Pipeline** (Routes A-F): Analyzes your codebase conventions, researches best practices, checks compliance, benchmarks models, runs static analysis scanners, debates implementation strategy, reviews code with 6-12 specialized agents (scaling by intensity), generates regression tests, auto-fixes safe findings, and verifies with your test suite. At deep+ intensity, adds STRIDE threat modeling and Round 4 escalation debates.
+- **Code Pipeline** (Routes A-F): Analyzes your codebase conventions, researches best practices, checks compliance, benchmarks models, runs static analysis scanners, debates implementation strategy, reviews code with 6-12 specialized agents (scaling by intensity), generates regression tests, auto-fixes safe findings, verifies with Playwright MCP browser testing, and verifies with your test suite. At deep+ intensity, adds STRIDE threat modeling and Round 4 escalation debates.
 - **Business Pipeline** (Routes G-I): Extracts business context from your docs, researches market data, selects analysis frameworks via debate, audits accuracy of claims, benchmarks models on business content, debates content strategy with mandatory 3-scenario analysis, reviews with 5-10 specialized agents + external CLIs (scaling by intensity) using evidence tiering, runs quantitative validation and adversarial red team at deep+, and auto-revises content with consistency checks.
+- **Documentation Pipeline** (Routes J-K): Inventories docs, diffs code against documentation, reviews with 6 specialized agents (accuracy, completeness, freshness, readability, examples, consistency), validates cross-references, and generates/updates documentation based on code changes.
 
 Arena activates automatically. You don't invoke it. Just use Claude Code normally, and the pipeline runs behind the scenes.
 
@@ -343,6 +344,7 @@ Phase 5.9   Threat Modeling              * 3-agent STRIDE threat debate (deep+)
 Phase 6     Implementation + Code Review + 3-Round Cross-Examination (+Round 4 escalation at deep+)
 Phase 6.5   Auto-Fix Loop                 fix safe findings, verify with tests, revert on failure
 Phase 6.6   Test Generation               regression test stubs for critical/high findings (standard+)
+Phase 6.7   Visual Verification            Playwright MCP browser testing + CSS selector analysis (standard+)
 Phase 7     Final Report + Feedback        success criteria PASS/FAIL, scope verdict, cost breakdown
 ```
 
@@ -373,7 +375,7 @@ Phase B7     Final Report + Feedback        quality scorecard + consistency vali
 
 ## Routes
 
-Arena classifies your intent into one of nine routes:
+Arena classifies your intent into one of eleven routes:
 
 ### Code Routes (A-F)
 
@@ -394,9 +396,16 @@ Arena classifies your intent into one of nine routes:
 | **H: Business Analysis** | Market research, competitive analysis, SWOT, strategy | Business pipeline with strategy emphasis |
 | **I: Communication** | Investor Q&A, customer emails, presentation scripts | Business pipeline with audience/tone emphasis |
 
+### Documentation Routes (J-K)
+
+| Route | When | Pipeline |
+|-------|------|----------|
+| **J: Documentation Review** | Reviewing docs for accuracy, completeness, freshness | Full documentation pipeline |
+| **K: Documentation Generation** | Generating or updating docs from code changes | Documentation pipeline in generate mode |
+
 ### Multi-Route Requests
 
-Requests that span both pipelines are decomposed and run sequentially with **context forwarding**:
+Requests that span multiple pipelines are decomposed and run sequentially with **context forwarding** (Code first, then Documentation, then Business):
 
 ```
 "Write a pitch deck and build a landing page based on it"
@@ -473,6 +482,7 @@ Typically unnecessary since the router handles everything, but available for dir
 |---------|-------------|
 | `/arena` | Full code lifecycle pipeline |
 | `/arena-business` | Full business lifecycle pipeline |
+| `/arena-docs` | Documentation review/generation pipeline |
 | `/arena-research` | Pre-implementation research only |
 | `/arena-stack` | Technology stack detection |
 | `/multi-review` | Multi-AI code review only |
@@ -549,6 +559,10 @@ Arena provides each review agent with context tailored to its role. Instead of s
 
 Each agent receives up to 8,000 tokens of role-relevant context (configurable). Files under 200 lines bypass filtering and are sent in full.
 
+### Shared Project Context
+
+If a `.ai-review-arena-context.md` file exists in your project root, its contents are automatically injected as shared context to every reviewer agent before the filtered code. This is useful for documenting project-specific conventions, security requirements, or architectural decisions that all reviewers should know about. The context file's token usage (default: 1,500 max) is deducted from each agent's budget.
+
 ---
 
 ## Memory Tiers
@@ -574,7 +588,7 @@ The installer adds `@ARENA-ROUTER.md` to `~/.claude/CLAUDE.md`. Claude Code load
 ~/.claude/CLAUDE.md
   +-- @ARENA-ROUTER.md       <- loaded into every session
         +-- Context Discovery   gather git, GitHub, Figma context
-        +-- Route Selection     intent-based classification (9 routes)
+        +-- Route Selection     intent-based classification (11 routes)
         +-- Pipeline Execution  load and execute command .md files
 ```
 
@@ -588,7 +602,7 @@ When a request requires an MCP server (Figma, Playwright, Notion) that isn't ins
 
 ```
 ai-review-arena/
-+-- ARENA-ROUTER.md              # Always-on routing logic (9 routes, context forwarding)
++-- ARENA-ROUTER.md              # Always-on routing logic (11 routes, context forwarding)
 +-- CLAUDE.md                    # Plugin development rules
 +-- install.sh                   # Installer (macOS / Linux / WSL)
 +-- uninstall.sh                 # Uninstaller
@@ -598,16 +612,17 @@ ai-review-arena/
 |   +-- hooks.json               # Claude Code PostToolUse hook
 |   +-- gemini-hooks.json        # Gemini CLI AfterTool hook adapter config
 |
-+-- commands/                    # Pipeline definitions (7 commands)
++-- commands/                    # Pipeline definitions (8 commands)
 |   +-- arena.md                 # Code pipeline (~2500 lines)
 |   +-- arena-business.md        # Business pipeline (~2900 lines)
+|   +-- arena-docs.md            # Documentation pipeline (Routes J-K)
 |   +-- arena-research.md        # Research pipeline
 |   +-- arena-stack.md           # Stack detection
 |   +-- multi-review.md          # Code review pipeline
 |   +-- multi-review-config.md   # Config management
 |   +-- multi-review-status.md   # Status dashboard
 |
-+-- agents/                      # Agent role definitions (33 agents)
++-- agents/                      # Agent role definitions (40 agents)
 |   +-- security-reviewer.md     # OWASP, auth, injection, data exposure
 |   +-- bug-detector.md          # Logic errors, null handling, error handling, concurrency
 |   +-- architecture-reviewer.md # SOLID, patterns, coupling
@@ -641,8 +656,15 @@ ai-review-arena/
 |   +-- competitor-response-agent.md       # Red team: competitive counter-strategy
 |   +-- regulatory-risk-agent.md           # Red team: regulatory/legal risk
 |   +-- business-debate-arbitrator.md      # Business: 3-round consensus + external model handling
+|   +-- doc-accuracy-reviewer.md          # Docs: code-doc mismatch, API accuracy
+|   +-- doc-completeness-reviewer.md      # Docs: undocumented APIs, missing sections
+|   +-- doc-freshness-reviewer.md         # Docs: deprecated refs, stale versions
+|   +-- doc-readability-reviewer.md       # Docs: structure, audience fit
+|   +-- doc-example-reviewer.md           # Docs: runnable examples, output accuracy
+|   +-- doc-consistency-reviewer.md       # Docs: terminology, cross-references
+|   +-- doc-debate-arbitrator.md          # Docs: 3-round consensus
 |
-+-- scripts/                     # Shell/Python scripts (31 scripts)
++-- scripts/                     # Shell/Python scripts (32 scripts)
 |   +-- codex-review.sh          # Codex Round 1 code review
 |   +-- gemini-review.sh         # Gemini Round 1 code review
 |   +-- codex-cross-examine.sh   # Codex Round 2 & 3 (code)
@@ -666,7 +688,8 @@ ai-review-arena/
 |   +-- cache-manager.sh         # Cache management
 |   +-- cost-estimator.sh        # Token cost estimation + cache discount
 |   +-- check-model-updates.sh    # API-based model version detection
-|   +-- context-filter.sh        # Role-based code filtering for review agents
+|   +-- context-filter.sh        # Role-based code filtering + project context injection
+|   +-- auto-tune-prompts.sh    # Auto-tune prompt optimization loop (F1 improvement)
 |   +-- normalize-severity.sh    # Severity normalization utility
 |   +-- validate-config.sh       # Configuration validation
 |   +-- utils.sh                 # Shared utilities
@@ -677,13 +700,14 @@ ai-review-arena/
 |   +-- setup-arena.sh           # Arena setup
 |   +-- setup.sh                 # General setup
 |
-+-- shared-phases/               # Common phase definitions (9 phases, shared by code + business)
++-- shared-phases/               # Common phase definitions (10 phases, shared by code + business)
 |   +-- intensity-decision.md    # Phase 0.1/B0.1: Agent Teams intensity debate
 |   +-- cost-estimation.md       # Phase 0.2/B0.2: Cost & time estimation
 |   +-- feedback-routing.md      # Feedback-based model-category role assignment
 |   +-- static-analysis.md       # Phase 5.8: Static analysis integration (standard+)
 |   +-- threat-modeling.md       # Phase 5.9: STRIDE 3-agent threat debate (deep+)
 |   +-- test-generation.md       # Phase 6.6: Regression test stub generation (standard+)
+|   +-- visual-verification.md  # Phase 6.7: Visual verification + Playwright MCP (standard+)
 |   +-- framework-selection.md   # Phase B1.5: Analysis framework selection debate (standard+)
 |   +-- quantitative-validation.md # Phase B5.6: Numerical claim cross-validation (deep+)
 |   +-- adversarial-red-team.md  # Phase B5.7: Adversarial stress testing (deep+)
@@ -695,13 +719,15 @@ ai-review-arena/
 |   |                            #   memory tiers, pipeline evaluation, static analysis,
 |   |                            #   threat modeling, test generation, evidence tiering,
 |   |                            #   framework selection, scenario analysis, quantitative
-|   |                            #   validation, red team, consistency validation)
+|   |                            #   validation, red team, consistency validation,
+|   |                            #   project context, auto-tune, Playwright integration)
 |   +-- compliance-rules.json    # Feature-to-guideline mapping
 |   +-- tech-queries.json        # Tech-to-search-query mapping (31 technologies)
-|   +-- review-prompts/          # Structured prompts (9 templates)
-|   +-- schemas/                 # Codex structured output JSON schemas (5 schemas)
+|   +-- review-prompts/          # Structured prompts (15 templates: 9 code + 6 doc)
+|   +-- schemas/                 # Codex structured output JSON schemas (7 schemas)
 |   |   +-- codex-review.json, codex-cross-examine.json, codex-defend.json
 |   |   +-- codex-business-review.json, codex-business-cross-review.json
+|   |   +-- codex-doc-review.json, codex-doc-cross-review.json
 |   +-- codex-agents/            # Codex multi-agent TOML configs (5 agents)
 |   |   +-- security.toml, bugs.toml, performance.toml
 |   |   +-- architecture.toml, testing.toml
@@ -726,12 +752,12 @@ ai-review-arena/
 |   +-- example-output.md        # Example review output
 |   +-- TODO-external-integrations.md  # Research-backed TODO items
 |
-+-- tests/                       # Test suite (18 test files)
++-- tests/                       # Test suite (21 test files)
 |   +-- run-tests.sh             # Test runner (--unit, --integration, --e2e)
 |   +-- run-shellcheck.sh        # ShellCheck lint runner
 |   +-- test-helpers.sh          # Shared test utilities
-|   +-- unit/                    # Unit tests (8 files)
-|   +-- integration/             # Integration tests (8 files)
+|   +-- unit/                    # Unit tests (9 files)
+|   +-- integration/             # Integration tests (9 files)
 |   +-- e2e/                     # E2E tests (2 files, requires CLIs)
 |
 +-- Makefile                     # Build targets (test, lint, benchmark, e2e)
@@ -795,6 +821,15 @@ Run `./scripts/run-benchmark.sh --verbose` to see Arena-only results.
 ---
 
 ## Changelog
+
+### v3.4.0
+
+- **Shared Project Context** (`.ai-review-arena-context.md`): Drop a context file in your project root and every reviewer agent receives it as shared context before their filtered code view. Configurable max tokens (default 1,500), automatic budget deduction, and opt-out via `project_context.enabled: false`
+- **Playwright MCP Browser Verification** (Phase 6.7, standard+): When Playwright MCP is available and a dev server is running, Phase 6.7 performs real browser testing — navigates to changed routes, captures accessibility snapshots, takes responsive screenshots at 4 breakpoints (375/768/1024/1440px), stores baselines for comparison, and cross-validates CSS selectors from code against the live DOM. Graceful fallback to static CSS analysis when Playwright is unavailable
+- **Auto-Tune Prompt Optimization** (`scripts/auto-tune-prompts.sh`): Karpathy autoresearch-inspired loop that iteratively improves review prompt F1 scores. Measures baseline F1 via benchmarks, generates prompt mutations via Claude CLI, re-benchmarks, and keeps improvements. Includes lockfile protection, daily budget guard, convergence detection (ΔF1 < 0.5% x 3 consecutive), backup/restore, and long-term memory history. Run with `--dry-run` to preview without changes
+- **Documentation Pipeline** (Routes J-K): 6 specialized agents (accuracy, completeness, freshness, readability, examples, consistency) review documentation. Route J reviews existing docs, Route K generates/updates docs from code changes. Full intensity scaling from quick to comprehensive
+- 3 new config sections: `project_context`, `auto_tune`, `visual_verification.playwright_integration`
+- 40 agents (was 33), 36 scripts (was 31), 10 shared phases (was 9), 21 test files (was 18)
 
 ### v3.3.0
 

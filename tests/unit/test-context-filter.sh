@@ -142,4 +142,154 @@ EOF
 result=$(echo "$TEMP_DIR/src/service.ts" | bash "$SCRIPT" performance-reviewer "$CONFIG" --budget 8000 2>/dev/null)
 assert_contains "$result" "service.ts" "performance role: includes service file"
 
+# =========================================================================
+# Test: project context file present → injected before code
+# =========================================================================
+
+# Create a project context file in the temp dir
+cat > "$TEMP_DIR/.ai-review-arena-context.md" <<'EOF'
+# Project Context
+This project uses JWT authentication with RSA-256 signing.
+Always validate tokens before processing requests.
+EOF
+
+# Config that points to the context file name
+cat > "$TEMP_DIR/config-with-context.json" <<'CEOF'
+{
+  "project_context": {
+    "enabled": true,
+    "filename": ".ai-review-arena-context.md",
+    "max_tokens": 1500,
+    "inject_before_code": true
+  },
+  "context_density": {
+    "enabled": true,
+    "agent_context_budget_tokens": 8000,
+    "role_filters": {},
+    "fallback_on_small_files": true,
+    "small_file_threshold_lines": 200
+  }
+}
+CEOF
+
+# Run from temp dir so the context file is found
+result=$(cd "$TEMP_DIR" && echo "$TEMP_DIR/src/auth.ts" | bash "$SCRIPT" security-reviewer "$TEMP_DIR/config-with-context.json" --budget 8000 2>/dev/null)
+assert_contains "$result" "PROJECT CONTEXT" "project context: header present when file exists"
+assert_contains "$result" "JWT authentication" "project context: content injected"
+assert_contains "$result" "auth.ts" "project context: code still present after context"
+
+# =========================================================================
+# Test: project context file absent → no injection
+# =========================================================================
+
+# Config with a filename that doesn't exist
+cat > "$TEMP_DIR/config-no-context.json" <<'CEOF'
+{
+  "project_context": {
+    "enabled": true,
+    "filename": ".nonexistent-context.md",
+    "max_tokens": 1500,
+    "inject_before_code": true
+  },
+  "context_density": {
+    "enabled": true,
+    "agent_context_budget_tokens": 8000,
+    "role_filters": {},
+    "fallback_on_small_files": true,
+    "small_file_threshold_lines": 200
+  }
+}
+CEOF
+
+result=$(cd "$TEMP_DIR" && echo "$TEMP_DIR/src/auth.ts" | bash "$SCRIPT" security-reviewer "$TEMP_DIR/config-no-context.json" --budget 8000 2>/dev/null)
+assert_not_contains "$result" "PROJECT CONTEXT" "project context absent: no header when file missing"
+
+# =========================================================================
+# Test: project context disabled in config → no injection
+# =========================================================================
+
+cat > "$TEMP_DIR/config-context-disabled.json" <<'CEOF'
+{
+  "project_context": {
+    "enabled": false,
+    "filename": ".ai-review-arena-context.md",
+    "max_tokens": 1500,
+    "inject_before_code": true
+  },
+  "context_density": {
+    "enabled": true,
+    "agent_context_budget_tokens": 8000,
+    "role_filters": {},
+    "fallback_on_small_files": true,
+    "small_file_threshold_lines": 200
+  }
+}
+CEOF
+
+result=$(cd "$TEMP_DIR" && echo "$TEMP_DIR/src/auth.ts" | bash "$SCRIPT" security-reviewer "$TEMP_DIR/config-context-disabled.json" --budget 8000 2>/dev/null)
+assert_not_contains "$result" "PROJECT CONTEXT" "project context disabled: no injection"
+
+# =========================================================================
+# Test: large context file truncated to max_tokens budget
+# =========================================================================
+
+# Create a large context file (500 lines)
+for i in $(seq 1 500); do
+  echo "Line $i of project context documentation with important details"
+done > "$TEMP_DIR/.ai-review-arena-context.md"
+
+# Config with small max_tokens (200 tokens = 50 lines at 4 tokens/line)
+cat > "$TEMP_DIR/config-small-context.json" <<'CEOF'
+{
+  "project_context": {
+    "enabled": true,
+    "filename": ".ai-review-arena-context.md",
+    "max_tokens": 200,
+    "inject_before_code": true
+  },
+  "context_density": {
+    "enabled": true,
+    "agent_context_budget_tokens": 8000,
+    "role_filters": {},
+    "fallback_on_small_files": true,
+    "small_file_threshold_lines": 200
+  }
+}
+CEOF
+
+result=$(cd "$TEMP_DIR" && echo "$TEMP_DIR/src/auth.ts" | bash "$SCRIPT" security-reviewer "$TEMP_DIR/config-small-context.json" --budget 8000 2>/dev/null)
+assert_contains "$result" "PROJECT CONTEXT" "large context: header present"
+# Should NOT contain line 100 (truncated at ~50 lines)
+assert_not_contains "$result" "Line 100" "large context: truncated past max_tokens"
+
+# =========================================================================
+# Test: budget deduction from project context
+# =========================================================================
+
+# Small total budget (400 tokens = 100 lines) with 200-token context = only 50 lines for code
+cat > "$TEMP_DIR/config-budget-deduct.json" <<'CEOF'
+{
+  "project_context": {
+    "enabled": true,
+    "filename": ".ai-review-arena-context.md",
+    "max_tokens": 200,
+    "inject_before_code": true
+  },
+  "context_density": {
+    "enabled": true,
+    "agent_context_budget_tokens": 400,
+    "role_filters": {},
+    "fallback_on_small_files": true,
+    "small_file_threshold_lines": 200
+  }
+}
+CEOF
+
+# Create a moderate context file
+echo "This is project context." > "$TEMP_DIR/.ai-review-arena-context.md"
+
+stderr_out=$(cd "$TEMP_DIR" && echo "$TEMP_DIR/src/big-auth.ts" | bash "$SCRIPT" security-reviewer "$TEMP_DIR/config-budget-deduct.json" --budget 400 2>&1 >/dev/null)
+# Should log project context loading
+assert_contains "$stderr_out" "Project context loaded" "budget deduction: context logged"
+
 print_summary

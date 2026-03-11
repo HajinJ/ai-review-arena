@@ -222,11 +222,23 @@ Establish project context, load configuration, and prepare the session environme
 
     b. **Playwright MCP Detection**:
        - Check if request contains: "test", "E2E", "browser", "playwright"
+       - Also auto-detect when changed files include frontend code (tsx, jsx, vue, svelte, html, css)
        - If detected:
          ```
-         ToolSearch(query: "playwright")
+         ToolSearch(query: "playwright browser")
          ```
-       - If not found: Inform user and suggest installation, continue without it
+       - If found: Auto-detect running dev server for Phase 6.7:
+         ```bash
+         # Check configured ports for a running dev server
+         for port in 3000 5173 8080 4200; do
+           if curl -s -o /dev/null -w "%{http_code}" "http://localhost:${port}/" --connect-timeout 2 | grep -q "200\|301\|302"; then
+             echo "dev_server_url=http://localhost:${port}"
+             break
+           fi
+         done
+         ```
+         Record `dev_server_url` and `playwright_mcp: available` for Phase 6.7.
+       - If not found: Inform user and suggest installation, continue without it. Phase 6.7 will use static CSS analysis fallback.
 
     c. **Notion MCP Detection**:
        - Check if request contains: "Notion", "notion"
@@ -1568,9 +1580,12 @@ Apply role-based context filtering to reduce token usage per agent. Each reviewe
    done
    ```
 
-4. Display filtering summary:
+4. Display filtering summary (includes project context if detected):
    ```
    ## Context Density Filtering (Step 6.4.5)
+
+   Project context: {detected/not found} ({filename}, ~{tokens} tokens injected per agent)
+
    | Role | Files In | Matched | Lines Extracted | Est. Tokens | Chunked |
    |------|----------|---------|-----------------|-------------|---------|
    | security-reviewer | 24 | 8 | 450 | ~1,800 | No |
@@ -1578,6 +1593,8 @@ Apply role-based context filtering to reduce token usage per agent. Each reviewe
    | performance-reviewer | 24 | 12 | 800 | ~3,200 | No |
    ...
    ```
+
+   **Project Context**: `context-filter.sh` automatically detects `.ai-review-arena-context.md` (configurable via `project_context.filename`) in the project root and injects it as shared context before the filtered code for each agent. The context file's tokens are deducted from each agent's token budget. If the file is absent or `project_context.enabled` is false, this step is silently skipped.
 
 ### Step 6.5: Spawn Claude Reviewer Teammates
 

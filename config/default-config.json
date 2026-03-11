@@ -432,6 +432,12 @@
     },
     "summarize_if_exceeds": true
   },
+  "project_context": {
+    "enabled": true,
+    "filename": ".ai-review-arena-context.md",
+    "max_tokens": 1500,
+    "inject_before_code": true
+  },
   "context_density": {
     "enabled": true,
     "role_based_filtering": true,
@@ -683,7 +689,28 @@
     "agentation_mcp": true,
     "storybook_integration": true,
     "output_mode": "standard",
-    "frontend_extensions": ["tsx", "jsx", "vue", "svelte", "html", "css", "scss"]
+    "frontend_extensions": ["tsx", "jsx", "vue", "svelte", "html", "css", "scss"],
+    "playwright_integration": {
+      "enabled": true,
+      "dev_server_url": "http://localhost:3000",
+      "dev_server_detect_ports": [3000, 5173, 8080, 4200],
+      "navigation_timeout_ms": 10000,
+      "screenshot_timeout_ms": 5000
+    },
+    "screenshot_capture": {
+      "enabled": true,
+      "format": "png",
+      "full_page": false,
+      "store_baselines": true,
+      "baseline_cache_category": "visual-baselines",
+      "baseline_ttl_days": 30
+    },
+    "responsive_breakpoints": [
+      {"name": "mobile", "width": 375, "height": 812},
+      {"name": "tablet", "width": 768, "height": 1024},
+      {"name": "desktop", "width": 1024, "height": 768},
+      {"name": "wide", "width": 1440, "height": 900}
+    ]
   },
   "memory_search": {
     "enabled": true,
@@ -693,5 +720,19 @@
     "default_top_n": 5,
     "search_memory_tiers": true,
     "tier_search_order": ["short-term", "long-term", "permanent"]
+  },
+  "auto_tune": {
+    "enabled": true,
+    "max_iterations_per_category": 10,
+    "max_iterations_total": 30,
+    "convergence_threshold_pct": 0.5,
+    "convergence_window": 3,
+    "daily_budget_dollars": 10.0,
+    "target_categories": ["security", "bugs", "performance", "architecture", "testing"],
+    "mutation_model": "claude",
+    "backup_dir": "cache/auto-tune-backups",
+    "history_memory_tier": "long-term",
+    "benchmark_models": ["codex", "gemini"],
+    "lock_timeout_seconds": 300
   }
 }

@@ -251,14 +251,19 @@ Apply role-based context filtering to reduce token usage per agent. Each reviewe
    done
    ```
 
-4. Display filtering summary:
+4. Display filtering summary (includes project context if detected):
    ```
    ## Context Density Filtering (Step 4.2.5)
+
+   Project context: {detected/not found} ({filename}, ~{tokens} tokens injected per agent)
+
    | Role | Files In | Matched | Lines Extracted | Est. Tokens | Chunked |
    |------|----------|---------|-----------------|-------------|---------|
    | security-reviewer | 24 | 8 | 450 | ~1,800 | No |
    ...
    ```
+
+   **Project Context**: `context-filter.sh` automatically detects `.ai-review-arena-context.md` (configurable via `project_context.filename`) in the project root and injects it as shared context before the filtered code for each agent. The context file's tokens are deducted from each agent's token budget. If the file is absent or `project_context.enabled` is false, this step is silently skipped.
 
 ### Step 4.3: Spawn Claude Reviewer Teammates
 
