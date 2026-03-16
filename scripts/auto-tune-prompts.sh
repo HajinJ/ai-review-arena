@@ -41,16 +41,8 @@ ensure_jq
 
 LOCKFILE="${PLUGIN_DIR}/cache/.auto-tune.lock"
 PROMPTS_DIR="${PLUGIN_DIR}/config/review-prompts"
-DEFAULT_MAX_ITERATIONS=10
-DEFAULT_MAX_TOTAL_ITERATIONS=30
-DEFAULT_CONVERGENCE_THRESHOLD="0.5"
-DEFAULT_CONVERGENCE_WINDOW=3
-DEFAULT_DAILY_BUDGET="10.0"
-DEFAULT_LOCK_TIMEOUT=300
-DEFAULT_BENCHMARK_MODELS="codex,gemini"
-DEFAULT_CATEGORIES="security bugs performance architecture testing"
-DEFAULT_HISTORY_TIER="long-term"
-DEFAULT_BACKUP_DIR="${PLUGIN_DIR}/cache/auto-tune-backups"
+# Defaults are loaded from config in init_auto_tune() with jq fallbacks.
+# See config/default-config.json section "auto_tune" for default values.
 
 # =============================================================================
 # Argument Parsing
