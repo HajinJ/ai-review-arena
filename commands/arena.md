@@ -21,10 +21,12 @@ Team Lead (You - this session)
 ├── Phase 0.2: Cost & Time Estimation (user approval before proceeding)
 ├── Phase 0.5: Codebase Analysis (conventions, reusable code, structure)
 ├── Phase 1: Stack Detection (detect-stack.sh)
-├── Phase 2: Pre-Implementation Research (search-best-practices.sh + WebSearch)
-│   └── Research Direction Debate (deep+ only)
-│       ├── researcher agents  → propose different research angles
-│       └── research-arbitrator → prioritizes research agenda
+├── Phase 2: Pre-Implementation Research (Agent Teams collaborative search)
+│   └── Research Direction Debate + Collaborative Execution (deep+ only)
+│       ├── researcher-tech    → technology best practices (shares findings in real-time)
+│       ├── researcher-domain  → domain patterns (reacts to tech/risk signals)
+│       ├── researcher-risk    → failure modes, CVEs (reacts to tech/domain signals)
+│       └── research-arbitrator → prioritizes agenda, resolves contradictions
 ├── Phase 3: Compliance Detection (search-guidelines.sh + WebSearch)
 │   └── Compliance Scope Debate (deep+ only)
 │       ├── compliance-advocate → argues for more rules
@@ -37,6 +39,10 @@ Team Lead (You - this session)
 │   ├── security-challenger    → challenges security implications
 │   ├── pragmatic-challenger   → challenges complexity/feasibility
 │   └── strategy-arbitrator    → synthesizes best approach
+├── Phase 5.5.5: Spec Approval Gate (standard+)
+│   ├── Parse Success Criteria → structured JSON
+│   ├── Auto-classify test types (automated/static/manual)
+│   └── User approval gate → APPROVED_SPEC_CRITERIA
 ├── Phase 5.8: Static Analysis Integration (standard+)
 │   ├── Stack-based scanner selection (semgrep/eslint/bandit/gosec)
 │   ├── Parallel scanner execution
@@ -45,43 +51,51 @@ Team Lead (You - this session)
 │   ├── threat-modeler         → STRIDE threat identification
 │   ├── threat-defender        → challenge threats as mitigated/unlikely
 │   └── threat-arbitrator      → prioritized attack surface consensus
-├── Phase 6: Agent Team Review (follows multi-review.md pattern)
+├── Phase 6: Agent Team Collaborative Review
 │   ├── Create team (Teammate tool)
-│   ├── Spawn reviewer teammates (Task tool with team_name)
+│   ├── Spawn debate-arbitrator (Early Join — monitors from Round 1)
+│   ├── Spawn reviewer teammates with Collaboration Protocol
+│   │   └── Reviewers share signals, challenge each other in real-time
 │   ├── Spawn compliance-checker teammate (if compliance detected)
 │   ├── Spawn research-coordinator teammate (deep intensity only)
 │   ├── Run external CLIs (Codex, Gemini via Bash)
-│   ├── Coordinate debate phase (3 rounds + Round 4 escalation for deep+)
+│   ├── Collect pre-aggregated findings from debate-arbitrator
+│   ├── Coordinate cross-examination (3 rounds + Round 4 escalation for deep+)
 │   └── Aggregate findings & generate report
 ├── Phase 6.5: Apply Findings (auto-fix safe, high-confidence findings)
 │   ├── Filter findings by strict auto-fix criteria
+│   ├── Enforce write scope + escalation block constraints
 │   ├── Apply fixes
 │   ├── Run test suite verification
 │   └── Revert on test failure
 ├── Phase 6.6: Test Generation (standard+)
 │   ├── Filter critical/high findings with confidence >= 70
 │   ├── Detect test framework and directory
-│   └── Generate regression test stubs
+│   ├── Generate regression test stubs
+│   └── Generate spec acceptance tests (from Phase 5.5.5)
 ├── Phase 6.7: Visual Verification (standard+, frontend only)
 │   ├── Detect frontend files and visual feedback tools
 │   ├── Extract CSS selectors from affected components
 │   ├── Generate visual regression checklist
 │   └── Agentation MCP integration (if available)
 ├── Phase 7: Final Report & Cleanup
-│   ├── Generate enriched report with compliance + scale sections
+│   ├── Generate enriched report with contract verification + escalation sections
+│   ├── Run spec acceptance tests (deterministic PASS/FAIL)
 │   ├── Shutdown all teammates
 │   └── Cleanup team
 └── Fallback Framework (structured 6-level graceful degradation)
 
 Claude Reviewer Teammates (dynamic, from config intensity_presets.{INTENSITY}.reviewer_roles)
+├── debate-arbitrator    ─── Early Join: monitors signals from Round 1
+│                            Round 2-3: synthesizes cross-examination consensus
+│
 ├── {role-1}             ─┐
-├── {role-2}             ─┤── SendMessage <-> each other (debate)
-├── {role-3}             ─┤── SendMessage -> debate-arbitrator
-├── {role-N}             ─┘── SendMessage -> team lead (findings)
+├── {role-2}             ─┤── Round 1: SendMessage <-> each other (real-time signals)
+├── {role-3}             ─┤── Round 1: SendMessage -> debate-arbitrator (findings)
+├── {role-N}             ─┘── Round 2-3: cross-examine + defend via team communication
 │
 ├── compliance-checker   ─── guideline compliance (conditional)
-├── research-coordinator ─── deep intensity only
-└── debate-arbitrator    ─── Receives challenges/supports -> synthesizes consensus
+└── research-coordinator ─── deep intensity only
 
 External CLIs (via Bash, not teammates)
 ├── Codex CLI -> JSON findings (role assigned by benchmark routing)
@@ -159,9 +173,9 @@ Establish project context, load configuration, and prepare the session environme
 
    **Intensity determines Phase scope** (decided by Phase 0.1 debate or `--intensity` flag):
    - `quick`: Phase 0 → 0.1 → 0.5 only (Claude solo, no Agent Team)
-   - `standard`: Phase 0 → 0.1 → 0.5 → 1(cached) → 5.5 → 5.8 → 6 → 6.5 → 6.6 → 6.7 → 7
-   - `deep`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 5.5 → 5.8 → 5.9 → 6(+R4) → 6.5 → 6.6 → 6.7 → 7
-   - `comprehensive`: Phase 0 → 0.1 → 0.5 → 1 → 2(+debate) → 3(+debate) → 4 → 5 → 5.5 → 5.8 → 5.9 → 6(+R4) → 6.5 → 6.6 → 6.7 → 7
+   - `standard`: Phase 0 → 0.1 → 0.5(+escalation scan) → 1(cached) → 5.5 → 5.5.5(spec gate) → 5.8 → 6 → 6.5(+scope/escalation filter) → 6.6(+spec tests) → 6.7 → 7(+contract report)
+   - `deep`: Phase 0 → 0.1 → 0.5(+escalation scan) → 1 → 2(+debate) → 3(+debate) → 5.5 → 5.5.5(spec gate) → 5.8 → 5.9 → 6(+R4) → 6.5(+scope/escalation filter) → 6.6(+spec tests) → 6.7 → 7(+contract report)
+   - `comprehensive`: Phase 0 → 0.1 → 0.5(+escalation scan) → 1 → 2(+debate) → 3(+debate) → 4 → 5 → 5.5 → 5.5.5(spec gate) → 5.8 → 5.9 → 6(+R4) → 6.5(+scope/escalation filter) → 6.6(+spec tests) → 6.7 → 7(+contract report)
 
    **Quick Intensity Mode** (`--intensity quick` or decided by Phase 0.1):
    - Run Phase 0 + Phase 0.1 + Phase 0.5 only
@@ -447,6 +461,13 @@ Establish project context, load configuration, and prepare the session environme
 
 7. **Apply Decision**: Set the intensity for all subsequent phases based on the arbitrator's decision.
 
+   **Escalation Floor**: If Phase 0.5 Step 7 (Escalation Trigger Scan) already ran and produced `escalated_intensity`, enforce it as a floor:
+   ```
+   IF escalated_intensity IS SET AND intensity_rank(escalated_intensity) > intensity_rank(decided_intensity):
+     decided_intensity = escalated_intensity
+     Log: "Intensity escalated from {decided} to {escalated} due to escalation triggers"
+   ```
+
 8. **Display Decision**:
    ```
    ## Intensity Decision (Phase 0.1)
@@ -602,7 +623,40 @@ Analyze the existing codebase to extract conventions, identify reusable code, an
    6. Match existing code organization and structure
    ```
 
-7. **Quick Mode Execution** (if `--intensity quick`):
+7. **Escalation Trigger Scan** (if `escalation_triggers.enabled`):
+   Scan scope files against escalation trigger patterns to detect high-risk changes:
+   ```bash
+   # Collect scope file list
+   echo "${SCOPE_FILES}" | bash "${SCRIPTS_DIR}/escalation-scan.sh" "${CONFIG_FILE}"
+   ```
+
+   Process results:
+   - If `escalated_intensity` is higher than current intensity → force upgrade intensity
+   - If `requires_approval == true` → AskUserQuestion:
+     ```
+     ## High-Risk Pattern Detected (Phase 0.5.6)
+
+     Escalation triggers matched:
+     {list of matched patterns with descriptions}
+
+     Intensity escalated to: {escalated_intensity}
+
+     [Proceed / Cancel]
+     ```
+   - Store `auto_fix_blocked_files` as session variable `ESCALATION_BLOCKED_FILES` for Phase 6.5
+
+8. **Write Scope Resolution** (if `write_scope.enabled`):
+   Determine the allowed write scope for auto-fix:
+   ```
+   WRITE_SCOPE = resolve_scope():
+     1. User request's explicit file paths (highest priority)
+     2. git diff file list (--pr or diff-based)
+     3. Phase 5.5 strategy's "Files to Create" + "Files to Modify" (updated after Phase 5.5)
+     4. If unresolvable: PROJECT_ROOT (no restriction, display warning)
+   ```
+   Log resolved scope for Phase 6.5 enforcement.
+
+9. **Quick Mode Execution** (if `--intensity quick`):
    After codebase analysis, execute the user's task directly:
    - Apply discovered conventions
    - Reuse identified code
@@ -712,7 +766,7 @@ Before executing searches, debate what to research:
    - **researcher-risk**: Proposes research directions based on risk areas (what could go wrong, edge cases, failure modes)
    - **research-arbitrator**: Weighs all proposals, prioritizes the research agenda, decides top 3-5 research topics
 
-3. Each researcher sends proposals to research-arbitrator via SendMessage. Researchers can challenge each other's priorities.
+3. Each researcher sends proposals to research-arbitrator AND to each other via SendMessage. Researchers challenge each other's priorities and share relevant findings they encounter during direction debate.
 
 4. research-arbitrator sends final research agenda to team lead:
    ```
@@ -723,7 +777,7 @@ Before executing searches, debate what to research:
    ...
    ```
 
-5. Shutdown research direction team and proceed with the prioritized research agenda.
+5. **Do NOT shutdown** the research team yet — keep researchers alive for collaborative search execution (Step 6 below).
 
 6. Display research direction decision:
    ```
@@ -733,7 +787,25 @@ Before executing searches, debate what to research:
 
 ---
 
-Now execute the main research steps using the debate-determined agenda:
+**Collaborative Research Execution** (Agent Teams):
+
+Instead of the team lead executing searches sequentially, distribute research across the team:
+
+1. Assign research topics to researchers based on their expertise:
+   - researcher-tech → technology-specific best practices
+   - researcher-domain → domain patterns and design guidance
+   - researcher-risk → failure modes, security pitfalls, edge cases
+
+2. Each researcher executes WebSearch for their assigned topics and **shares key findings with other researchers in real-time** via SendMessage. This enables:
+   - researcher-tech finding a framework deprecation notice → researcher-risk evaluates migration risk
+   - researcher-risk finding a CVE → researcher-tech searches for recommended fix patterns
+   - researcher-domain finding a new design pattern → researcher-tech verifies framework support
+
+3. research-arbitrator monitors shared findings, resolves contradictions (e.g., two researchers find conflicting best practices), and compiles the final research brief.
+
+4. research-arbitrator sends consolidated research brief to team lead. **Then** shutdown the research team.
+
+Now execute the per-technology search steps using the debate-determined agenda:
 
 1. For each detected technology in the stack profile:
    a. Run the search-best-practices script:
@@ -1301,7 +1373,21 @@ Only execute this phase if `--figma <url>` was provided.
 
 6. **Apply Strategy**: Use the arbitrator's decision as the implementation plan. Pass it as context to Phase 6 reviewers so they can verify the implementation follows the agreed strategy. **Pass Success Criteria to Phase 7 for post-implementation verification.**
 
-7. **Implement**: Execute the implementation following the decided strategy. Apply codebase conventions from Phase 0.5. Use reusable code identified earlier. **Only modify files listed in the strategy. If additional files need changes, document the deviation.**
+   **Update Write Scope** (if `write_scope.enabled` and `write_scope.include_strategy_files`):
+   Add the strategy's "Files to Create" and "Files to Modify" to `WRITE_SCOPE`.
+
+7. **Phase 5.5.5: Spec Approval Gate** (if `spec_verification.enabled` and intensity >= `spec_verification.min_intensity`):
+
+   Read `${PLUGIN_DIR}/shared-phases/spec-verification.md` and execute the Phase 5.5.5 section with:
+   - Success Criteria from strategy-arbitrator output (Step 5)
+   - `DETECTED_STACK`: Stack detection results from Phase 1
+   - `PROJECT_ROOT`: Project root directory
+
+   This gate transforms LLM-generated Success Criteria into structured, user-approved acceptance criteria with deterministic verification types (automated_test, static_assertion, manual_check).
+
+   Store the result as `APPROVED_SPEC_CRITERIA` for Phase 6.6 and Phase 7.
+
+8. **Implement**: Execute the implementation following the decided strategy. Apply codebase conventions from Phase 0.5. Use reusable code identified earlier. **Only modify files listed in the strategy. If additional files need changes, document the deviation.**
 
 8. **Display Strategy Decision**:
    ```
@@ -1596,12 +1682,55 @@ Apply role-based context filtering to reduce token usage per agent. Each reviewe
 
    **Project Context**: `context-filter.sh` automatically detects `.ai-review-arena-context.md` (configurable via `project_context.filename`) in the project root and injects it as shared context before the filtered code for each agent. The context file's tokens are deducted from each agent's token budget. If the file is absent or `project_context.enabled` is false, this step is silently skipped.
 
-### Step 6.5: Spawn Claude Reviewer Teammates
+### Step 6.5: Spawn Claude Reviewer Teammates (Agent Teams Collaborative Review)
 
-For each active role, read the agent definition file and spawn a teammate. **Spawn ALL teammates in parallel** by making multiple Task tool calls in a single message.
+> **Design Philosophy**: Reviewers operate as a collaborative Agent Team, not isolated subagents. They share preliminary signals in real-time, enabling cross-domain discovery that isolated review cannot achieve. The debate-arbitrator joins from Round 1 as a real-time coordinator.
 
 Read REVIEWER_ROLES from config intensity_presets.{INTENSITY}.reviewer_roles.
 Fallback if missing: ["security-reviewer", "bug-detector", "performance-reviewer", "scope-reviewer", "test-coverage-reviewer"]
+
+#### Step 6.5.0: Spawn Debate Arbitrator (Early Join)
+
+Spawn the debate-arbitrator **before** reviewers so it can coordinate from the start:
+
+```
+Read(file_path: "${AGENTS_DIR}/debate-arbitrator.md")
+
+Task(
+  subagent_type: "general-purpose",
+  team_name: "arena-review-{session_id}",
+  name: "debate-arbitrator",
+  prompt: "{contents of agents/debate-arbitrator.md}
+
+  --- EARLY JOIN COORDINATOR MODE ---
+  You are joining the review team from Round 1 (not just the debate phase).
+
+  TEAM MEMBERS: {list of REVIEWER_ROLES to be spawned}
+
+  ROUND 1 RESPONSIBILITIES:
+  1. Monitor inter-reviewer signals as they come in via SendMessage
+  2. Track convergence: when 2+ reviewers flag the same area, escalate priority
+  3. De-duplicate findings in real-time: if reviewer A reports the same issue as reviewer B, notify them
+  4. Identify cross-domain connections: if security flags an auth pattern, prompt bug-detector to check race conditions there
+  5. Maintain a running tally of findings by severity and domain
+
+  When all reviewers complete Round 1, send the team lead a pre-aggregated summary:
+  PRE_AGGREGATED_FINDINGS:
+  - Total: {N}
+  - Cross-domain confirmations: {list of findings confirmed by 2+ reviewers}
+  - Potential conflicts: {findings where reviewers disagree}
+  - Coverage gaps: {domains/files no reviewer examined}
+
+  ROUND 2-3 RESPONSIBILITIES:
+  Same as standard debate-arbitrator protocol (cross-examination synthesis).
+
+  Stay active for the entire review session."
+)
+```
+
+#### Step 6.5.1: Spawn Reviewers with Collaboration Protocol
+
+For each role in REVIEWER_ROLES, read the agent definition and spawn as a teammate. **Spawn ALL teammates in parallel.**
 
 For each role in REVIEWER_ROLES:
 
@@ -1610,7 +1739,7 @@ For each role in REVIEWER_ROLES:
    Read(file_path: "${AGENTS_DIR}/{role}.md")
    ```
 
-2. Spawn as teammate with ENRICHED context:
+2. Spawn as teammate with ENRICHED context and **collaboration protocol**:
    ```
    Task(
      subagent_type: "general-purpose",
@@ -1644,15 +1773,42 @@ For each role in REVIEWER_ROLES:
    NOTE: Code filtered for your review domain ({agent_context_budget_tokens} token budget).
    Use Read tool to examine files outside your filtered view if needed.
 
-   INSTRUCTIONS:
-   1. Review the code above following your agent instructions
-   2. USE the enriched context to inform your review - check against best practices and compliance requirements
+   === COLLABORATION PROTOCOL (Agent Teams) ===
+
+   You are part of a collaborative review team. Other reviewers are working in parallel.
+   The debate-arbitrator is monitoring all inter-team communication.
+
+   TEAMMATES: {list of other REVIEWER_ROLES}
+
+   ROUND 1 INSTRUCTIONS:
+   1. Review the code following your agent instructions
+   2. USE the enriched context — check against best practices and compliance requirements
    3. If the filtered view is insufficient, use the Read tool to examine specific files directly
-   4. Send your findings JSON to the team lead using SendMessage
-   5. Mark your task as completed using TaskUpdate
-   6. Stay active for 3-round cross-examination:
-      Round 2: You cross-examine Codex/Gemini findings (agree/disagree/partial)
-      Round 3: You defend YOUR findings against Codex/Gemini challenges (defend/concede/modify)"
+   4. **SHARE PRELIMINARY SIGNALS**: When you discover a notable pattern or issue,
+      immediately share it with relevant teammates via SendMessage:
+      - Security issue in auth module → message bug-detector, performance-reviewer
+      - Architecture violation → message scope-reviewer, test-coverage-reviewer
+      - Performance hotspot → message security-reviewer (potential DoS vector)
+      Use format: 'SIGNAL: [file:line] {brief description} — may affect your domain'
+   5. **REACT TO SIGNALS**: When you receive a signal from another reviewer:
+      - Check if the flagged area intersects with your domain
+      - If yes: investigate that area with your expertise lens
+      - Report any cross-domain findings back to the signaling reviewer AND debate-arbitrator
+   6. **CHALLENGE IN REAL-TIME**: If you see another reviewer's preliminary finding
+      and disagree based on your domain expertise, challenge it immediately via SendMessage
+      to both the reviewer and debate-arbitrator
+   7. Send your FINAL findings JSON to debate-arbitrator AND team lead using SendMessage
+   8. Mark your task as completed using TaskUpdate
+   9. Stay active for Round 2-3 cross-examination:
+      Round 2: Cross-examine Codex/Gemini findings (agree/disagree/partial)
+      Round 3: Defend YOUR findings against Codex/Gemini challenges (defend/concede/modify)
+
+   SIGNAL EXAMPLES:
+   - security-reviewer → bug-detector: 'SIGNAL: [src/auth/login.ts:45] Session token reuse pattern — check for race conditions here'
+   - architecture-reviewer → data-integrity-reviewer: 'SIGNAL: [src/services/user.ts:23] Bypasses repository layer — validation may be skipped'
+   - performance-reviewer → security-reviewer: 'SIGNAL: [src/api/search.ts:89] Unbounded query with user input — potential DoS vector'
+
+   === END COLLABORATION PROTOCOL ==="
    )
    ```
 
@@ -1800,14 +1956,20 @@ wait
 
 Wait for all results from both sources:
 
-1. **Claude teammates**: They will send findings via SendMessage automatically. Messages are delivered to you (the team lead) as they complete. Wait for all active reviewer teammates to report.
+1. **Claude teammates**: They send findings via SendMessage to both debate-arbitrator and team lead. The debate-arbitrator has been tracking inter-reviewer signals and provides a pre-aggregated summary. Wait for all active reviewer teammates to report AND for debate-arbitrator's Round 1 pre-aggregation summary.
 
-2. **External CLI results**: Read JSON output files from `${SESSION_DIR}/findings/`:
+2. **debate-arbitrator Round 1 summary**: The early-join debate-arbitrator sends `PRE_AGGREGATED_FINDINGS` with:
+   - Cross-domain confirmations (findings validated by 2+ reviewers during Round 1 signals)
+   - Potential conflicts (reviewers disagreed during real-time exchange)
+   - Coverage gaps (domains/files no reviewer examined)
+   Use this to inform aggregation — pre-confirmed findings start with higher confidence.
+
+3. **External CLI results**: Read JSON output files from `${SESSION_DIR}/findings/`:
    ```bash
    ls "${SESSION_DIR}/findings/"*.json 2>/dev/null
    ```
 
-3. Parse and validate all findings. Skip invalid JSON with a warning.
+4. Parse and validate all findings. Skip invalid JSON with a warning.
 
 ### Step 6.8.5: Merge Chunk Findings
 
@@ -1828,26 +1990,33 @@ Skip this step if no roles were chunked (chunked-roles.txt is empty or missing).
 
 ### Step 6.9: Findings Aggregation
 
-Merge and deduplicate findings from all sources (same as multi-review.md Phase 5):
+Merge and deduplicate findings from all sources, enriched by Round 1 team collaboration data:
 
 1. Combine all findings: teammate findings (via SendMessage) + external CLI findings (from JSON files)
 
-2. Deduplicate:
+2. **Apply Round 1 collaboration bonuses**:
+   - Findings in debate-arbitrator's `cross_domain_confirmations` list: confidence +20% (already validated by 2+ reviewers in real-time)
+   - Findings in debate-arbitrator's `potential_conflicts` list: flag for priority debate in Round 2
+   - Coverage gaps: note unexamined areas for Round 2 NEW OBSERVATIONS focus
+
+3. Deduplicate:
    - Group by file + line number (within +/- 3 lines tolerance)
-   - Cross-validated findings: average confidence + 10% boost
+   - Cross-validated findings: average confidence + 10% boost (stacks with Round 1 collaboration bonus)
    - Keep most detailed description, note which models agreed
 
-3. Filter by confidence threshold: `review.confidence_threshold`
+4. Filter by confidence threshold: `review.confidence_threshold`
 
-4. Sort: severity (critical > high > medium > low) > confidence > file > line
+5. Sort: severity (critical > high > medium > low) > confidence > file > line
 
-5. Display intermediate results:
+6. Display intermediate results:
    ```
    ## Findings Summary (Pre-Debate)
    - Total findings: {N}
    - By severity: {X} critical, {Y} high, {Z} medium, {W} low
    - By model: Claude: {A}, Codex: {B}, Gemini: {C}
    - Cross-validated: {M} findings confirmed by 2+ models
+   - **Round 1 cross-domain confirmations: {K}** (real-time inter-reviewer validation)
+   - **Round 1 conflicts to resolve: {J}** (priority for Round 2)
    - Compliance issues: {C} (from compliance-checker)
    - Best practice gaps: {G} (from research-coordinator)
    ```
@@ -1871,21 +2040,17 @@ All 3 AI model families participate symmetrically in a structured cross-examinat
 - **Round 2**: Cross-examination — each model evaluates other models' findings
 - **Round 3**: Defense — each model defends its own challenged findings
 
-#### Step 6.10.1: Spawn Debate Arbitrator
+#### Step 6.10.1: Transition Debate Arbitrator to Cross-Examination Mode
+
+The debate-arbitrator was already spawned in Step 6.5.0 (Early Join) and has been monitoring Round 1 inter-reviewer communication. Now transition it to formal cross-examination mode:
 
 ```
-Read(file_path: "${AGENTS_DIR}/debate-arbitrator.md")
+SendMessage(
+  type: "message",
+  recipient: "debate-arbitrator",
+  content: "TRANSITION TO CROSS-EXAMINATION MODE
 
-Task(
-  subagent_type: "general-purpose",
-  team_name: "arena-review-{session_id}",
-  name: "debate-arbitrator",
-  prompt: "{contents of agents/debate-arbitrator.md}
-
-  --- DEBATE CONTEXT ---
-  Session: {session_id}
-  Active reviewers: {list of ALL active reviewer teammate names}
-  Cross-examination rounds: 3
+  Round 1 is complete. You have been monitoring reviewer signals in real-time.
 
   ROUND 1 AGGREGATED FINDINGS:
   {aggregated_findings_json}
@@ -1894,14 +2059,20 @@ Task(
   Claude: {round1_claude_findings_json}
   Codex: {round1_codex_findings_json}
   Gemini: {round1_gemini_findings_json}
-  --- END CONTEXT ---
+
+  YOUR ROUND 1 OBSERVATIONS:
+  Use the cross-domain confirmations and conflicts you tracked during Round 1 to inform
+  your Round 2-3 arbitration. Findings that were already cross-validated by multiple
+  reviewers in Round 1 should start with higher base confidence.
 
   INSTRUCTIONS:
   1. You will receive Round 2 cross-examination results from all 3 model families
   2. You will receive Round 3 defense results from all 3 model families
   3. After all 3 rounds, apply the consensus algorithm incorporating all rounds
   4. Include a cross_examination_trail for each finding in your output
-  5. Send the final consensus JSON to the team lead after Round 3 completes"
+  5. Round 1 cross-domain confirmations should be noted in the trail
+  6. Send the final consensus JSON to the team lead after Round 3 completes",
+  summary: "Transition debate-arbitrator to cross-examination mode"
 )
 ```
 
@@ -1938,7 +2109,7 @@ echo "$GEMINI_R2_INPUT" | \
 
 **Claude reviewers cross-examine Codex + Gemini findings:**
 
-Send to each active Claude reviewer via SendMessage:
+Send to each active Claude reviewer via SendMessage. Reviewers already have Round 1 team context from inter-reviewer signal sharing:
 ```
 SendMessage(
   type: "message",
@@ -1946,6 +2117,8 @@ SendMessage(
   content: "CROSS-EXAMINATION — Round 2 of 3
 
   Evaluate findings from Codex and Gemini from your domain expertise.
+  LEVERAGE YOUR ROUND 1 TEAM CONTEXT: You already exchanged signals with other
+  reviewers. Use those cross-domain insights to evaluate external model findings.
 
   CODEX FINDINGS:
   {round1_codex_findings_json}
@@ -1955,13 +2128,16 @@ SendMessage(
 
   For EACH finding relevant to your domain:
   1. AGREE if valid — cite corroborating evidence, confidence_adjustment (+N)
+     If this aligns with a signal you received from another reviewer, note it
   2. DISAGREE if false positive — cite counter-evidence, confidence_adjustment (-N)
+     If your Round 1 team discussion already addressed and dismissed this, cite it
   3. PARTIAL if partially correct — explain what's right/wrong
 
   You may add NEW OBSERVATIONS both models missed.
+  You may also DISCUSS with other reviewers if an external finding relates to their domain.
 
   Send each response to debate-arbitrator via SendMessage as JSON:
-  {\"finding_id\":\"<file:line:title>\", \"original_model\":\"codex|gemini\", \"action\":\"agree|disagree|partial\", \"confidence_adjustment\":-30 to +30, \"reasoning\":\"...\", \"new_observations\":[]}
+  {\"finding_id\":\"<file:line:title>\", \"original_model\":\"codex|gemini\", \"action\":\"agree|disagree|partial\", \"confidence_adjustment\":-30 to +30, \"reasoning\":\"...\", \"round1_corroboration\":\"...\", \"new_observations\":[]}
 
   When done: send '{reviewer_name} round 2 complete' to debate-arbitrator.",
   summary: "Round 2: cross-examine Codex+Gemini findings"
@@ -2228,8 +2404,17 @@ FOR each finding in consensus.accepted:
      AND finding.agreement_level in ["unanimous", "majority"]
      AND finding.category in AUTO_FIX_CATEGORIES
      AND finding.affected_lines <= 10
-     AND finding.category NOT IN ["security", "logic", "race_condition", "architecture", "performance"]:
+     AND finding.category NOT IN ["security", "logic", "race_condition", "architecture", "performance"]
+     AND finding.file NOT IN ESCALATION_BLOCKED_FILES
+     AND finding.file IN WRITE_SCOPE:
     ADD to AUTO_FIXABLE
+
+# Log skipped findings
+FOR each finding NOT added due to ESCALATION_BLOCKED_FILES:
+  Log: "Skipped auto-fix for {finding.file}: escalation-blocked (requires human review)"
+
+FOR each finding NOT added due to WRITE_SCOPE:
+  Log: "Skipped auto-fix for {finding.file}: out-of-scope"
 ```
 
 Display identified auto-fixable findings to user:
@@ -2251,6 +2436,13 @@ For each auto-fixable finding, apply the fix:
 
 ```
 FOR each finding in AUTO_FIXABLE:
+  0. Scope check (if write_scope.enabled AND write_scope.prompt_on_out_of_scope):
+     IF finding.file NOT IN WRITE_SCOPE:
+       AskUserQuestion: "{finding.file} is outside the work scope. Allow modification?
+       [Yes once / Yes always / Skip]"
+       - "Yes once": proceed for this file only
+       - "Yes always": add file to WRITE_SCOPE for remaining fixes
+       - "Skip": mark as "out-of-scope-skipped", continue to next finding
   1. Read the target file with Read tool
   2. Apply the suggestion using Edit tool
   3. Track the change:
@@ -2376,11 +2568,24 @@ Read `${PLUGIN_DIR}/shared-phases/test-generation.md` and execute the phase with
 
 4. **Write test files** using the Write tool. Do NOT overwrite existing tests.
 
-5. **Display results**:
+5. **Spec Acceptance Tests** (if `APPROVED_SPEC_CRITERIA` exists from Phase 5.5.5):
+
+   Read `${PLUGIN_DIR}/shared-phases/spec-verification.md` Phase 6.6 Extension section and execute with:
+   - `APPROVED_SPEC_CRITERIA`: User-approved acceptance criteria
+   - `DETECTED_STACK`: Stack detection results
+   - `TEST_DIR`: Detected test directory
+
+   This generates:
+   - BDD-style tests for `automated_test` criteria → `{TEST_DIR}/spec/{test_file_prefix}{scope_slug}.{ext}`
+   - Bash assertion scripts for `static_assertion` criteria → `${SESSION_DIR}/spec-assertions.sh`
+   - Records `manual_check` criteria for Phase 7 report
+
+6. **Display results**:
    ```
    ## Test Generation
    - Findings eligible: {N}
    - Test stubs generated: {M}
+   - Spec acceptance tests: {K} (automated: {A}, static: {S}, manual: {P})
    - Test files: {list}
    - Framework: {detected}
    - NOTE: Stubs need manual implementation — review generated files.
@@ -2390,6 +2595,7 @@ Read `${PLUGIN_DIR}/shared-phases/test-generation.md` and execute the phase with
 - Cannot detect test framework: Use generic pseudo-code with TODO comments.
 - Write fails: Log warning, continue with remaining tests.
 - No eligible findings: Skip phase (not an error).
+- No APPROVED_SPEC_CRITERIA: Skip spec test generation (not an error).
 
 ---
 
@@ -2473,6 +2679,35 @@ Read `${PLUGIN_DIR}/shared-phases/visual-verification.md` and execute the phase 
 
    ---
 
+   ## Verification Contract
+
+   {Generated by generate-report.sh — contract verification summary table}
+
+   | Layer | Status | Issues |
+   |-------|--------|--------|
+   | Coding Guidelines | PASS/WARN/FAIL | {count} ({critical_high} critical/high) |
+   | Organization Invariants | PASS/WARN/FAIL | {count} ({critical_high} critical/high) |
+   | Domain Contracts | PASS/WARN/FAIL | {count} ({critical_high} critical/high) |
+   | Acceptance Criteria | PASS/WARN/FAIL | {count} ({critical_high} critical/high) |
+   | Static Analysis | PASS/WARN/FAIL | {count} ({critical_high} critical/high) |
+   | Debate Consensus | PASS/WARN/FAIL | {count} ({critical_high} critical/high) |
+
+   Overall Verification: **PASS/FAIL**
+
+   ---
+
+   ## Escalation Triggers
+
+   {If escalation triggers matched in Phase 0.5 Step 7:}
+
+   | Pattern | Files | Min Intensity | Approval Required | Auto-Fix Blocked |
+   |---------|-------|--------------|-------------------|-----------------|
+   | {pattern_name} | {file_list} | {min_intensity} | {yes/no} | {yes/no} |
+
+   {If no triggers: "No escalation triggers matched."}
+
+   ---
+
    ## Critical & High Severity Findings
 
    ### [{severity}] {title}
@@ -2525,11 +2760,43 @@ Read `${PLUGIN_DIR}/shared-phases/visual-verification.md` and execute the phase 
 
    ## Success Criteria Verification
 
+   {If APPROVED_SPEC_CRITERIA exists (Phase 5.5.5 ran):}
+
+   Read `${PLUGIN_DIR}/shared-phases/spec-verification.md` Phase 7 Extension section:
+   - Run automated tests and static assertions
+   - Collect deterministic PASS/FAIL results
+   - Display manual verification items
+
+   | # | Criterion | Type | Result | Details |
+   |---|-----------|------|--------|---------|
+   | 1 | {criterion_1} | automated | PASS/FAIL | {test output or error} |
+   | 2 | {criterion_2} | static | PASS/FAIL | {assertion result} |
+   | 3 | {criterion_3} | manual | MANUAL_VERIFY | {verification instructions} |
+
+   Pass Rate: {pass_count}/{total_count} ({percentage}%) — {manual_count} manual verification pending
+
+   {If APPROVED_SPEC_CRITERIA does not exist (Phase 5.5.5 skipped):}
+
    | # | Criterion | Verification Method | Result |
    |---|-----------|-------------------|--------|
    | 1 | {criterion_1} | {verification_check} | PASS / FAIL |
    | 2 | {criterion_2} | {verification_check} | PASS / FAIL |
    | 3 | {criterion_3} | {verification_check} | PASS / FAIL |
+
+   ---
+
+   ## Write Scope Report
+
+   {If write_scope.enabled:}
+
+   | Category | Count |
+   |----------|-------|
+   | In-scope files modified | {count} |
+   | Out-of-scope skipped (auto-fix) | {count} |
+   | Out-of-scope approved by user | {count} |
+   | Escalation-blocked files | {count} |
+
+   {If no write scope enforcement: "Write scope not enforced."}
 
    ---
 
@@ -2578,6 +2845,27 @@ Read `${PLUGIN_DIR}/shared-phases/visual-verification.md` and execute the phase 
    ## Disputed Findings (Human Review Required)
 
    {For each disputed finding: all model perspectives, unresolved questions}
+
+   ---
+
+   ## Round 1 Collaboration Summary (Agent Teams)
+
+   {If agent_teams.round1_collaboration.enabled:}
+
+   ### Inter-Reviewer Signals
+   | From | To | Signal | Result |
+   |------|----|--------|--------|
+   | {reviewer_a} | {reviewer_b} | {signal_description} | {cross-domain finding / dismissed / investigated} |
+
+   ### Cross-Domain Confirmations ({N})
+   | Finding | Confirmed By | Confidence Boost |
+   |---------|-------------|-----------------|
+   | {finding_title} | {reviewer_a, reviewer_b} | +{boost}% |
+
+   ### Round 1 Conflicts Resolved in Debate
+   | Finding | Conflict | Resolution |
+   |---------|----------|------------|
+   | {finding_title} | {reviewer_a: X, reviewer_b: Y} | {final verdict} |
 
    ---
 

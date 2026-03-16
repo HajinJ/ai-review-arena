@@ -1,600 +1,685 @@
 # AI Review Arena
 
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that orchestrates **Claude, OpenAI Codex, and Google Gemini** into adversarial multi-agent review pipelines for code, business content, and documentation.
+
 [English](README.md) | [한국어](README.ko.md)
-
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that makes AI models argue with each other about your code **and business content** before any of it ships.
-
-## The Problem
-
-You ask an AI to review your code. It finds 12 issues. But how many are real? Single-model reviews produce false positives that waste your time and real vulnerabilities that slip through because one model has blind spots. You have no way to know which findings to trust.
-
-The same problem applies to business content. A pitch deck with wrong market numbers or overclaimed product capabilities can kill a fundraising round. A single reviewer won't catch everything.
-
-## What Arena Does
-
-Arena makes Claude, OpenAI Codex, and Google Gemini **independently review your code or business content, then cross-examine each other's findings in a 3-round adversarial debate**. Models challenge each other, defend their positions, or concede when they're wrong. What survives is a set of findings validated by multiple AI perspectives, each with a confidence score you can actually trust.
-
-**Three pipelines, one system:**
-
-- **Code Pipeline** (Routes A-F): Analyzes your codebase conventions, researches best practices, checks compliance, benchmarks models, runs static analysis scanners, debates implementation strategy, reviews code with 6-12 specialized agents (scaling by intensity), generates regression tests, auto-fixes safe findings, verifies with Playwright MCP browser testing, and verifies with your test suite. At deep+ intensity, adds STRIDE threat modeling and Round 4 escalation debates.
-- **Business Pipeline** (Routes G-I): Extracts business context from your docs, researches market data, selects analysis frameworks via debate, audits accuracy of claims, benchmarks models on business content, debates content strategy with mandatory 3-scenario analysis, reviews with 5-10 specialized agents + external CLIs (scaling by intensity) using evidence tiering, runs quantitative validation and adversarial red team at deep+, and auto-revises content with consistency checks.
-- **Documentation Pipeline** (Routes J-K): Inventories docs, diffs code against documentation, reviews with 6 specialized agents (accuracy, completeness, freshness, readability, examples, consistency), validates cross-references, and generates/updates documentation based on code changes.
-
-Arena activates automatically. You don't invoke it. Just use Claude Code normally, and the pipeline runs behind the scenes.
-
-## Quick Start
-
-### Option 1: Claude Code Plugin Marketplace (Recommended)
-
-```
-/plugin marketplace add HajinJ/ai-review-arena
-/plugin install ai-review-arena@ai-review-arena
-```
-
-### Option 2: From Source
-
-```bash
-git clone https://github.com/HajinJ/ai-review-arena.git
-cd ai-review-arena
-./install.sh  # macOS / Linux / WSL
-```
-
-Enable Agent Teams (required for multi-agent debates):
-
-```bash
-echo 'export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=true' >> ~/.zshrc
-source ~/.zshrc
-```
-
-That's it. Every Claude Code session now runs through Arena automatically.
-
-### Prerequisites
-
-| Tool | Required | Why |
-|------|----------|-----|
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Yes | Base platform |
-| [jq](https://jqlang.github.io/jq/) | Recommended | JSON processing in scripts |
-| [OpenAI Codex CLI](https://github.com/openai/codex) | Optional | Second AI perspective |
-| [Google Gemini CLI](https://github.com/google-gemini/gemini-cli) | Optional | Third AI perspective |
-| [Python 3](https://www.python.org/) + `openai>=2.22.0` | Optional | WebSocket debate acceleration (~40% faster) |
-
-Without Codex or Gemini, Arena runs the full pipeline with Claude agents only. The fallback framework ensures graceful degradation at every level.
-
-### Uninstall
-
-```bash
-./uninstall.sh
-```
 
 ---
 
 ## How It Works
 
-### You just type normally
-
-Arena intercepts every request and decides what to do with it. No slash commands, no special syntax, any language.
-
-| What you type | What Arena does |
-|---|---|
-| "implement login API" | Full code pipeline: research, compliance, implement, 3-round review, auto-fix |
-| "fix the production deadlock" | Agents debate severity, run deep analysis with cross-examination |
-| "rename this variable" | Quick codebase scan for conventions, makes the change |
-| "review PR #42 for security" | Multi-AI adversarial review focused on security |
-| "how should I implement caching?" | Pre-implementation research with best practices |
-| "write a business plan" | Full business pipeline: market research, accuracy audit, 5-agent review |
-| "draft an investor pitch deck" | Business pipeline with deep accuracy + audience fit review |
-| "respond to this investor question" | Communication pipeline, quick or standard intensity |
-
-### The pipeline decides its own intensity
-
-When you make a request, Arena doesn't use hardcoded rules to decide how thorough to be. Instead, it spawns a team of agents that **debate** the question:
+Every request routes through the Arena pipeline automatically. The router classifies intent, selects a pipeline, and determines intensity through agent debate.
 
 ```
-You: "Fix the deadlock in production"
-
-intensity-advocate:   "Deadlock is a concurrency bug. A wrong fix creates
-                       new race conditions. This needs deep analysis."
-efficiency-advocate:  "If it's a known pattern like lock ordering,
-                       standard analysis is enough."
-risk-assessor:        "This is a production outage. Service disruption.
-                       Deep analysis minimum."
-intensity-arbitrator: "Deep. Production risk outweighs speed."
+                          ┌──────────────────────┐
+                          │     User Request      │
+                          └──────────┬───────────┘
+                                     │
+                          ┌──────────▼───────────┐
+                          │    Always-On Router   │
+                          │    (ARENA-ROUTER)     │
+                          └──────────┬───────────┘
+                                     │
+              ┌──────────────────────┼──────────────────────┐
+              │                      │                      │
+    ┌─────────▼─────────┐ ┌─────────▼─────────┐ ┌─────────▼─────────┐
+    │   Code Pipeline   │ │ Business Pipeline │ │   Docs Pipeline   │
+    │   Routes A-F      │ │   Routes G-I      │ │   Routes J-K      │
+    │                   │ │                   │ │                   │
+    │ A: Feature Impl   │ │ G: Biz Content    │ │ J: Doc Review     │
+    │ B: Research        │ │ H: Biz Analysis   │ │ K: Doc Generation │
+    │ C: Stack Analysis  │ │ I: Communication  │ │                   │
+    │ D: Code Review     │ │                   │ │                   │
+    │ E: Refactoring     │ │                   │ │                   │
+    │ F: Simple Change   │ │                   │ │                   │
+    └───────────────────┘ └───────────────────┘ └───────────────────┘
 ```
 
-The arbitrator picks one of four levels:
-
-| Level | Code Pipeline | Business Pipeline |
-|-------|-----------|------|
-| **quick** | Codebase scan, Claude solo | Business context scan, Claude solo |
-| **standard** | + stack detection, static analysis, strategy debate, review, 3-round cross-exam, test generation, auto-fix | + market research, framework selection debate, strategy debate (+3 scenarios), 5-agent review + external CLIs (cross-review), auto-revise (+consistency check) |
-| **deep** | + research, compliance, threat modeling, Round 4 escalation, intensity checkpoint | + best practices research, accuracy audit, quantitative validation, adversarial red team, intensity checkpoint |
-| **comprehensive** | + model benchmarking, Figma analysis, all debates | + business model benchmarking, benchmark-driven external CLI roles |
-
-**Intensity can change mid-pipeline.** After research completes (Phase 2.9 / B2.9), Arena re-evaluates whether the decided intensity is still appropriate. If research reveals hidden complexity, it recommends upgrading. If the task turns out simpler, it recommends downgrading. Both directions are supported.
-
-### Cost estimation before execution
-
-After intensity is decided, Arena estimates cost and time before proceeding (Phase 0.2 / B0.2). You see the breakdown and can proceed, adjust intensity, or cancel. Below `$5.00` (configurable), it auto-proceeds. The estimator supports prompt cache discount configuration for accurate cost projections when using Claude's prefix caching.
+Multi-route requests are decomposed and executed sequentially: **Code → Docs → Business**.
 
 ---
 
-## The 3-Round Cross-Examination
+## Pipeline Architecture
 
-This is the core of Arena. Three AI model families don't just review independently. They **fight about it**.
+All three pipelines share a common architecture of progressive phases, where each phase enriches context for the next. Intensity determines how many phases execute.
 
-### Round 1: Independent Review
-
-All three review in parallel, unaware of each other:
+### Code Pipeline (Routes A-F) — Full Phase Map
 
 ```
-Claude Agent Team          Codex CLI            Gemini CLI
-  security-reviewer          (independent)        (independent)
-  bug-detector
-  architecture-reviewer
-  performance-reviewer
-  test-coverage-reviewer
-  scope-reviewer
-  + observability, dependency, api-contract, data-integrity,
-    accessibility, configuration (at higher intensities)
-         |                       |                     |
-         v                       v                     v
-  findings-claude.json    findings-codex.json   findings-gemini.json
+Phase 0 ─────── Context & Configuration
+                 ├── Load config (default → global → project merge)
+                 ├── Parse arguments (scope, intensity, models, focus)
+                 ├── Validate CLI tools (codex, gemini, jq, gh)
+                 └── MCP dependency detection (Figma, Playwright, Notion, Agentation)
+
+Phase 0.1 ────── Intensity Decision (Agent Teams Debate)
+                 ├── intensity-advocate    → argues for higher intensity
+                 ├── efficiency-advocate   → argues for lower intensity
+                 ├── risk-assessor         → evaluates production/security risk
+                 ├── intensity-arbitrator  → synthesizes → decides intensity
+                 └── Escalation floor enforcement (from Phase 0.5 Step 7)
+
+Phase 0.2 ────── Cost & Time Estimation
+                 ├── Sum applicable phase costs by intensity
+                 ├── Display estimate → AskUserQuestion [Proceed / Adjust / Cancel]
+                 └── Auto-proceed if under cost threshold
+
+Phase 0.5 ────── Codebase Analysis
+                 ├── Step 1: Project structure scan (Glob)
+                 ├── Step 2: Related code search (Grep)
+                 ├── Step 3: Convention extraction (naming, imports, errors, tests)
+                 ├── Step 4: Reusable code inventory
+                 ├── Step 5: Save analysis to session context
+                 ├── Step 6: Mandatory instructions for all subsequent phases
+                 ├── Step 7: Escalation trigger scan (auth/payment/DB/crypto/deps/infra)
+                 ├── Step 8: Write scope resolution
+                 └── Step 9: Quick mode execution (if intensity = quick → exit)
+
+Phase 1 ──────── Stack Detection
+                 ├── Cache check (7-day TTL)
+                 ├── detect-stack.sh → platform, languages, frameworks, DBs, infra
+                 └── Save stack profile to session
+
+Phase 2 ──────── Pre-Implementation Research (deep+)
+                 ├── Research Direction Debate (Agent Teams):
+                 │   ├── researcher-tech      → technology best practices
+                 │   ├── researcher-domain    → domain patterns
+                 │   ├── researcher-risk      → failure modes, CVEs
+                 │   └── research-arbitrator  → prioritizes agenda
+                 └── Collaborative Search Execution:
+                     └── Researchers share findings in real-time via SendMessage
+
+Phase 3 ──────── Compliance Detection (deep+)
+                 ├── search-guidelines.sh + WebSearch
+                 └── Compliance Scope Debate:
+                     ├── compliance-advocate   → more rules
+                     ├── scope-challenger      → against over-application
+                     └── compliance-arbitrator → decides actual scope
+
+Phase 4 ──────── Model Benchmarking (comprehensive only)
+                 ├── benchmark-models.sh against planted-error test cases
+                 ├── Score each model per category (avg F1)
+                 └── Determine model-role assignments for Phase 6
+
+Phase 5 ──────── Figma Design Analysis (optional, if URL provided)
+                 └── Figma MCP → components, tokens, layout, interactions
+
+Phase 5.5 ────── Implementation Strategy (Agent Teams Debate, standard+)
+                 ├── architecture-advocate   → proposes design approach
+                 ├── security-challenger     → challenges security implications
+                 ├── pragmatic-challenger    → challenges complexity/feasibility
+                 ├── strategy-arbitrator     → synthesizes best approach
+                 │   └── Output: approach, architecture, security, files, success criteria
+                 └── Update write scope with strategy files
+
+Phase 5.5.5 ──── Spec Approval Gate (standard+)
+                 ├── Parse Success Criteria → structured JSON
+                 ├── Auto-classify: automated_test / static_assertion / manual_check
+                 ├── AskUserQuestion: approve/edit/add criteria
+                 └── Store APPROVED_SPEC_CRITERIA for Phase 6.6 and Phase 7
+
+Phase 5.8 ────── Static Analysis Integration (standard+)
+                 ├── Stack-based scanner selection (semgrep/eslint/bandit/gosec)
+                 ├── Parallel scanner execution
+                 └── Output normalization → STATIC_ANALYSIS_FINDINGS
+
+Phase 5.9 ────── STRIDE Threat Modeling (deep+)
+                 ├── threat-modeler     → STRIDE threat identification
+                 ├── threat-defender    → challenge threats as mitigated/unlikely
+                 └── threat-arbitrator  → prioritized attack surface consensus
+
+Phase 6 ──────── Agent Team Collaborative Review
+                 (see detailed diagram below)
+
+Phase 6.5 ────── Apply Findings (Auto-Fix Loop, standard+)
+                 ├── Filter: medium/low severity, >=90% confidence, <=10 lines
+                 ├── Enforce write scope + escalation block constraints
+                 ├── Apply fixes via Edit tool
+                 ├── Run test suite verification
+                 └── Revert on test failure
+
+Phase 6.6 ────── Test Generation (standard+)
+                 ├── Filter critical/high findings with confidence >= 70
+                 ├── Detect test framework and directory
+                 ├── Generate regression test stubs
+                 └── Generate spec acceptance tests (from APPROVED_SPEC_CRITERIA)
+
+Phase 6.7 ────── Visual Verification (standard+, frontend only)
+                 ├── Detect frontend files and visual feedback tools
+                 ├── Extract CSS selectors from affected components
+                 ├── Generate visual regression checklist
+                 └── Playwright MCP / Agentation MCP integration
+
+Phase 7 ──────── Final Report & Cleanup
+                 ├── Verification Contract table (6-layer PASS/WARN/FAIL)
+                 ├── Escalation triggers section
+                 ├── Spec acceptance test results (deterministic PASS/FAIL)
+                 ├── Round 1 collaboration summary
+                 ├── Findings by severity (critical → low)
+                 ├── Disputed findings (manual review needed)
+                 ├── Cost estimate
+                 ├── Shutdown all teammates
+                 └── Cleanup team
 ```
 
-For business reviews, the same structure applies with domain-specific reviewers (accuracy-evidence, audience-fit, communication-narrative, competitive-positioning, market-fit, and more at higher intensities) plus external CLIs. At `comprehensive` intensity, benchmark scores determine whether external models serve as Round 1 primary reviewers or Round 2 cross-reviewers.
-
-### Round 2: Cross-Examination
-
-Each model reads the other two models' findings and attacks or supports them:
-
-- **Codex** reads Claude + Gemini findings, judges each one: `AGREE`, `DISAGREE`, or `PARTIAL`
-- **Gemini** reads Claude + Codex findings, same judgment
-- **Claude reviewers** read Codex + Gemini findings, same judgment
-
-Each judgment includes a `confidence_adjustment` (-30 to +30) and cited evidence. Models can also flag **new observations** the others missed.
-
-### Round 3: Defense
-
-Challenges from Round 2 are routed back to the model that made the original finding. Each model must respond:
-
-- **DEFEND** — "I stand by this. Here's additional evidence you missed."
-- **CONCEDE** — "You're right, this was a false positive." (Finding withdrawn)
-- **MODIFY** — "The issue is real but I had the severity wrong." (Adjusted)
-
-External models that participated only as Round 2 cross-reviewers receive `implicit_defend` — their findings are maintained at current confidence since they can't be called again for defense.
-
-### Consensus
-
-The debate-arbitrator synthesizes all three rounds into a final confidence score:
+### Intensity Controls Which Phases Run
 
 ```
-final_confidence = original_score
-  + round2_adjustments          # from cross-examination
-  + cross_exam_boost            # 2+ agree: +15, 2+ disagree: -20
-  + defense_boost               # defend: +10, concede: -25
-  + consensus_bonus             # multi-model agreement bonus
-```
-
-Every finding in the final report includes a `cross_examination_trail` showing exactly what each model said across all three rounds.
-
-### Why this design?
-
-**Single-round review is fundamentally limited.** If Codex flags a "critical SQL injection" but Claude and Gemini both point to parameterized queries that prevent it, that's a false positive. Without cross-examination, you'd waste time investigating it. Conversely, if all three independently flag the same race condition, confidence goes up significantly.
-
-**Concession is a strong signal.** When a model reviews evidence against its own finding and says "you're right, I was wrong," that's more reliable than any confidence score. It means the model genuinely processed the counter-evidence rather than stubbornly defending a position.
-
-**Stateless CLIs can still debate.** Codex and Gemini are CLI tools, not conversational agents. Arena achieves multi-round debate by piping accumulated context through multiple CLI invocations. Round 2 input includes Round 1 findings from other models. Round 3 input includes Round 2 challenges. The Team Lead orchestrates the data flow. Business review scripts support dual-mode (`--mode round1` for independent review, `--mode round2` for cross-review) with category-specific prompts.
-
----
-
-## Auto-Fix Loop (Phase 6.5)
-
-After the 3-round debate reaches consensus, Arena can automatically fix safe, high-confidence findings.
-
-### Code Pipeline
-
-Strict criteria — only fixes that meet ALL of:
-
-| Criterion | Requirement |
-|-----------|------------|
-| Severity | `medium` or `low` only (never critical/high) |
-| Confidence | >= 90% post-debate |
-| Agreement | Unanimous or majority |
-| Scope | <= 10 lines of code |
-| Category | Only: naming, imports, unused code, types, null checks, docs |
-
-Security vulnerabilities, logic errors, race conditions, architecture, and performance issues are **never** auto-fixed.
-
-After applying fixes, Arena runs your test suite (auto-detected: `npm test`, `pytest`, `go test`, `cargo test`). If tests fail, **all fixes are reverted** via `git checkout -- .` and marked as "auto-fix-failed, manual review required."
-
-### Business Pipeline
-
-Business auto-fix is more aggressive: it revises content based on consensus findings (including critical/high severity), updates overclaimed capabilities, and fixes tone/audience mismatches.
-
----
-
-## Stale Review Detection
-
-Arena tracks code freshness using a git-hash-based invalidation system. When a review starts, the current `HEAD` commit hash is stored. Before findings are aggregated, the current `HEAD` is compared against the stored hash. If code changed during the review:
-
-- All findings are marked with `stale: true`
-- A warning banner appears in the report: **"Code changed after review — re-verify findings"**
-- Findings are preserved (not discarded) for reference, but flagged for re-verification
-
-This prevents acting on outdated findings when code changes land mid-review.
-
----
-
-## Business Model Benchmarking
-
-At `comprehensive` intensity, Arena benchmarks Claude, Codex, and Gemini on **12 planted-error business documents** (3 per category) to determine which model is best at catching each type of issue:
-
-| Category | Test Cases | Planted Errors |
-|----------|-----------|----------------|
-| **accuracy** | pitch deck, business plan, investor update | Wrong market size, inflated growth, misquoted data |
-| **audience** | pitch deck, blog post, internal memo | Wrong tone, missing metrics, leaked terms |
-| **positioning** | competitor analysis, landing page, sales deck | False competitor claims, unsubstantiated "best in class" |
-| **evidence** | business plan, market report, case study | Uncited stats, methodology flaws, survivorship bias |
-
-Each model's findings are scored using **F1** (precision x recall), averaged across 3 tests per category. The highest-scoring model for each category becomes the **Round 1 primary reviewer** for that category. Lower-scoring models participate as Round 2 cross-reviewers.
-
-At `standard` and `deep` intensity (no benchmarking data), external models always participate as Round 2 cross-reviewers.
-
----
-
-## Design Philosophy
-
-Arena is built on the premise that **the structure around a model matters more than the model itself**. Every design decision below traces back to one idea: optimize the harness, not the model.
-
-### Why the harness matters more than the model
-
-LangChain improved a coding benchmark from 30th place to 5th by changing only the harness — zero model training. Can Bölük improved coding accuracy 10x by changing only the edit format. Google Research improved accuracy from 21% to 97% by repeating the prompt. Arena applies this principle systematically: the same pipeline structure orchestrates Claude, Codex, and Gemini identically. Model choice affects individual findings; pipeline structure determines overall quality.
-
-Concretely, Arena's harness contributions include: structured output schemas that force valid JSON from all models, benchmark-driven role assignment that puts each model where it performs best, a 6-level fallback framework that maintains value when individual models fail, and the duplicate prompt technique that specifically helps weaker models without any model-side changes.
-
-### Why agents debate instead of rules deciding
-
-Early versions used keyword matching: if a request mentioned "auth" or "security," intensity went to `deep`. This broke constantly. A request like "fix the deadlock in production" has no security keywords, but it's a concurrency bug where a bad fix creates new race conditions. No keyword list handles that.
-
-Agent debate solves this because agents can **reason about novel scenarios**. The risk-assessor understands that production outages are serious. The efficiency-advocate pushes back when thoroughness isn't justified. The arbitrator weighs both sides. This works for any request, in any domain, without maintaining a keyword dictionary.
-
-### Why agents use positive framing
-
-Agent specifications use positive criteria ("report ONLY when criteria met") instead of negative instructions ("don't report X"). This is based on the [AGENTS.md benchmark paper](https://arxiv.org/abs/2602.11988) which found that context files with negative instructions trigger a "pink elephant effect" — telling an agent NOT to do something paradoxically increases its attention on excluded patterns, reducing SWE-bench success by 0.5%, AgentBench by 2%, and increasing inference cost by 20-23%.
-
-All 33 agents define a **Reporting Threshold** with 3 AND-criteria that must all be true for a finding to be reportable, plus a list of **Recognized Patterns** that confirm mitigation. For example, the security-reviewer reports only when a finding is Exploitable AND Unmitigated AND Production-reachable — and lists patterns like "parameterized queries" as confirmation that SQL injection is mitigated.
-
-### Why external CLI prompts repeat core instructions
-
-External CLI scripts (Codex, Gemini) use the [Duplicate Prompt Technique](https://arxiv.org/abs/2512.14982) — repeating the core review instruction at the end of the prompt. This improved non-reasoning LLM accuracy across 47/70 benchmarks with 0 losses. Gemini Flash-Lite accuracy improved from 21.33% to 97.33% on one benchmark. The technique has no effect (positive or negative) on reasoning-mode models, so it's applied only to external CLIs.
-
-### Why success criteria exist before code is written
-
-Inspired by [Karpathy's Goal-Driven Execution principle](https://github.com/forrestchang/andrej-karpathy-skills). Before implementation starts, the strategy debate produces **concrete, testable success criteria**:
-
-```
-1. API returns 200 for valid input     -> verify: curl with sample payload
-2. Invalid tokens return 401           -> verify: curl with expired token
-3. Rate limiting at 100 req/min        -> verify: load test with k6
-```
-
-After implementation, Phase 7 runs each verification and reports PASS/FAIL. No ambiguity about whether the task is done.
-
-### Why a scope reviewer exists
-
-Also from Karpathy (Surgical Changes). AI implementations tend to sprawl. You ask for a login endpoint and get reformatted imports, renamed variables, an abstraction layer nobody asked for, and a config option for a feature that doesn't exist yet. The scope-reviewer agent compares the actual diff against the strategy and flags:
-
-- **SCOPE_VIOLATION** -- files changed that weren't in the plan
-- **DRIVE_BY_REFACTOR** -- unrelated renames or reformatting
-- **GOLD_PLATING** -- features or abstractions nobody requested
-- **UNNECESSARY_CHANGE** -- cosmetic edits outside the task scope
-
-If everything is in scope, the verdict is `CLEAN`.
-
-### Why context density beats context volume
-
-Arena doesn't dump the full codebase to every agent. Each of the 12 code review agents receives only the code patterns relevant to its role — the security-reviewer sees `auth`, `token`, `session`, `inject` patterns; the performance-reviewer sees `for`, `cache`, `query`, `pool` patterns. This role-based filtering (implemented in `context-filter.sh`) produces denser, more relevant context within each agent's 8,000-token budget.
-
-This follows the finding from the [AGENTS.md benchmark](https://arxiv.org/abs/2602.11988) (ETH Zurich) that LLM-generated comprehensive context files actually *hurt* agent performance by 0.5-2%. More context is not better context. Arena's approach: send less, but send exactly what matters for each agent's task.
-
-### Why the pipeline uses progressive disclosure
-
-Arena loads context incrementally, not all at once. Quick intensity loads almost nothing — just codebase conventions. Standard adds strategy debate and review agents. Deep adds research, compliance, and threat modeling. Comprehensive adds benchmarking and Figma analysis. Each intensity level is a strict superset of the previous one.
-
-This is the same principle behind Claude Code's Skill architecture: load the minimum context needed, expand only when warranted. The Phase 2.9 intensity checkpoint even allows *mid-pipeline* re-evaluation — if research reveals hidden complexity, the pipeline upgrades; if the task proves simpler, it downgrades. Both directions are supported.
-
-### Why codebase analysis runs first
-
-Before writing any code, Arena scans your project for naming conventions, directory patterns, import styles, error handling approaches, and existing utilities. Generated code matches what's already there. No `camelCase` in a `snake_case` project. No reinventing a utility that already exists in `src/utils/`.
-
-### Why verification is built into every layer
-
-The most common failure mode in AI coding agents: the agent writes code, reads its own code, decides it looks fine, and stops — without ever running tests. Arena builds verification into the pipeline structure itself, not as an optional afterthought:
-
-- **Pre-execution**: Intensity debate (Phase 0.1), cost gate (Phase 0.2), intensity checkpoint (Phase 2.9)
-- **During execution**: 3-round cross-examination, scope verification, CVE/OWASP lookup for security findings
-- **Post-execution**: Test suite verification for auto-fixes (revert all on failure), success criteria PASS/FAIL table, consistency validation
-
-No finding ships without being challenged by at least one other model or verification step.
-
-### Why fallback exists at every level
-
-External CLIs can timeout. Agent Teams can fail to spawn. Research queries can return nothing. Arena handles all of this with a structured fallback framework (6 levels for code, 5 for business) that degrades gracefully. If Codex times out, Claude handles it alone. If Agent Teams fail, Task subagents run without debate. If everything fails, Claude does an inline analysis. The final report always shows which fallback level was active and what was skipped.
-
----
-
-## Pipeline Phases
-
-### Code Pipeline
-
-```
-Phase 0     Argument parsing + MCP dependency detection
-Phase 0.1   Intensity Decision          * agents debate how thorough to be
-Phase 0.2   Cost & Time Estimation        user can cancel or adjust before execution
-Phase 0.5   Codebase Analysis             scan conventions, reusable code, structure
-Phase 1     Stack Detection               framework, language, dependencies (cached 7 days)
-Phase 2     Pre-Implementation Research  * agents debate what to investigate (deep+)
-Phase 2.9   Intensity Checkpoint          bidirectional: upgrade or downgrade based on findings
-Phase 3     Compliance Check             * agents debate which rules apply (deep+)
-Phase 4     Model Benchmarking            score each AI per category (comprehensive, cached 14 days)
-Phase 5     Figma Design Analysis         if Figma MCP is available
-Phase 5.5   Implementation Strategy      * agents debate approach + define success criteria
-Phase 5.8   Static Analysis               run scanners (semgrep, eslint, bandit, gosec) (standard+)
-Phase 5.9   Threat Modeling              * 3-agent STRIDE threat debate (deep+)
-Phase 6     Implementation + Code Review + 3-Round Cross-Examination (+Round 4 escalation at deep+)
-Phase 6.5   Auto-Fix Loop                 fix safe findings, verify with tests, revert on failure
-Phase 6.6   Test Generation               regression test stubs for critical/high findings (standard+)
-Phase 6.7   Visual Verification            Playwright MCP browser testing + CSS selector analysis (standard+)
-Phase 7     Final Report + Feedback        success criteria PASS/FAIL, scope verdict, cost breakdown
-```
-
-Nine decision points (*) use adversarial debate instead of static rules.
-
-### Business Pipeline
-
-```
-Phase B0     Argument parsing + MCP dependency detection
-Phase B0.1   Intensity Decision           * agents debate (audience exposure, brand risk, accuracy)
-Phase B0.2   Cost & Time Estimation         user can cancel or adjust before execution
-Phase B0.5   Business Context Analysis      extract from docs: product, value props, brand voice
-Phase B1     Market/Industry Context        WebSearch for market data, competitors, trends
-Phase B1.5   Framework Selection          * 3-agent debate to select analysis frameworks (standard+)
-Phase B2     Best Practices Research       * agents debate research direction (deep+)
-Phase B2.9   Intensity Checkpoint           bidirectional based on market/research findings
-Phase B3     Accuracy & Consistency Audit  * agents debate verification scope (deep+)
-Phase B4     Business Model Benchmarking    12 planted-error test cases, F1 scoring (comprehensive)
-Phase B5.5   Content Strategy Debate       * agents debate messaging + mandatory 3-scenario analysis
-Phase B5.6   Quantitative Validation        2-agent numerical cross-verification (deep+)
-Phase B5.7   Adversarial Red Team         * skeptical investor, competitor, regulatory agents (deep+)
-Phase B6     5-Agent Review + External CLIs + 3-Round Cross-Examination (with evidence tiering)
-Phase B6.5   Apply Findings                 auto-revise content based on consensus
-Phase B7     Final Report + Feedback        quality scorecard + consistency validation
+QUICK           STANDARD              DEEP                    COMPREHENSIVE
+─────           ────────              ────                    ─────────────
+Phase 0         Phase 0               Phase 0                 Phase 0
+Phase 0.1       Phase 0.1             Phase 0.1               Phase 0.1
+                Phase 0.2             Phase 0.2               Phase 0.2
+Phase 0.5       Phase 0.5             Phase 0.5               Phase 0.5
+                  +escalation           +escalation              +escalation
+                  +write scope          +write scope             +write scope
+                Phase 1 (cached)      Phase 1                 Phase 1
+                                      Phase 2 (+debate)       Phase 2 (+debate)
+                                      Phase 3 (+debate)       Phase 3 (+debate)
+                                                              Phase 4 (benchmark)
+                                                              Phase 5 (Figma)
+                Phase 5.5             Phase 5.5               Phase 5.5
+                Phase 5.5.5           Phase 5.5.5             Phase 5.5.5
+                Phase 5.8             Phase 5.8               Phase 5.8
+                                      Phase 5.9 (STRIDE)     Phase 5.9 (STRIDE)
+                Phase 6               Phase 6 (+Round 4)      Phase 6 (+Round 4)
+                Phase 6.5             Phase 6.5               Phase 6.5
+                Phase 6.6             Phase 6.6               Phase 6.6
+                Phase 6.7             Phase 6.7               Phase 6.7
+                Phase 7               Phase 7                 Phase 7
+                  +contract             +contract               +contract
+[Claude solo]   [Agent Team]          [Agent Team]            [Agent Team]
 ```
 
 ---
 
-## Routes
+## Phase 6: Agent Team Collaborative Review (Detail)
 
-Arena classifies your intent into one of eleven routes:
-
-### Code Routes (A-F)
-
-| Route | When | Pipeline |
-|-------|------|----------|
-| **A: Feature Build** | New functionality, complex tasks | Full code pipeline with all applicable phases |
-| **B: Research** | "How should I..." questions | Pre-implementation investigation |
-| **C: Stack Analysis** | Understanding project tech | Framework/dependency detection |
-| **D: Code Review** | Reviewing existing code or PRs | Multi-AI adversarial review |
-| **E: Refactoring** | Improving existing code structure | Codebase analysis + code review |
-| **F: Simple Change** | Small, obvious modifications | Quick intensity, Claude solo |
-
-### Business Routes (G-I)
-
-| Route | When | Pipeline |
-|-------|------|----------|
-| **G: Business Content** | Business plans, pitch decks, proposals, marketing copy | Full business pipeline |
-| **H: Business Analysis** | Market research, competitive analysis, SWOT, strategy | Business pipeline with strategy emphasis |
-| **I: Communication** | Investor Q&A, customer emails, presentation scripts | Business pipeline with audience/tone emphasis |
-
-### Documentation Routes (J-K)
-
-| Route | When | Pipeline |
-|-------|------|----------|
-| **J: Documentation Review** | Reviewing docs for accuracy, completeness, freshness | Full documentation pipeline |
-| **K: Documentation Generation** | Generating or updating docs from code changes | Documentation pipeline in generate mode |
-
-### Multi-Route Requests
-
-Requests that span multiple pipelines are decomposed and run sequentially with **context forwarding** (Code first, then Documentation, then Business):
+Phase 6 is where the multi-AI adversarial review happens. It uses Agent Teams for real-time inter-reviewer collaboration and a 3-round cross-examination protocol.
 
 ```
-"Write a pitch deck and build a landing page based on it"
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PHASE 6: AGENT TEAM REVIEW                          │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ Step 6.3: Create Agent Team                                      │  │
+│  └──────────────────────────┬───────────────────────────────────────┘  │
+│                             │                                          │
+│  ┌──────────────────────────▼───────────────────────────────────────┐  │
+│  │ Step 6.5.0: Spawn debate-arbitrator (EARLY JOIN)                 │  │
+│  │   Monitors all inter-reviewer signals from Round 1               │  │
+│  │   Tracks convergence, de-duplicates, identifies cross-domain     │  │
+│  └──────────────────────────┬───────────────────────────────────────┘  │
+│                             │                                          │
+│  ┌──────────────────────────▼───────────────────────────────────────┐  │
+│  │ Step 6.5.1: Spawn Reviewers with Collaboration Protocol          │  │
+│  │                                                                   │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │  │
+│  │  │  security    │  │    bug      │  │architecture │  ...6-12     │  │
+│  │  │  reviewer    │  │  detector   │  │  reviewer   │  reviewers   │  │
+│  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘              │  │
+│  │         │    SIGNAL       │    SIGNAL       │                     │  │
+│  │         │◄───────────────►│◄───────────────►│   Real-time        │  │
+│  │         │  SendMessage    │  SendMessage     │   cross-domain     │  │
+│  │         │                 │                  │   discovery        │  │
+│  │         ▼                 ▼                  ▼                     │  │
+│  │  ┌───────────────────────────────────────────────┐               │  │
+│  │  │          debate-arbitrator (Early Join)        │               │  │
+│  │  │  Receives all signals, tracks convergence     │               │  │
+│  │  └───────────────────────────────────────────────┘               │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ Step 6.7: External CLI Reviews (Parallel with Claude)            │  │
+│  │                                                                   │  │
+│  │  ┌──────────────┐         ┌──────────────┐                       │  │
+│  │  │  Codex CLI   │         │  Gemini CLI  │                       │  │
+│  │  │ (Bash shell) │         │ (Bash shell) │                       │  │
+│  │  └──────┬───────┘         └──────┬───────┘                       │  │
+│  │         └─────────┬──────────────┘                                │  │
+│  │                   ▼                                               │  │
+│  │            JSON findings files                                    │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ Step 6.8-6.9: Collect & Aggregate                                │  │
+│  │                                                                   │  │
+│  │  Claude findings ─┐                                              │  │
+│  │  Codex findings  ─┼──► Merge + Dedup + Collaboration bonuses     │  │
+│  │  Gemini findings ─┘    (+20% for cross-domain confirmations)     │  │
+│  └──────────────────────────┬───────────────────────────────────────┘  │
+│                             │                                          │
+│  ┌──────────────────────────▼───────────────────────────────────────┐  │
+│  │ Step 6.10: 3-Round Cross-Examination                             │  │
+│  │                                                                   │  │
+│  │  (see cross-examination detail below)                             │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
-  Route G (business plan) -> Route A (landing page)
-                          ^
-                          |
-              context forwarding: key_themes, tone, audience
-              (tiered limits: 2K summary, 15K content, 1K metadata, 20K total)
+### 3-Round Cross-Examination + Round 4 Escalation
+
+```
+ROUND 1: Independent Review (already completed)
+─────────────────────────────────────────────────
+  Claude (6-12 reviewers)  ←→  Real-time signals between reviewers
+  Codex CLI                    (Collaboration Protocol)
+  Gemini CLI
+           │
+           ▼
+  Aggregated findings (per-model partitions)
+
+
+ROUND 2: Cross-Examination (all models challenge each other)
+─────────────────────────────────────────────────
+  ┌───────────┐    examines    ┌───────────┐
+  │   Claude   │──────────────►│   Codex   │ findings
+  │ reviewers  │──────────────►│   Gemini  │ findings
+  └───────────┘                └───────────┘
+  ┌───────────┐    examines    ┌───────────┐
+  │   Codex   │──────────────►│   Claude  │ findings
+  │   CLI     │──────────────►│   Gemini  │ findings
+  └───────────┘                └───────────┘
+  ┌───────────┐    examines    ┌───────────┐
+  │   Gemini  │──────────────►│   Claude  │ findings
+  │   CLI     │──────────────►│   Codex   │ findings
+  └───────────┘                └───────────┘
+
+  For each finding: AGREE (+confidence) / DISAGREE (-confidence) / PARTIAL
+           │
+           ▼
+
+ROUND 3: Defense (each model defends challenged findings)
+─────────────────────────────────────────────────
+  Claude reviewers: defend against Codex + Gemini challenges
+  Codex CLI:        defend against Claude + Gemini challenges
+  Gemini CLI:       defend against Claude + Codex challenges
+
+  For each challenge: DEFEND / CONCEDE / MODIFY
+           │
+           ▼
+
+ROUND 4: Escalation (deep+ only, if disputed high-severity remain)
+─────────────────────────────────────────────────
+  debate-arbitrator re-evaluates with:
+    - Fresh evidence review
+    - WebSearch for CVEs/standards
+    - No "disputed" status allowed — must resolve to CONFIRMED or DISMISSED
+           │
+           ▼
+
+CONSENSUS: debate-arbitrator synthesizes all rounds
+─────────────────────────────────────────────────
+  Output: { accepted: [...], rejected: [...], disputed: [...] }
+  Each finding includes cross_examination_trail with all 3-4 rounds
+```
+
+---
+
+## Verification Contract (Swiss Cheese Model)
+
+Findings are classified into 6 verification layers. The report shows PASS/WARN/FAIL per layer.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  VERIFICATION CONTRACT                   │
+├─────────────────────┬────────┬──────────────────────────┤
+│ Layer               │ Status │ Sources                  │
+├─────────────────────┼────────┼──────────────────────────┤
+│ Coding Guidelines   │ PASS   │ security, bug, perf,     │
+│                     │        │ architecture reviewers    │
+├─────────────────────┼────────┼──────────────────────────┤
+│ Organization        │ PASS   │ compliance-checker        │
+│ Invariants          │        │                          │
+├─────────────────────┼────────┼──────────────────────────┤
+│ Domain Contracts    │ WARN   │ data-integrity,          │
+│                     │        │ api-contract reviewers    │
+├─────────────────────┼────────┼──────────────────────────┤
+│ Acceptance Criteria │ PASS   │ scope-reviewer +          │
+│                     │        │ spec tests (Phase 5.5.5) │
+├─────────────────────┼────────┼──────────────────────────┤
+│ Static Analysis     │ PASS   │ semgrep/eslint/bandit    │
+├─────────────────────┼────────┼──────────────────────────┤
+│ Debate Consensus    │ FAIL   │ cross-model agreement    │
+│                     │        │ from 3-round debate       │
+├─────────────────────┼────────┼──────────────────────────┤
+│ Overall             │ FAIL   │ All layers must pass     │
+└─────────────────────┴────────┴──────────────────────────┘
+```
+
+---
+
+## Safety Systems
+
+### Escalation Triggers
+
+High-risk file patterns automatically escalate intensity and block auto-fix:
+
+```
+File matches auth/payment/crypto/DB schema/deps/infra patterns
+                    │
+                    ▼
+         ┌─────────────────┐
+         │ escalation-scan  │ (shell script, 0 LLM cost)
+         │   .sh            │
+         └────────┬────────┘
+                  │
+     ┌────────────┼────────────┐
+     │            │            │
+     ▼            ▼            ▼
+ Intensity    Require       Block
+ floor ↑     human         auto-fix
+ (e.g.       approval      on matched
+  deep)      gate          files
+```
+
+### Write Scope Constraint
+
+Auto-fix is restricted to files within the resolved scope:
+
+```
+Scope Resolution Priority:
+  1. User's explicit file paths        (highest)
+  2. git diff file list
+  3. Phase 5.5 strategy files
+  4. PROJECT_ROOT (no restriction)      (lowest, with warning)
+
+Phase 6.5 applies:
+  IF file NOT IN WRITE_SCOPE → skip (or prompt user)
+  IF file IN ESCALATION_BLOCKED_FILES → skip always
+```
+
+### Commit/PR Safety Gate
+
+```
+Commit request:
+  Route F (quick) → Phase 0.5 → Commit Safety Gate → AskUserQuestion
+
+PR request:
+  Route D → full review pipeline → PR Safety Gate → AskUserQuestion
+```
+
+---
+
+## Business Pipeline (Routes G-I)
+
+```
+Phase B0 ────── Context & Configuration
+Phase B0.1 ──── Intensity Decision (Agent Teams Debate)
+Phase B0.2 ──── Cost & Time Estimation
+Phase B0.5 ──── Business Context Analysis
+Phase B1 ────── Market/Industry Context (WebSearch)
+Phase B1.5 ──── Framework Selection Debate (standard+)
+                ├── framework-advocate    → comprehensive framework set
+                ├── framework-minimalist  → focused framework set
+                └── framework-arbitrator  → selects up to 3 frameworks
+Phase B2 ────── Content Best Practices Research (deep+, with debate)
+Phase B3 ────── Accuracy & Consistency Audit (deep+, with debate)
+Phase B4 ────── Business Model Benchmarking (comprehensive only)
+Phase B5.5 ──── Content Strategy Debate (standard+, 3-scenario mandate)
+                ├── messaging-advocate    → proposes messaging strategy
+                ├── audience-challenger   → challenges audience fit
+                ├── accuracy-challenger   → challenges factual claims
+                └── strategy-arbitrator   → synthesizes + 3 scenarios
+Phase B5.6 ──── Quantitative Validation (deep+)
+                ├── data-verifier         → cross-reference numbers
+                └── methodology-auditor   → validate projections
+Phase B5.7 ──── Adversarial Red Team (deep+)
+                ├── skeptical-investor    → "Why should I NOT invest?"
+                ├── competitor-response   → "How would competitors counter?"
+                └── regulatory-risk       → "Hidden regulatory/legal risks?"
+Phase B6 ────── Multi-Agent Business Review (5+ reviewers, 3-round debate)
+Phase B6.5 ──── Apply Findings (auto-revise content)
+Phase B7 ────── Final Report (+ consistency validation)
+```
+
+### Business Reviewer Agents (10)
+
+| Agent | Focus |
+|-------|-------|
+| accuracy-evidence-reviewer | Factual claims, data accuracy |
+| audience-fit-reviewer | Target audience alignment |
+| competitive-positioning-reviewer | Market positioning |
+| communication-narrative-reviewer | Story flow, persuasion |
+| financial-credibility-reviewer | Financial projections |
+| legal-compliance-reviewer | Regulatory compliance |
+| market-fit-reviewer | Product-market fit |
+| conversion-impact-reviewer | CTA effectiveness |
+| localization-reviewer | Cultural adaptation |
+| investor-readiness-reviewer | Investment readiness |
+
+---
+
+## Documentation Pipeline (Routes J-K)
+
+```
+Phase D0 ────── Context & Configuration
+Phase D0.1 ──── Intensity Decision (Agent Teams Debate)
+Phase D0.2 ──── Cost & Time Estimation
+Phase D0.5 ──── Documentation Inventory (doc-inventory.sh)
+                ├── Scan project for all doc files
+                ├── Classify by type (readme, api, tutorial, changelog, adr, runbook)
+                └── Generate inventory with metadata
+Phase D1 ────── Code-Doc Diff Analysis
+                ├── git diff → recent code changes
+                ├── Cross-reference with doc modification dates
+                └── Generate CODE_DOC_DRIFT map
+Phase D2 ────── Documentation Standards Research (deep+, with debate)
+Phase D3 ────── Cross-Reference Validation (deep+, with debate)
+Phase D4 ────── Documentation Benchmarking (comprehensive only)
+Phase D5.5 ──── Documentation Strategy Debate (standard+)
+Phase D6 ────── Multi-Agent Doc Review (6 reviewers, 3-round debate)
+Phase D6.5 ──── Apply Findings (auto-fix critical/high doc issues)
+Phase D6.6 ──── Example Code Validation (standard+)
+                ├── Extract code blocks from docs
+                ├── Syntax check each block
+                ├── Verify imports exist
+                └── Flag deprecated API usage
+Phase D7 ────── Final Report (+ cross-doc consistency validation)
+```
+
+### Documentation Reviewer Agents (6)
+
+| Agent | Focus |
+|-------|-------|
+| doc-accuracy-reviewer | Technical accuracy vs codebase |
+| doc-completeness-reviewer | Missing sections, gaps |
+| doc-freshness-reviewer | Outdated content, stale references |
+| doc-readability-reviewer | Clarity, structure, formatting |
+| doc-example-reviewer | Code examples correctness |
+| doc-consistency-reviewer | Cross-document consistency |
+
+---
+
+## Agent Inventory
+
+### Code Review Agents (12)
+
+| Agent | Domain |
+|-------|--------|
+| security-reviewer | OWASP Top 10, injection, auth flaws |
+| bug-detector | Logic errors, null handling, race conditions |
+| architecture-reviewer | SOLID, design patterns, coupling |
+| performance-reviewer | Complexity, memory, N+1, blocking ops |
+| test-coverage-reviewer | Test completeness, edge cases |
+| scope-reviewer | Change scope verification |
+| dependency-reviewer | Dependency risks |
+| api-contract-reviewer | API consistency |
+| observability-reviewer | Logging, metrics, tracing |
+| data-integrity-reviewer | Data validation, consistency |
+| accessibility-reviewer | A11y compliance |
+| configuration-reviewer | Config management |
+
+### Debate & Utility Agents (8)
+
+| Agent | Role |
+|-------|------|
+| debate-arbitrator | Cross-examination consensus (code) |
+| business-debate-arbitrator | Cross-examination consensus (business) |
+| doc-debate-arbitrator | Cross-examination consensus (docs) |
+| research-coordinator | Cross-reference research findings |
+| design-analyzer | Figma design extraction |
+| compliance-checker | Platform/regulatory compliance |
+| threat-modeler / threat-defender / threat-arbitrator | STRIDE threat modeling |
+
+---
+
+## External CLI Integration
+
+```
+┌─────────────────┐     JSON stdin     ┌──────────────────────┐
+│                  │──────────────────►│  codex-review.sh      │
+│   Team Lead      │                   │  codex-cross-examine  │
+│   (Claude Code)  │     JSON stdin    │  codex-business-rev   │
+│                  │──────────────────►│  codex-doc-review.sh  │
+│                  │                   └──────────────────────┘
+│                  │
+│                  │     JSON stdin     ┌──────────────────────┐
+│                  │──────────────────►│  gemini-review.sh     │
+│                  │                   │  gemini-cross-examine  │
+│                  │     JSON stdin    │  gemini-business-rev   │
+│                  │──────────────────►│  gemini-doc-review.sh │
+└─────────────────┘                   └──────────────────────┘
+
+External CLIs run via Bash (not Agent Teams).
+Findings flow as JSON files in the session directory.
+```
+
+---
+
+## Feedback-Driven Model Routing
+
+```
+                   ┌───────────────┐
+                   │ User Feedback  │
+                   │ (accept/reject │
+                   │  findings)     │
+                   └───────┬───────┘
+                           │
+                           ▼
+                 ┌─────────────────┐
+                 │ feedback-tracker │
+                 │  .sh             │  BM25 scoring
+                 └────────┬────────┘
+                          │
+              ┌───────────┼───────────┐
+              │           │           │
+              ▼           ▼           ▼
+         Category    Category    Category
+         Security    Bugs        Perf
+              │           │           │
+              ▼           ▼           ▼
+     Best model   Best model   Best model
+     for this     for this     for this
+     category     category     category
+
+Routing strategy: 60% feedback score + 40% benchmark score (configurable)
+```
+
+---
+
+## Fallback Framework
+
+6-level graceful degradation when external tools are unavailable:
+
+```
+Level 0: Full pipeline (Claude + Codex + Gemini + all phases)
+  │
+  ▼ Codex unavailable
+Level 1: Claude + Gemini (Codex roles reassigned)
+  │
+  ▼ Gemini also unavailable
+Level 2: Claude-only Agent Team (all roles assigned to Claude reviewers)
+  │
+  ▼ Agent Teams unavailable
+Level 3: Claude solo with structured review template
+  │
+  ▼ jq unavailable
+Level 4: Claude solo with manual JSON handling
+  │
+  ▼ critical failure
+Level 5: Error report with partial findings
 ```
 
 ---
 
 ## Configuration
 
-### Project-level
+Three-level config merge (later overrides earlier):
 
-Create `.ai-review-arena.json` in your project root:
-
-```json
-{
-  "models": {
-    "claude": { "enabled": true, "roles": ["security", "bugs"] },
-    "codex": { "enabled": true },
-    "gemini": { "enabled": true, "roles": ["architecture"] }
-  },
-  "review": {
-    "intensity": "standard",
-    "focus_areas": ["security", "bugs"]
-  },
-  "output": {
-    "language": "en"
-  }
-}
+```
+config/default-config.json    →    ~/.claude/.ai-review-arena.json    →    .ai-review-arena.json
+      (plugin default)                  (global user)                       (project-specific)
 ```
 
-### Global config
+Key configuration sections:
 
-Place at `~/.claude/.ai-review-arena.json` for defaults across all projects.
+| Section | Controls |
+|---------|----------|
+| `models` | Claude/Codex/Gemini model variants, enable/disable |
+| `review` | Intensity, focus areas, confidence threshold |
+| `debate` | Enable/disable, rounds, escalation |
+| `arena` | Default phases, caching, interactive mode |
+| `intensity_presets` | Reviewer roles per intensity level |
+| `static_analysis` | Scanner selection, confidence floor |
+| `escalation_triggers` | High-risk file/content patterns |
+| `write_scope` | Auto-fix file boundary enforcement |
+| `contract_verification` | 6-layer verification report |
+| `spec_verification` | BDD test generation from specs |
+| `agent_teams` | Collaboration protocol settings |
+| `cost_estimation` | Token costs, auto-proceed threshold |
+| `feedback` | Model routing strategy weights |
+| `context_density` | Per-agent token budgets, chunking |
 
-### Config merge order
-
-Settings are deep-merged in priority order: **default** (built-in) → **global** (`~/.claude/.ai-review-arena.json`) → **project** (`.ai-review-arena.json`). Project-level values override global, which overrides defaults.
-
-### Environment variables
-
-```bash
-ARENA_INTENSITY=deep               # Force intensity (skips debate)
-ARENA_SKIP_CACHE=true              # Bypass all caches
-MULTI_REVIEW_INTENSITY=standard    # Default review intensity
-MULTI_REVIEW_LANGUAGE=en           # Output language
-```
-
-### Bypassing Arena
-
-```bash
-# Skip Arena for one request
-"fix this typo --no-arena"
-
-# Force intensity (skips the debate)
-"implement this --intensity deep"
-
-# Direct slash command (bypasses auto-routing)
-/multi-review --focus security
-```
+Environment variable overrides: `MULTI_REVIEW_*` (review), `ARENA_*` (lifecycle).
 
 ---
 
-## Slash Commands
+## Installation
 
-Typically unnecessary since the router handles everything, but available for direct use:
+```bash
+# Clone or install
+git clone https://github.com/HajinJ/ai-review-arena.git
+cd ai-review-arena
+bash scripts/setup-arena.sh
+
+# Or add as Claude Code plugin
+claude plugin add HajinJ/ai-review-arena
+```
+
+### Prerequisites
+
+| Tool | Required | Purpose |
+|------|----------|---------|
+| Claude Code | Yes | Host environment |
+| jq | Yes | JSON processing |
+| Codex CLI | Optional | External model review |
+| Gemini CLI | Optional | External model review |
+| gh (GitHub CLI) | Optional | PR review support |
+
+### Optional MCP Servers
+
+| MCP | Purpose | Auto-detected |
+|-----|---------|---------------|
+| Figma MCP | Design analysis (Phase 5) | Figma URL in request |
+| Playwright MCP | Visual verification (Phase 6.7) | Frontend file changes |
+| Notion MCP | Notion integration | "Notion" in request |
+| Agentation MCP | Visual feedback | Frontend file changes |
+
+---
+
+## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/arena` | Full code lifecycle pipeline |
-| `/arena-business` | Full business lifecycle pipeline |
-| `/arena-docs` | Documentation review/generation pipeline |
-| `/arena-research` | Pre-implementation research only |
-| `/arena-stack` | Technology stack detection |
-| `/multi-review` | Multi-AI code review only |
-| `/multi-review-config` | Configure review settings |
-| `/multi-review-status` | View review session status |
+| `/arena` | Full lifecycle orchestrator |
+| `/multi-review` | Multi-AI adversarial code review |
+| `/arena-research` | Pre-implementation research |
+| `/arena-stack` | Project stack detection |
+| `/multi-review-config` | Review config management |
+| `/multi-review-status` | Review status dashboard |
 
----
-
-## Fallback Framework
-
-Arena never crashes the pipeline. If something fails, it degrades gracefully:
-
-### Code Pipeline (6 levels)
-
-| Level | Trigger | Action |
-|-------|---------|--------|
-| 0 | None | Full operation |
-| 1 | Benchmark failure | Use default role assignments |
-| 2 | Research failure | Skip context enrichment |
-| 3 | Agent Teams failure | Use Task subagents (no debate) |
-| 4 | External CLI failure | Claude-only review |
-| 5 | All failure | Inline Claude solo analysis |
-
-### Business Pipeline (5 levels)
-
-| Level | Trigger | Action |
-|-------|---------|--------|
-| 0 | None | Full operation |
-| 1 | Research failure | Skip market context |
-| 1.5 | Benchmark failure | Use default role assignments |
-| 2 | Agent Teams failure | Use Task subagents (no debate) |
-| 2.5 | External CLI failure | Claude-only review |
-| 3 | All failure | Claude solo inline analysis |
-
-The final report always shows which fallback level was active and what was skipped.
-
----
-
-## Feedback Loop
-
-After each review session, Arena optionally collects feedback on findings (useful / not useful / false positive). Feedback is stored in JSONL format and used for two purposes:
-
-1. **Accuracy reports** — per-model, per-category quality tracking:
-
-```
-Model Quality Report (last 30 days):
-| Model  | Useful | Not Useful | False Positive | Accuracy |
-|--------|--------|------------|----------------|----------|
-| Claude | 45     | 8          | 3              | 80.4%    |
-| Codex  | 38     | 12         | 5              | 69.1%    |
-| Gemini | 41     | 10         | 4              | 74.5%    |
-```
-
-2. **Routing optimization** — combined score (60% feedback accuracy + 40% benchmark F1) determines which model reviews which category in future sessions.
-
----
-
-## Context Density
-
-Arena provides each review agent with context tailored to its role. Instead of sending the full codebase to every agent, it filters by role-specific patterns:
-
-| Role | Prioritized Patterns |
-|------|---------------------|
-| security | `auth`, `login`, `password`, `token`, `session`, `csrf`, `inject`, `eval` |
-| bugs | `catch`, `throw`, `error`, `null`, `undefined`, `async`, `await`, `race`, `lock`, `mutex`, `retry` |
-| performance | `for`, `while`, `map`, `query`, `select`, `cache`, `Promise.all`, `stream`, `circuit`, `pool`, `metric` |
-| architecture | `import`, `export`, `class`, `interface`, `extends`, `module`, `provider` |
-| testing | `describe`, `it`, `test`, `expect`, `mock`, `jest`, `vitest`, `pytest` |
-| api_contract | `route`, `endpoint`, `handler`, `controller`, `schema`, `swagger`, `openapi`, `graphql` |
-| observability | `log`, `logger`, `trace`, `span`, `metric`, `monitor`, `alert`, `health`, `sentry` |
-| data_integrity | `schema`, `validate`, `migration`, `transaction`, `rollback`, `zod`, `prisma`, `typeorm` |
-| accessibility | `aria`, `role`, `tabindex`, `alt`, `label`, `focus`, `a11y`, `wcag`, `sr-only` |
-| configuration | `env`, `config`, `secret`, `credential`, `docker`, `kubernetes`, `terraform`, `pipeline` |
-
-Each agent receives up to 8,000 tokens of role-relevant context (configurable). Files under 200 lines bypass filtering and are sent in full.
-
-### Shared Project Context
-
-If a `.ai-review-arena-context.md` file exists in your project root, its contents are automatically injected as shared context to every reviewer agent before the filtered code. This is useful for documenting project-specific conventions, security requirements, or architectural decisions that all reviewers should know about. The context file's token usage (default: 1,500 max) is deducted from each agent's budget.
-
----
-
-## Memory Tiers
-
-Arena maintains a 4-tier memory architecture for learning across review sessions:
-
-| Tier | Scope | TTL | Tracks |
-|------|-------|-----|--------|
-| **Working** | Current session | Session | Pipeline variables, current context |
-| **Short-term** | Per project | 7 days | Recurring findings, recent review patterns |
-| **Long-term** | Cross-session | 90 days | Model accuracy by category, feedback trends |
-| **Permanent** | Per project | Never | Team coding standards, architecture decisions |
-
-Short-term and long-term tiers inform routing decisions and agent context. Permanent tier is manually curated.
-
----
-
-## How Arena Loads
-
-The installer adds `@ARENA-ROUTER.md` to `~/.claude/CLAUDE.md`. Claude Code loads this file into every session's system prompt, making the router always active.
-
-```
-~/.claude/CLAUDE.md
-  +-- @ARENA-ROUTER.md       <- loaded into every session
-        +-- Context Discovery   gather git, GitHub, Figma context
-        +-- Route Selection     intent-based classification (11 routes)
-        +-- Pipeline Execution  load and execute command .md files
-```
-
-The router reads command files using the Read tool, not slash commands. This prevents infinite recursion.
-
-When a request requires an MCP server (Figma, Playwright, Notion) that isn't installed, Arena detects it and offers to install it. If you decline, the pipeline continues without that capability.
+The Always-On Router automatically invokes the appropriate pipeline for every request, so you rarely need to use commands directly.
 
 ---
 
@@ -602,367 +687,32 @@ When a request requires an MCP server (Figma, Playwright, Notion) that isn't ins
 
 ```
 ai-review-arena/
-+-- ARENA-ROUTER.md              # Always-on routing logic (11 routes, context forwarding)
-+-- CLAUDE.md                    # Plugin development rules
-+-- install.sh                   # Installer (macOS / Linux / WSL)
-+-- uninstall.sh                 # Uninstaller
-+-- requirements.txt             # Python dependencies (openai>=2.22.0)
-|
-+-- hooks/                       # Auto-review hooks
-|   +-- hooks.json               # Claude Code PostToolUse hook
-|   +-- gemini-hooks.json        # Gemini CLI AfterTool hook adapter config
-|
-+-- commands/                    # Pipeline definitions (8 commands)
-|   +-- arena.md                 # Code pipeline (~2500 lines)
-|   +-- arena-business.md        # Business pipeline (~2900 lines)
-|   +-- arena-docs.md            # Documentation pipeline (Routes J-K)
-|   +-- arena-research.md        # Research pipeline
-|   +-- arena-stack.md           # Stack detection
-|   +-- multi-review.md          # Code review pipeline
-|   +-- multi-review-config.md   # Config management
-|   +-- multi-review-status.md   # Status dashboard
-|
-+-- agents/                      # Agent role definitions (40 agents)
-|   +-- security-reviewer.md     # OWASP, auth, injection, data exposure
-|   +-- bug-detector.md          # Logic errors, null handling, error handling, concurrency
-|   +-- architecture-reviewer.md # SOLID, patterns, coupling
-|   +-- performance-reviewer.md  # Complexity, memory, I/O, failover, scale
-|   +-- test-coverage-reviewer.md # Missing tests, test quality
-|   +-- scope-reviewer.md        # Change scope validation
-|   +-- dependency-reviewer.md   # Dependency health, versioning
-|   +-- api-contract-reviewer.md # API schema, versioning, breaking changes
-|   +-- observability-reviewer.md # Logging, tracing, monitoring
-|   +-- data-integrity-reviewer.md # Data validation, migration safety
-|   +-- accessibility-reviewer.md # WCAG, ARIA, keyboard navigation
-|   +-- configuration-reviewer.md # Environment, secrets, IaC
-|   +-- threat-modeler.md        # STRIDE threat identification
-|   +-- threat-defender.md       # Threat mitigation defense
-|   +-- threat-arbitrator.md     # Threat model consensus
-|   +-- debate-arbitrator.md     # Code review 3-round consensus
-|   +-- research-coordinator.md  # Pre-implementation research
-|   +-- design-analyzer.md       # Figma design extraction
-|   +-- compliance-checker.md    # OWASP, WCAG, GDPR compliance
-|   +-- accuracy-evidence-reviewer.md      # Business: factual accuracy + evidence tiering
-|   +-- audience-fit-reviewer.md           # Business: audience match + evidence tiering
-|   +-- competitive-positioning-reviewer.md # Business: market positioning + evidence tiering
-|   +-- communication-narrative-reviewer.md # Business: writing quality + evidence tiering
-|   +-- market-fit-reviewer.md             # Business: product-market fit, TAM/SAM/SOM
-|   +-- financial-credibility-reviewer.md  # Business: financial model credibility
-|   +-- legal-compliance-reviewer.md       # Business: legal/regulatory compliance
-|   +-- localization-reviewer.md           # Business: multilingual/cultural adaptation
-|   +-- investor-readiness-reviewer.md     # Business: investor readiness
-|   +-- conversion-impact-reviewer.md      # Business: conversion optimization
-|   +-- skeptical-investor-agent.md        # Red team: investment skeptic
-|   +-- competitor-response-agent.md       # Red team: competitive counter-strategy
-|   +-- regulatory-risk-agent.md           # Red team: regulatory/legal risk
-|   +-- business-debate-arbitrator.md      # Business: 3-round consensus + external model handling
-|   +-- doc-accuracy-reviewer.md          # Docs: code-doc mismatch, API accuracy
-|   +-- doc-completeness-reviewer.md      # Docs: undocumented APIs, missing sections
-|   +-- doc-freshness-reviewer.md         # Docs: deprecated refs, stale versions
-|   +-- doc-readability-reviewer.md       # Docs: structure, audience fit
-|   +-- doc-example-reviewer.md           # Docs: runnable examples, output accuracy
-|   +-- doc-consistency-reviewer.md       # Docs: terminology, cross-references
-|   +-- doc-debate-arbitrator.md          # Docs: 3-round consensus
-|
-+-- scripts/                     # Shell/Python scripts (32 scripts)
-|   +-- codex-review.sh          # Codex Round 1 code review
-|   +-- gemini-review.sh         # Gemini Round 1 code review
-|   +-- codex-cross-examine.sh   # Codex Round 2 & 3 (code)
-|   +-- gemini-cross-examine.sh  # Gemini Round 2 & 3 (code)
-|   +-- codex-business-review.sh # Codex business review (dual-mode: round1/round2)
-|   +-- gemini-business-review.sh # Gemini business review (dual-mode: round1/round2)
-|   +-- benchmark-models.sh      # Code model benchmarking
-|   +-- benchmark-business-models.sh # Business model benchmarking (12 test cases, F1)
-|   +-- benchmark-utils.sh       # Shared benchmark helpers (metrics, text extraction)
-|   +-- evaluate-pipeline.sh     # Pipeline evaluation (precision/recall/F1)
-|   +-- feedback-tracker.sh      # Review quality feedback recording + reporting
-|   +-- orchestrate-review.sh    # Review orchestration + stale review detection
-|   +-- aggregate-findings.sh    # Finding aggregation + stale marking
-|   +-- run-debate.sh            # Debate execution
-|   +-- run-benchmark.sh         # Benchmark runner (Codex + Gemini + Arena)
-|   +-- run-solo-benchmark.sh    # Solo vs Arena comparison benchmark
-|   +-- generate-report.sh       # Report generation + stale warning banner
-|   +-- detect-stack.sh          # Stack detection
-|   +-- search-best-practices.sh # Best practice search
-|   +-- search-guidelines.sh     # Compliance guideline search
-|   +-- cache-manager.sh         # Cache management
-|   +-- cost-estimator.sh        # Token cost estimation + cache discount
-|   +-- check-model-updates.sh    # API-based model version detection
-|   +-- context-filter.sh        # Role-based code filtering + project context injection
-|   +-- auto-tune-prompts.sh    # Auto-tune prompt optimization loop (F1 improvement)
-|   +-- normalize-severity.sh    # Severity normalization utility
-|   +-- validate-config.sh       # Configuration validation
-|   +-- utils.sh                 # Shared utilities
-|   +-- openai-ws-debate.py      # WebSocket debate client (Responses API)
-|   +-- gemini-hook-adapter.sh   # Gemini hook → Arena review adapter
-|   +-- static-analysis.sh       # Static analysis scanner runner (Phase 5.8)
-|   +-- normalize-scanner-output.sh # Scanner output normalization (SARIF/JSON → standard)
-|   +-- setup-arena.sh           # Arena setup
-|   +-- setup.sh                 # General setup
-|
-+-- shared-phases/               # Common phase definitions (10 phases, shared by code + business)
-|   +-- intensity-decision.md    # Phase 0.1/B0.1: Agent Teams intensity debate
-|   +-- cost-estimation.md       # Phase 0.2/B0.2: Cost & time estimation
-|   +-- feedback-routing.md      # Feedback-based model-category role assignment
-|   +-- static-analysis.md       # Phase 5.8: Static analysis integration (standard+)
-|   +-- threat-modeling.md       # Phase 5.9: STRIDE 3-agent threat debate (deep+)
-|   +-- test-generation.md       # Phase 6.6: Regression test stub generation (standard+)
-|   +-- visual-verification.md  # Phase 6.7: Visual verification + Playwright MCP (standard+)
-|   +-- framework-selection.md   # Phase B1.5: Analysis framework selection debate (standard+)
-|   +-- quantitative-validation.md # Phase B5.6: Numerical claim cross-validation (deep+)
-|   +-- adversarial-red-team.md  # Phase B5.7: Adversarial stress testing (deep+)
-|
-+-- config/
-|   +-- default-config.json      # All settings (models, review, debate, arena, cache,
-|   |                            #   benchmarks, compliance, routing, fallback, cost,
-|   |                            #   feedback, context forwarding, context density,
-|   |                            #   memory tiers, pipeline evaluation, static analysis,
-|   |                            #   threat modeling, test generation, evidence tiering,
-|   |                            #   framework selection, scenario analysis, quantitative
-|   |                            #   validation, red team, consistency validation,
-|   |                            #   project context, auto-tune, Playwright integration)
-|   +-- compliance-rules.json    # Feature-to-guideline mapping
-|   +-- tech-queries.json        # Tech-to-search-query mapping (31 technologies)
-|   +-- review-prompts/          # Structured prompts (15 templates: 9 code + 6 doc)
-|   +-- schemas/                 # Codex structured output JSON schemas (7 schemas)
-|   |   +-- codex-review.json, codex-cross-examine.json, codex-defend.json
-|   |   +-- codex-business-review.json, codex-business-cross-review.json
-|   |   +-- codex-doc-review.json, codex-doc-cross-review.json
-|   +-- codex-agents/            # Codex multi-agent TOML configs (5 agents)
-|   |   +-- security.toml, bugs.toml, performance.toml
-|   |   +-- architecture.toml, testing.toml
-|   +-- benchmarks/              # Model benchmark test cases (20 cases)
-|       +-- security-test-{01,02,03}.json    # Code: security (3 tests)
-|       +-- bugs-test-{01,02,03}.json        # Code: bugs (3 tests)
-|       +-- architecture-test-01.json        # Code: architecture
-|       +-- performance-test-01.json         # Code: performance
-|       +-- business-accuracy-test-{01,02,03}.json    # Business: accuracy (3 tests)
-|       +-- business-audience-test-{01,02,03}.json    # Business: audience (3 tests)
-|       +-- business-positioning-test-{01,02,03}.json # Business: positioning (3 tests)
-|       +-- business-evidence-test-{01,02,03}.json    # Business: evidence (3 tests)
-|       +-- pipeline/            # Pipeline evaluation ground truth
-|
-+-- docs/                        # Documentation
-|   +-- adr-001-bash-architecture.md  # ADR: Why bash (trade-offs)
-|   +-- adr-002-markdown-pipelines.md # ADR: Why markdown-as-code pipelines
-|   +-- config-reference.md      # Configuration reference (all settings, env vars, examples)
-|   +-- router-examples.md       # Extracted router examples (12 cases)
-|   +-- context-forwarding.md    # Context forwarding interface spec
-|   +-- safety-protocol.md       # Commit/PR safety gate details
-|   +-- example-output.md        # Example review output
-|   +-- TODO-external-integrations.md  # Research-backed TODO items
-|
-+-- tests/                       # Test suite (21 test files)
-|   +-- run-tests.sh             # Test runner (--unit, --integration, --e2e)
-|   +-- run-shellcheck.sh        # ShellCheck lint runner
-|   +-- test-helpers.sh          # Shared test utilities
-|   +-- unit/                    # Unit tests (9 files)
-|   +-- integration/             # Integration tests (9 files)
-|   +-- e2e/                     # E2E tests (2 files, requires CLIs)
-|
-+-- Makefile                     # Build targets (test, lint, benchmark, e2e)
-+-- .github/workflows/test.yml   # CI pipeline (JSON validation, shellcheck, tests)
-|
-+-- cache/                       # Runtime cache (gitignored)
-    +-- feedback/                # Feedback JSONL storage
-    +-- short-term/              # Short-term memory (7-day TTL)
-    +-- long-term/               # Long-term memory (90-day TTL)
-    +-- permanent/               # Permanent memory (manually curated)
+├── .claude-plugin/        Plugin manifest (v3.3.0)
+├── agents/                40 agent definitions
+│   ├── (12 code review)   security, bug, arch, perf, test, scope, dep, api, obs, data, a11y, config
+│   ├── (10 business)      accuracy, audience, competitive, narrative, financial, legal, market, conversion, localization, investor
+│   ├── (6 documentation)  accuracy, completeness, freshness, readability, example, consistency
+│   ├── (3 threat model)   threat-modeler, threat-defender, threat-arbitrator
+│   ├── (3 red team)       skeptical-investor, competitor-response, regulatory-risk
+│   ├── (3 debate)         debate-arbitrator, business-debate-arbitrator, doc-debate-arbitrator
+│   ├── (2 research)       research-coordinator, design-analyzer
+│   └── (1 compliance)     compliance-checker
+├── commands/              8 slash command files
+├── config/
+│   ├── default-config.json
+│   ├── review-prompts/    15 role-specific prompts (9 code + 6 doc)
+│   ├── schemas/           7 Codex structured output schemas
+│   ├── codex-agents/      5 Codex multi-agent TOML configs
+│   ├── compliance-rules.json
+│   ├── tech-queries.json  31 technology → search query mappings
+│   └── benchmarks/        28 model benchmark test cases (8 code + 12 biz + 8 doc)
+├── scripts/               36 shell/Python scripts
+├── shared-phases/         10 shared phase definitions
+├── docs/                  ADRs, router reference, safety protocol
+├── tests/                 18 test files (8 unit + 8 integration + 2 e2e)
+├── hooks/                 PostToolUse hook + Gemini CLI adapter
+└── cache/                 Runtime knowledge cache (gitignored)
 ```
-
----
-
-## Benchmark Results
-
-Pipeline evaluation results using ground-truth test cases with planted vulnerabilities. Compares Solo (single model) vs Arena (multi-AI with cross-examination).
-
-### Solo vs Arena Comparison
-
-| Category | Solo Codex F1 | Solo Gemini F1 | Arena F1 | Arena Wins? |
-|----------|---------------|----------------|----------|-------------|
-| Security | 0.500 - 0.667 | 0.400 - 0.600 | 0.700 - 0.857 | Yes |
-| Bugs | 0.600 - 0.750 | 0.500 - 0.667 | 0.800 - 1.000 | Yes |
-| Architecture | 0.667 - 0.800 | 0.500 - 0.750 | 0.857 - 1.000 | Yes |
-| Performance | 0.500 - 0.667 | 0.400 - 0.600 | 0.750 - 0.923 | Yes |
-
-F1 ranges reflect variance across multiple runs due to LLM non-determinism.
-
-### Why Arena beats Solo
-
-Cross-examination catches errors that individual models miss. When Codex flags a "critical SQL injection" but Claude and Gemini both point to parameterized queries, the false positive is filtered out. When all three independently find the same race condition, confidence increases. The 3-round debate (review → challenge → defend/concede) acts as a filter that improves both precision and recall over any single model.
-
-### Methodology
-
-Benchmark test cases contain **planted vulnerabilities** in synthetic code (SQL injection, race conditions, etc.), each with a `ground_truth` listing expected keywords. Scoring uses keyword matching: a finding counts as a true positive if it mentions at least one expected keyword in a positive (non-negated) context. F1 = 2 * precision * recall / (precision + recall). This approach has inherent limitations — keyword matching cannot capture the nuance of whether a model truly "understood" the vulnerability vs. merely mentioned related terms.
-
-### Caveats
-
-- Benchmarks use **planted vulnerabilities** in synthetic code. Real-world detection rates will differ.
-- Results vary between runs. The ranges above represent typical outcomes, not guarantees.
-- Arena requires 2-3x the API cost of a solo review. The trade-off is higher accuracy.
-- Test cases are limited (8 code benchmarks). More diverse benchmarks are needed to generalize.
-- Keyword matching can both over-count (incidental mentions) and under-count (paraphrased findings).
-
-Run `./scripts/run-solo-benchmark.sh --verbose` to see a full Solo vs Arena comparison.
-Run `./scripts/run-benchmark.sh --verbose` to see Arena-only results.
-
----
-
-## Platform Support
-
-| Platform | Status | Notes |
-|----------|--------|-------|
-| macOS | Full support | |
-| Linux | Full support | |
-| Windows (WSL) | Full support | |
-| Windows (Git Bash) | Partial | Core features work, some scripts may need WSL |
-| Windows (Native) | Commands only | Scripts require WSL (`wsl --install`) |
-
----
-
-## Changelog
-
-### v3.4.0
-
-- **Shared Project Context** (`.ai-review-arena-context.md`): Drop a context file in your project root and every reviewer agent receives it as shared context before their filtered code view. Configurable max tokens (default 1,500), automatic budget deduction, and opt-out via `project_context.enabled: false`
-- **Playwright MCP Browser Verification** (Phase 6.7, standard+): When Playwright MCP is available and a dev server is running, Phase 6.7 performs real browser testing — navigates to changed routes, captures accessibility snapshots, takes responsive screenshots at 4 breakpoints (375/768/1024/1440px), stores baselines for comparison, and cross-validates CSS selectors from code against the live DOM. Graceful fallback to static CSS analysis when Playwright is unavailable
-- **Auto-Tune Prompt Optimization** (`scripts/auto-tune-prompts.sh`): Karpathy autoresearch-inspired loop that iteratively improves review prompt F1 scores. Measures baseline F1 via benchmarks, generates prompt mutations via Claude CLI, re-benchmarks, and keeps improvements. Includes lockfile protection, daily budget guard, convergence detection (ΔF1 < 0.5% x 3 consecutive), backup/restore, and long-term memory history. Run with `--dry-run` to preview without changes
-- **Documentation Pipeline** (Routes J-K): 6 specialized agents (accuracy, completeness, freshness, readability, examples, consistency) review documentation. Route J reviews existing docs, Route K generates/updates docs from code changes. Full intensity scaling from quick to comprehensive
-- 3 new config sections: `project_context`, `auto_tune`, `visual_verification.playwright_integration`
-- 40 agents (was 33), 36 scripts (was 31), 10 shared phases (was 9), 21 test files (was 18)
-
-### v3.3.0
-
-- **Static Analysis Integration** (Phase 5.8, standard+): Runs external scanners (semgrep, eslint, bandit, gosec, brakeman, cargo-audit) before agent review. Stack-based scanner selection, parallel execution, output normalization to standard format. Findings forwarded as additional context to Phase 6 reviewer agents
-- **STRIDE Threat Modeling** (Phase 5.9, deep+): 3-agent adversarial debate — threat-modeler identifies STRIDE threats, threat-defender challenges them as mitigated/unlikely, threat-arbitrator synthesizes into prioritized attack surface list
-- **Test Generation** (Phase 6.6, standard+): Generates regression test stubs for critical/high findings with confidence >= 70. Auto-detects test framework (jest, pytest, go test, etc.) and test directory structure
-- **Round 4 Escalation** (deep+): When Round 3 leaves unresolved high-severity disputes, a fresh-perspective arbitrator breaks the deadlock with additional evidence requirements
-- **Framework Selection Debate** (Phase B1.5, standard+): 3-agent debate selects analysis frameworks before content creation. Built-in database of 16 frameworks across content (AIDA, StoryBrand, PAS), strategy (Porter, SWOT, PESTEL, Blue Ocean), and communication (Pyramid Principle, SPIN) categories
-- **Evidence Tiering Protocol**: All 10 business reviewer agents now classify evidence quality into 4 tiers — T1 (1.0 weight, govt/academic), T2 (0.8, industry reports), T3 (0.5, news/blogs), T4 (0.3, AI estimation). Confidence adjusted by tier weight. Critical findings require T2+ evidence
-- **3-Scenario Mandate** (Phase B5.5, standard+): Strategy debate output now requires base, optimistic, and pessimistic scenarios with quantitative projections
-- **Quantitative Validation** (Phase B5.6, deep+): 2-agent team (data-verifier + methodology-auditor) cross-validates all numerical claims via WebSearch. Claims rated VERIFIED, UNVERIFIED, or CONTRADICTED with deviation percentages
-- **Adversarial Red Team** (Phase B5.7, deep+): 3 adversarial agents stress-test business content — skeptical-investor ("why NOT invest?"), competitor-response ("how would competitors counter?"), regulatory-risk ("hidden regulatory risks?"). Agent selection varies by business type
-- **Consistency Validation** (Phase B7): Cross-checks numerical consistency, claim consistency across sections, and tone consistency before final report
-- **10 new config sections**: static_analysis, threat_modeling, test_generation, debate_escalation, framework_selection, evidence_tiering, scenario_analysis, quantitative_validation, red_team, consistency_validation
-- 33 agents (was 27), 31 scripts (was 29), 9 shared phases (was 3)
-
-### v3.2.0
-
-- **Commit/PR Safety Protocol**: Mandatory review gate + user confirmation before `git commit` or `gh pr create`
-  - Commits: diff review for secrets, debug code, unintended files → AskUserQuestion confirmation
-  - PRs: full Route D code review at standard+ intensity → review findings summary → AskUserQuestion confirmation
-- **Phase 0.1-Pre: Quick Intensity Pre-Filter**: Rule-based pre-filter skips 4-agent intensity debate for obvious quick cases (rename, explanation, test execution), saving ~$0.50+ and ~30s per trivial request
-- **Core Rule Enforcement**: Explicit exempt/non-exempt lists replace vague "every request" rule — code explanations, commits, debugging all MUST route through pipeline
-- **Config 3-Level Deep Merge**: `load_config()` now properly merges default → global → project configs via `jq -s` deep merge (previously only returned first found file)
-- **Phase-Based Cost Estimation**: Rewrote `cost-estimator.sh` with per-phase token/cost tables, `--intensity`/`--pipeline`/`--lines`/`--json` params, scales by agent count and input size
-- **Shared Phases**: Extracted common phase definitions (`shared-phases/`) for intensity debate, cost estimation, and feedback routing — shared by code and business pipelines
-- **Feedback-Based Routing**: `feedback-tracker.sh recommend` computes combined score (60% feedback accuracy + 40% benchmark F1) for model-category role assignment in Phase 6/B6
-- **Benchmark Negation Detection**: `keyword_match_positive()` prevents false positives from negated mentions ("no evidence of SQL injection" no longer counts as finding SQL injection)
-- **Benchmark Multi-Format Support**: `check_ground_truth()` handles array-of-objects, single-object, and flat-array ground truth formats
-- **Cache Session Cleanup**: `cache-manager.sh cleanup-sessions` removes stale `/tmp/ai-review-arena*` directories and merged config temp files
-- **Hash Collision Resistance**: `project_hash()` extended from 48-bit (12 chars) to 80-bit (20 chars)
-- **i18n Cleanup**: All prompts, examples, and metadata in routing/command files converted to English; Korean retained only in intentional i18n output templates
-- **Context Density Filtering**: Role-based context filtering provides each agent with relevant code patterns only, reducing noise and token cost (8,000 token budget per agent)
-- **Memory Tiers**: 4-tier memory architecture (working/short-term/long-term/permanent) for cross-session learning
-- **Pipeline Evaluation**: Precision/recall/F1 metrics with LLM-as-Judge scoring and position bias mitigation
-- **Agent Hardening**: Error Recovery Protocol added to all agents (retry → partial submit → team lead notification)
-- **Positive Framing** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): All agent specs reframed from negative ("When NOT to Report") to positive ("Reporting Threshold") to avoid the pink elephant effect
-- **Duplicate Prompt Technique** ([arxiv 2512.14982](https://arxiv.org/abs/2512.14982)): Core review instructions repeated in external CLI scripts for improved non-reasoning LLM accuracy
-- **Stale Review Detection**: Git-hash-based review freshness check prevents acting on outdated findings when code changes mid-review
-- **Prompt Cache-Aware Cost Estimation**: `prompt_cache_discount` config for accurate cost projections with Claude's prefix caching
-- **Codex Structured Output**: `--output-schema` + `-o` flags for guaranteed-valid JSON output, eliminating 4-layer JSON extraction fallback. 5 JSON schemas for code review, cross-examine, defend, business review, and business cross-review. Controlled by `models.codex.structured_output` (default: `true`)
-- **Codex Multi-Agent Sub-Agents**: 5 TOML agent configs (security, bugs, performance, architecture, testing) for Codex's experimental multi-agent feature. Dual-gated: config flag AND runtime feature check. Controlled by `models.codex.multi_agent.enabled` (default: `true`). Automatic fallback to single-agent path if feature unavailable
-- **OpenAI WebSocket Debate Acceleration**: Persistent WebSocket connection (`wss://api.openai.com/v1/responses`) for ~40% faster debate rounds via `previous_response_id` chaining. Python client (`scripts/openai-ws-debate.py`) with automatic HTTP fallback. Requires `pip install openai>=2.22.0`. Controlled by `websocket.enabled` (default: `true`)
-- **Gemini CLI Hooks Cross-Compatibility**: Native Gemini CLI AfterTool hook adapter (`scripts/gemini-hook-adapter.sh`) translates Gemini hook events to Arena's review pipeline. Installer/uninstaller updated for Gemini settings. Controlled by `gemini_hooks.enabled` (default: `true`)
-
-### v3.1.0
-
-- **Business Pipeline** with Codex/Gemini external CLI integration
-  - Dual-mode scripts: `codex-business-review.sh` and `gemini-business-review.sh` (`--mode round1` for primary review, `--mode round2` for cross-review)
-  - Intensity-dependent roles: cross-reviewer at standard/deep, benchmark-driven primary at comprehensive
-- **Business Model Benchmarking** (Phase B4): 12 planted-error test cases (3 per category), F1 scoring, benchmark-driven role assignment
-- **Fallback Framework**: Structured 6-level (code) / 5-level (business) graceful degradation with state tracking and report integration
-- **Cost & Time Estimation** (Phase 0.2 / B0.2): Pre-execution cost breakdown with proceed/adjust/cancel
-- **Code Auto-Fix Loop** (Phase 6.5): Auto-fixes safe, high-confidence findings with test verification and full revert on failure
-- **Intensity Checkpoints** (Phase 2.9 / B2.9): Bidirectional mid-pipeline adjustment (upgrade or downgrade) based on research findings
-- **Feedback Loop**: JSONL-based feedback tracking with per-model/per-category accuracy reports (`feedback-tracker.sh`)
-- **Context Forwarding**: Multi-route requests pass context between pipelines with tiered token limits (20K total hard limit)
-- Updated `business-debate-arbitrator.md` with external model handling (equal weight, implicit_defend, confidence normalization)
-
-### v2.7.0
-
-- **Business Content Lifecycle Orchestrator** (`arena-business.md`)
-  - Routes G (content), H (strategy), I (communication)
-  - 5 business reviewer agents + business-debate-arbitrator
-  - Phases B0-B7: context extraction, market research, best practices, accuracy audit, strategy debate, review, report
-- Updated ARENA-ROUTER.md with 9 routes (A-F code, G-I business)
-
-### v2.6.0
-
-- **3-Round Cross-Examination** between Claude, Codex, and Gemini
-  - Round 2: each model evaluates other models' findings (agree/disagree/partial)
-  - Round 3: each model defends its findings against challenges (defend/concede/modify)
-  - Consensus synthesis with `cross_examination_trail` per finding
-- New: `codex-cross-examine.sh`, `gemini-cross-examine.sh`
-- New prompt templates: `cross-examine.txt`, `defend.txt`
-
-### v2.5.0
-
-- **Success Criteria** defined before implementation, verified in final report (PASS/FAIL)
-- **Scope Reviewer** agent enforces surgical changes
-- Inspired by [Karpathy's coding principles](https://github.com/forrestchang/andrej-karpathy-skills)
-
-### v2.4.0
-
-- **Agent Teams adversarial debate** at 5 pipeline decision points
-- Replaced static keyword rules with agent reasoning
-
-### v2.3.0
-
-- Pipeline loads command files via Read tool (fixes infinite recursion)
-
-### v2.2.0
-
-- Intent-based routing (replaces keyword matching)
-- Language-agnostic (works in any language)
-- Context Discovery phase
-
-### v2.1.0
-
-- Always-on routing
-- Codebase Analysis (Phase 0.5)
-- MCP Dependency Detection
-
-### v2.0.0
-
-- Full lifecycle orchestrator, research, stack detection, compliance, benchmarking
-
-### v1.0.0
-
-- Multi-AI adversarial code review with Claude + Codex + Gemini
-
-## Limitations
-
-- **Bash-based architecture.** All scripts require bash 4+. macOS ships bash 3.2; the installer works around this, but Windows requires WSL. See [ADR-001](docs/adr-001-bash-architecture.md) for the rationale and trade-offs.
-- **Router adds ~2KB to system prompt.** ARENA-ROUTER.md is loaded into every Claude Code session. This reduces available context window by ~2KB.
-- **External CLIs required for cross-examination.** Without Codex and Gemini CLIs, Arena falls back to Claude-only review. The 3-round cross-examination requires at least 2 model families.
-- **Benchmarks use planted bugs.** Test cases contain intentionally obvious vulnerabilities. Real-world code has subtler issues that may not be caught at the same rate.
-- **LLM non-determinism.** Results vary between runs. The same code can get different findings, different F1 scores, and different intensity decisions on consecutive runs.
-- **Cost scales with intensity.** A `comprehensive` review with 3 models and 10+ agents costs significantly more than a `quick` Claude-solo pass. The cost estimator (Phase 0.2) helps, but actual costs depend on input size and model pricing.
-- **Markdown-as-code pipelines.** Pipeline definitions are 2500+ line markdown files executed by Claude. This is unconventional and harder to debug than traditional code. See [ADR-002](docs/adr-002-markdown-pipelines.md) for the rationale.
-
----
-
-## Distribution
-
-Arena is distributed as a Claude Code plugin. Two installation methods are supported:
-
-| Method | Command | Auto-Update |
-|--------|---------|-------------|
-| **Marketplace** | `/plugin marketplace add HajinJ/ai-review-arena` | Yes |
-| **From Source** | `git clone` + `./install.sh` | Manual (`git pull`) |
-
-The marketplace method is recommended for most users. Source installation gives you access to development tools (`make test`, `make lint`, `make benchmark`).
 
 ---
 

@@ -142,6 +142,11 @@ if [ "$OUTPUT_LANG" = "ko" ]; then
   L_AGAINST="반대"
   L_STALE="STALE"
   L_STALE_WARNING="리뷰 이후 코드가 변경됨 — findings 재검증 필요"
+  L_CONTRACT_TITLE="### 검증 계약"
+  L_CONTRACT_LAYER="레이어"
+  L_CONTRACT_STATUS="상태"
+  L_CONTRACT_ISSUES="이슈"
+  L_CONTRACT_OVERALL="전체 검증 결과"
 else
   L_TITLE="## AI Review Arena Report"
   L_MODELS="Models"
@@ -169,6 +174,11 @@ else
   L_AGAINST="Against"
   L_STALE="STALE"
   L_STALE_WARNING="Code changed after review — re-verify findings"
+  L_CONTRACT_TITLE="### Verification Contract"
+  L_CONTRACT_LAYER="Layer"
+  L_CONTRACT_STATUS="Status"
+  L_CONTRACT_ISSUES="Issues"
+  L_CONTRACT_OVERALL="Overall Verification"
 fi
 
 # =============================================================================
@@ -246,6 +256,50 @@ render_severity_section() {
     render_findings "$findings"
   fi
 }
+
+# --- Contract Verification Summary ---
+CONTRACT_ENABLED="false"
+if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+  CONTRACT_ENABLED=$(jq -r '.contract_verification.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+fi
+
+if [ "$CONTRACT_ENABLED" = "true" ]; then
+  echo "$L_CONTRACT_TITLE"
+  echo ""
+  echo "| ${L_CONTRACT_LAYER} | ${L_CONTRACT_STATUS} | ${L_CONTRACT_ISSUES} |"
+  echo "|-------|--------|--------|"
+
+  OVERALL_PASS=true
+  for layer in coding_guidelines organization_invariants domain_contracts acceptance_criteria static_analysis debate_consensus; do
+    layer_count=$(echo "$ALL_FINDINGS" | jq --arg l "$layer" '[.[] | select(.contract_layer == $l)] | length' 2>/dev/null || echo "0")
+    layer_critical=$(echo "$ALL_FINDINGS" | jq --arg l "$layer" '[.[] | select(.contract_layer == $l and (.severity == "critical" or .severity == "high"))] | length' 2>/dev/null || echo "0")
+
+    if [ "$layer_count" -eq 0 ]; then
+      status="PASS"
+    elif [ "$layer_critical" -gt 0 ]; then
+      status="FAIL"
+      OVERALL_PASS=false
+    else
+      status="WARN"
+    fi
+
+    if [ "$OUTPUT_LANG" = "ko" ]; then
+      display_name=$(jq -r --arg l "$layer" '.contract_verification.layers[$l].display_name_ko // $l' "$CONFIG_FILE" 2>/dev/null || echo "$layer")
+    else
+      display_name=$(jq -r --arg l "$layer" '.contract_verification.layers[$l].display_name_en // $l' "$CONFIG_FILE" 2>/dev/null || echo "$layer")
+    fi
+
+    echo "| ${display_name} | ${status} | ${layer_count} (${layer_critical} critical/high) |"
+  done
+
+  echo ""
+  if [ "$OVERALL_PASS" = "true" ]; then
+    echo "${L_CONTRACT_OVERALL}: **PASS**"
+  else
+    echo "${L_CONTRACT_OVERALL}: **FAIL**"
+  fi
+  echo ""
+fi
 
 # Render accepted findings by severity
 render_severity_section "critical" "$L_CRITICAL"

@@ -643,6 +643,125 @@
     "trigger_threshold": 3,
     "fresh_perspective": true
   },
+  "escalation_triggers": {
+    "enabled": true,
+    "patterns": {
+      "auth_security": {
+        "file_patterns": ["*auth*", "*login*", "*session*", "*credential*", "*password*", "*token*", "*oauth*", "*jwt*"],
+        "content_patterns": ["bcrypt", "argon2", "jwt\\.sign", "jwt\\.verify", "createSession", "destroySession", "setPassword", "hashPassword"],
+        "min_intensity": "deep",
+        "require_human_approval": false,
+        "block_auto_fix": true,
+        "description_ko": "인증/세션 관리",
+        "description_en": "Authentication and session management"
+      },
+      "payment_billing": {
+        "file_patterns": ["*payment*", "*billing*", "*subscription*", "*checkout*", "*stripe*", "*purchase*"],
+        "content_patterns": ["charge", "refund", "subscription", "invoice", "price", "currency"],
+        "min_intensity": "deep",
+        "require_human_approval": true,
+        "block_auto_fix": true,
+        "description_ko": "결제/과금 로직",
+        "description_en": "Payment processing and billing"
+      },
+      "database_schema": {
+        "file_patterns": ["*migration*", "*schema*", "*.sql"],
+        "content_patterns": ["ALTER TABLE", "DROP TABLE", "CREATE TABLE", "ADD COLUMN", "DROP COLUMN"],
+        "min_intensity": "standard",
+        "require_human_approval": true,
+        "block_auto_fix": true,
+        "description_ko": "DB 스키마 변경",
+        "description_en": "Database schema modifications"
+      },
+      "crypto_secrets": {
+        "file_patterns": ["*crypto*", "*encrypt*", "*secret*", "*.env*"],
+        "content_patterns": ["encrypt", "decrypt", "AES", "RSA", "HMAC", "SECRET", "API_KEY", "PRIVATE_KEY"],
+        "min_intensity": "deep",
+        "require_human_approval": true,
+        "block_auto_fix": true,
+        "description_ko": "암호화/시크릿 관리",
+        "description_en": "Cryptographic operations and secrets"
+      },
+      "dependency_change": {
+        "file_patterns": ["package.json", "requirements.txt", "Pipfile", "go.mod", "Cargo.toml", "pom.xml", "build.gradle", "Gemfile", "*.lock"],
+        "content_patterns": [],
+        "min_intensity": "standard",
+        "require_human_approval": false,
+        "block_auto_fix": true,
+        "description_ko": "의존성 변경",
+        "description_en": "Dependency changes"
+      },
+      "infrastructure": {
+        "file_patterns": ["Dockerfile*", "docker-compose*", "*.tf", ".github/workflows/*", "Jenkinsfile"],
+        "content_patterns": ["deploy", "container", "service", "ingress"],
+        "min_intensity": "standard",
+        "require_human_approval": false,
+        "block_auto_fix": true,
+        "description_ko": "인프라/배포 설정",
+        "description_en": "Infrastructure and deployment"
+      }
+    }
+  },
+  "write_scope": {
+    "enabled": true,
+    "enforce_on_auto_fix": true,
+    "prompt_on_out_of_scope": true,
+    "include_strategy_files": true,
+    "include_git_diff_files": true,
+    "default_when_unresolvable": "project_root"
+  },
+  "contract_verification": {
+    "enabled": true,
+    "layers": {
+      "coding_guidelines": {
+        "display_name_ko": "코딩 가이드라인",
+        "display_name_en": "Coding Guidelines",
+        "sources": ["security-reviewer", "bug-detector", "performance-reviewer", "architecture-reviewer"],
+        "fail_on_critical": true
+      },
+      "organization_invariants": {
+        "display_name_ko": "조직 불변 규칙",
+        "display_name_en": "Organization Invariants",
+        "sources": ["compliance-checker"],
+        "fail_on_critical": true
+      },
+      "domain_contracts": {
+        "display_name_ko": "도메인 계약",
+        "display_name_en": "Domain Contracts",
+        "sources": ["data-integrity-reviewer", "api-contract-reviewer"],
+        "fail_on_critical": true
+      },
+      "acceptance_criteria": {
+        "display_name_ko": "인수 기준",
+        "display_name_en": "Acceptance Criteria",
+        "sources": ["scope-reviewer"],
+        "fail_on_critical": true
+      },
+      "static_analysis": {
+        "display_name_ko": "정적 분석",
+        "display_name_en": "Static Analysis",
+        "sources": ["static_analysis"],
+        "fail_on_critical": true
+      },
+      "debate_consensus": {
+        "display_name_ko": "토론 합의",
+        "display_name_en": "Debate Consensus",
+        "sources": ["cross_model_agreement"],
+        "fail_on_critical": true
+      }
+    },
+    "overall_status_logic": "all_layers_pass"
+  },
+  "spec_verification": {
+    "enabled": true,
+    "min_intensity": "standard",
+    "require_user_approval": true,
+    "auto_classify_test_type": true,
+    "max_criteria": 10,
+    "test_file_prefix": "test_acceptance_",
+    "run_after_implementation": true,
+    "fail_action": "warn"
+  },
   "framework_selection": {
     "enabled": true,
     "min_intensity": "standard",
@@ -711,6 +830,25 @@
       {"name": "desktop", "width": 1024, "height": 768},
       {"name": "wide", "width": 1440, "height": 900}
     ]
+  },
+  "agent_teams": {
+    "enabled": true,
+    "round1_collaboration": {
+      "enabled": true,
+      "signal_sharing": true,
+      "real_time_challenge": true,
+      "early_join_arbitrator": true,
+      "cross_domain_confidence_boost": 20,
+      "description_ko": "Round 1에서 리뷰어 간 실시간 신호 공유 및 교차 검증",
+      "description_en": "Real-time signal sharing and cross-validation between reviewers in Round 1"
+    },
+    "research_collaboration": {
+      "enabled": true,
+      "keep_alive_during_search": true,
+      "inter_researcher_sharing": true,
+      "description_ko": "리서치 팀이 검색 실행 중에도 발견을 공유",
+      "description_en": "Research team shares findings during search execution"
+    }
   },
   "memory_search": {
     "enabled": true,

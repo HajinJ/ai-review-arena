@@ -222,6 +222,28 @@ if [ -z "$AGGREGATED" ] || [ "$AGGREGATED" = "[]" ] || [ "$AGGREGATED" = "null" 
   exit 0
 fi
 
+# --- Contract layer classification ---
+CONTRACT_ENABLED="false"
+if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+  CONTRACT_ENABLED=$(jq -r '.contract_verification.enabled // false' "$CONFIG_FILE" 2>/dev/null || echo "false")
+fi
+
+if [ "$CONTRACT_ENABLED" = "true" ]; then
+  AGGREGATED=$(echo "$AGGREGATED" | jq '
+    map(. + {
+      contract_layer: (
+        if .role == "compliance-checker" then "organization_invariants"
+        elif (.source // "" | test("static_analysis")) then "static_analysis"
+        elif .role == "scope-reviewer" then "acceptance_criteria"
+        elif .role == "data-integrity-reviewer" or .role == "api-contract-reviewer" then "domain_contracts"
+        elif .cross_model_agreement == true then "debate_consensus"
+        else "coding_guidelines"
+        end
+      )
+    })
+  ')
+fi
+
 # --- Mark stale findings ---
 if [ "$STALE_REVIEW" = "true" ]; then
   AGGREGATED=$(echo "$AGGREGATED" | jq 'map(. + {stale: true, stale_warning: "Code changed after review — re-verify before acting on this finding"})')

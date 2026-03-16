@@ -21,11 +21,11 @@
   - Debate: debate-arbitrator, business-debate-arbitrator, doc-debate-arbitrator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell/Python scripts (35 files)
+- `scripts/` - Shell/Python scripts (36 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
   - Documentation: codex-doc-review.sh, gemini-doc-review.sh, doc-inventory.sh, benchmark-doc-models.sh
-  - Review: aggregate-findings.sh, run-debate.sh, generate-report.sh, cost-estimator.sh
+  - Review: aggregate-findings.sh, run-debate.sh, generate-report.sh, cost-estimator.sh, escalation-scan.sh
   - Arena: detect-stack.sh, cache-manager.sh, benchmark-models.sh, benchmark-business-models.sh, search-best-practices.sh, search-guidelines.sh
   - Benchmark: run-benchmark.sh, run-solo-benchmark.sh, benchmark-utils.sh
   - External integrations: openai-ws-debate.py (WebSocket debate), gemini-hook-adapter.sh (Gemini hook adapter)
@@ -37,7 +37,7 @@
   - Validation: validate-config.sh, normalize-severity.sh
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
-  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks)
+  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks, escalation_triggers, write_scope, contract_verification, spec_verification, agent_teams)
   - review-prompts/ - Role-specific review prompts (15 files: 9 code + 6 doc)
   - schemas/ - Codex structured output JSON schemas (7 files: review, cross-examine, defend, business-review, business-cross-review, doc-review, doc-cross-review)
   - codex-agents/ - Codex multi-agent TOML configs (5 files: security, bugs, performance, architecture, testing)
@@ -57,6 +57,7 @@
   - `static-analysis.md` - Phase 5.8: Static analysis scanner integration
   - `threat-modeling.md` - Phase 5.9: STRIDE 3-agent threat modeling debate
   - `test-generation.md` - Phase 6.6: Regression test stub generation
+  - `spec-verification.md` - Phase 5.5.5/6.6/7: Spec approval gate + deterministic acceptance test verification
   - `visual-verification.md` - Phase 6.7: Visual verification with CSS selector extraction (C2 philosophy)
   - `framework-selection.md` - Phase B1.5: Business framework selection debate
   - `quantitative-validation.md` - Phase B5.6: Numerical claim cross-validation
@@ -100,6 +101,12 @@
 - Feedback search uses **BM25 scoring** (C3: QMD memory system) instead of naive grep for pattern-based routing
 - WebSocket debate uses **context compaction** (E3: Codex compaction philosophy) on reconnection to preserve decision context
 - Frontend reviews include **visual verification** (C2: Agentation) with CSS selector extraction and risk assessment
+- Phase 6 Round 1 uses **Agent Teams collaborative review** — reviewers share real-time signals, debate-arbitrator joins early for cross-domain discovery
+- Phase 2 Research uses **Agent Teams collaborative search** — researchers share findings during execution, not just direction debate
+- Escalation triggers enforce intensity floor and block auto-fix for high-risk patterns (auth, payment, DB schema, crypto)
+- Write scope constrains auto-fix to files explicitly in scope, with user prompt for out-of-scope modifications
+- Contract verification classifies findings into 6 layers (coding guidelines, org invariants, domain contracts, acceptance criteria, static analysis, debate consensus)
+- Spec verification gate (Phase 5.5.5) transforms LLM-generated Success Criteria into deterministic BDD tests and static assertions
 
 ## Testing
 - Test with intentionally buggy code to verify detection
