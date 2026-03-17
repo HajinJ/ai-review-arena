@@ -80,16 +80,39 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 SCHEMA_FILE="${PLUGIN_DIR}/config/schemas/codex-review.json"
 
-# --- Read multi-agent config (experimental) ---
+# --- Read multi-agent config ---
 MULTI_AGENT=false
+AGENT_CONFIG=""
+
+# Map role names to new-format agent filenames in .codex/agents/
+declare -A ROLE_TO_NEW_AGENT=(
+  [security]="security-reviewer"
+  [bugs]="bug-detector"
+  [performance]="performance-reviewer"
+  [architecture]="architecture-reviewer"
+  [testing]="test-coverage-reviewer"
+)
+
 if [ -f "$CONFIG_FILE" ]; then
   cfg_multi_agent=$(jq -r '.models.codex.multi_agent.enabled // false' "$CONFIG_FILE" || true)
   if [ "$cfg_multi_agent" = "true" ]; then
     # Check if codex supports agents feature at runtime
     if codex exec --help 2>&1 | grep -q "agents" 2>/dev/null; then
       MULTI_AGENT=true
-      AGENTS_DIR=$(jq -r '.models.codex.multi_agent.agents_dir // "config/codex-agents"' "$CONFIG_FILE" || echo "config/codex-agents")
-      AGENT_CONFIG="${PLUGIN_DIR}/${AGENTS_DIR}/${ROLE}.toml"
+
+      # Priority 1: .codex/agents/ (project-scoped)
+      PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+      NEW_AGENT_FILE="${ROLE_TO_NEW_AGENT[$ROLE]:-}.toml"
+
+      if [ -n "$PROJECT_ROOT" ] && [ -f "${PROJECT_ROOT}/.codex/agents/${NEW_AGENT_FILE}" ]; then
+        AGENT_CONFIG="${PROJECT_ROOT}/.codex/agents/${NEW_AGENT_FILE}"
+      elif [ -f "${HOME}/.codex/agents/${NEW_AGENT_FILE}" ]; then
+        # Priority 2: ~/.codex/agents/ (user-scoped)
+        AGENT_CONFIG="${HOME}/.codex/agents/${NEW_AGENT_FILE}"
+      else
+        # No agent config found — disable multi-agent
+        MULTI_AGENT=false
+      fi
     fi
   fi
 fi

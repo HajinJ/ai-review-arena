@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "ai-review-arena",
-      "description": "Full AI development and business lifecycle orchestrator — multi-AI adversarial review (Claude + Codex + Gemini), 3-round debate with Round 4 escalation, static analysis integration, STRIDE threat modeling, evidence tiering, adversarial red team, test generation, cost estimation, and feedback-based routing",
+      "description": "Full AI development and business lifecycle orchestrator — multi-AI adversarial review (Claude + Codex subagents + Gemini), 3-round debate with Round 4 escalation, static analysis integration, STRIDE threat modeling, evidence tiering, adversarial red team, CSV batch review, test generation, cost estimation, and feedback-based routing",
       "source": "./",
       "version": "3.3.0",
       "author": {
@@ -35,12 +35,14 @@
       "category": "code-quality",
       "tags": [
         "codex",
+        "codex-subagents",
         "gemini",
         "security",
         "testing",
         "benchmarking",
         "compliance",
-        "cost-estimation"
+        "cost-estimation",
+        "csv-batch-review"
       ]
     }
   ]

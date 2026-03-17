@@ -49,10 +49,15 @@ AI model configuration. Three model families: `claude`, `codex`, `gemini`.
 | `timeout_seconds` | int | `120` | Max seconds per Codex invocation |
 | `model_variant` | string | `"gpt-5.4"` | Codex model to use |
 | `structured_output` | bool | `true` | Use `--output-schema` for guaranteed-valid JSON |
-| `multi_agent.enabled` | bool | `true` | Enable Codex multi-agent sub-agents (5 TOML configs). Dual-gated: config AND runtime feature check |
-| `multi_agent.max_threads` | int | `3` | Max parallel Codex sub-agent threads |
+| `multi_agent.enabled` | bool | `true` | Enable Codex multi-agent sub-agents. Dual-gated: config AND runtime feature check |
+| `multi_agent.max_threads` | int | `6` | Max parallel Codex sub-agent threads |
 | `multi_agent.max_depth` | int | `1` | Max sub-agent nesting depth |
-| `multi_agent.agents_dir` | string | `"config/codex-agents"` | Directory containing TOML agent configs |
+| `multi_agent.job_max_runtime_seconds` | int | `300` | Per-worker timeout for CSV batch jobs |
+| `multi_agent.agents_dir` | string | `".codex/agents"` | Primary agent directory (new-format TOML) |
+| `multi_agent.agent_name_map` | object | `{...}` | Maps role names to agent filenames |
+| `multi_agent.batch_review.enabled` | bool | `true` | Enable CSV batch review via spawn_agents_on_csv |
+| `multi_agent.batch_review.max_files_per_batch` | int | `50` | Max files per batch review |
+| `multi_agent.batch_review.script` | string | `"scripts/codex-batch-review.sh"` | Batch review script path |
 
 ### `models.gemini`
 

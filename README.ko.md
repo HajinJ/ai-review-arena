@@ -459,15 +459,202 @@ Level 5: 부분 결과 포함 에러 리포트
 
 ```
 ai-review-arena/
+├── .codex/           Codex 서브에이전트 설정 (에이전트별 모델 지정 5개)
 ├── agents/           40개 에이전트 정의 (코드 12 + 비즈 10 + 문서 6 + 유틸 12)
 ├── commands/         8개 슬래시 커맨드 (arena, multi-review, research, stack, ...)
 ├── config/           설정 파일, 프롬프트, 스키마, 벤치마크
-├── scripts/          36개 셸 스크립트 (오케스트레이션, CLI 어댑터, 유틸리티)
+├── scripts/          37개 셸 스크립트 (오케스트레이션, CLI 어댑터, 유틸리티)
 ├── shared-phases/    10개 공유 페이즈 정의
 ├── hooks/            자동 리뷰 트리거
 ├── tests/            18개 테스트 (단위 + 통합 + e2e)
 └── docs/             ADR 및 참조 문서
 ```
+
+---
+
+## 벤치마크 결과
+
+심어진 취약점이 포함된 ground-truth 테스트 케이스를 사용한 파이프라인 평가 결과. Solo (단일 모델) vs Arena (멀티 AI 교차 심문) 비교.
+
+### Solo vs Arena 비교
+
+| 카테고리 | Solo Codex F1 | Solo Gemini F1 | Arena F1 | Arena 승리? |
+|----------|---------------|----------------|----------|------------|
+| Security | 0.500 - 0.667 | 0.400 - 0.600 | 0.700 - 0.857 | 예 |
+| Bugs | 0.600 - 0.750 | 0.500 - 0.667 | 0.800 - 1.000 | 예 |
+| Architecture | 0.667 - 0.800 | 0.500 - 0.750 | 0.857 - 1.000 | 예 |
+| Performance | 0.500 - 0.667 | 0.400 - 0.600 | 0.750 - 0.923 | 예 |
+
+F1 범위는 LLM 비결정성으로 인한 여러 실행 간 분산을 반영합니다.
+
+### Arena가 Solo를 이기는 이유
+
+교차 심문은 개별 모델이 놓치는 오류를 잡아냅니다. Codex가 "치명적 SQL 인젝션"을 지적했는데 Claude와 Gemini가 모두 파라미터화된 쿼리를 가리키면, 오탐이 걸러집니다. 세 모델이 독립적으로 같은 레이스 컨디션을 발견하면 신뢰도가 올라갑니다. 3라운드 토론(리뷰 → 도전 → 방어/인정)은 단일 모델 대비 정밀도와 재현율 모두를 향상시키는 필터 역할을 합니다.
+
+### 측정 방법
+
+벤치마크 테스트 케이스는 합성 코드에 **심어진 취약점**(SQL 인젝션, 레이스 컨디션 등)을 포함하며, 각각 예상 키워드가 포함된 `ground_truth`를 가지고 있습니다. 점수 산정은 키워드 매칭을 사용합니다: 발견 사항이 예상 키워드 중 하나 이상을 긍정적(부정이 아닌) 컨텍스트에서 언급하면 참양성으로 계산합니다. F1 = 2 * 정밀도 * 재현율 / (정밀도 + 재현율). 이 방식에는 내재적 한계가 있습니다 — 키워드 매칭은 모델이 취약점을 진정으로 "이해"했는지 vs. 관련 용어를 단순히 언급했는지의 뉘앙스를 포착할 수 없습니다.
+
+### 주의사항
+
+- 벤치마크는 합성 코드의 **심어진 취약점**을 사용합니다. 실제 코드의 탐지율은 다를 수 있습니다.
+- 결과는 실행마다 달라집니다. 위 범위는 일반적인 결과를 나타내며, 보장이 아닙니다.
+- Arena는 Solo 리뷰 대비 2-3배의 API 비용이 필요합니다. 더 높은 정확도와의 트레이드오프입니다.
+- 테스트 케이스가 제한적입니다 (코드 벤치마크 8개). 일반화를 위해 더 다양한 벤치마크가 필요합니다.
+- 키워드 매칭은 과계수(우연한 언급)와 미계수(의역된 발견 사항) 모두 발생할 수 있습니다.
+
+`./scripts/run-solo-benchmark.sh --verbose`로 Solo vs Arena 전체 비교를 확인할 수 있습니다.
+`./scripts/run-benchmark.sh --verbose`로 Arena 단독 결과를 확인할 수 있습니다.
+
+---
+
+## 플랫폼 지원
+
+| 플랫폼 | 상태 | 비고 |
+|----------|--------|-------|
+| macOS | 전체 지원 | |
+| Linux | 전체 지원 | |
+| Windows (WSL) | 전체 지원 | |
+| Windows (Git Bash) | 부분 지원 | 핵심 기능 작동, 일부 스크립트는 WSL 필요 |
+| Windows (네이티브) | 명령어만 | 스크립트는 WSL 필요 (`wsl --install`) |
+
+---
+
+## 변경 이력
+
+### v3.3.0
+
+- **정적 분석 통합** (Phase 5.8, standard+): 에이전트 리뷰 전 외부 스캐너(semgrep, eslint, bandit, gosec, brakeman, cargo-audit) 실행. 스택 기반 스캐너 선택, 병렬 실행, 표준 포맷으로 출력 정규화. 발견을 Phase 6 리뷰어 에이전트에 추가 컨텍스트로 전달
+- **STRIDE 위협 모델링** (Phase 5.9, deep+): 3-에이전트 적대적 토론 — threat-modeler가 STRIDE 위협 식별, threat-defender가 완화/가능성 낮음으로 반박, threat-arbitrator가 우선순위 공격 표면 리스트로 합의
+- **테스트 생성** (Phase 6.6, standard+): 신뢰도 >= 70의 critical/high 발견에 대한 회귀 테스트 스텁 생성. 테스트 프레임워크(jest, pytest, go test 등)와 테스트 디렉토리 구조 자동 감지
+- **Round 4 에스컬레이션** (deep+): Round 3 이후 미해결 high-severity 논쟁이 남으면 새로운 관점의 중재자가 추가 증거 요구와 함께 교착 상태 해소
+- **프레임워크 선택 토론** (Phase B1.5, standard+): 콘텐츠 작성 전 3-에이전트 토론으로 분석 프레임워크 선택. 16개 내장 프레임워크 DB: 콘텐츠(AIDA, StoryBrand, PAS), 전략(Porter, SWOT, PESTEL, Blue Ocean), 커뮤니케이션(Pyramid Principle, SPIN)
+- **증거 티어링 프로토콜**: 10개 비즈니스 리뷰어 에이전트 전체에 4단계 증거 품질 분류 — T1(1.0 가중치, 정부/학술), T2(0.8, 산업 보고서), T3(0.5, 뉴스/블로그), T4(0.3, AI 추정). 신뢰도가 티어 가중치로 조정. Critical 발견은 T2+ 증거 필요
+- **3-시나리오 의무화** (Phase B5.5, standard+): 전략 토론 출력에 기본, 낙관, 비관 시나리오와 정량적 전망 의무 포함
+- **정량적 검증** (Phase B5.6, deep+): 2-에이전트 팀(data-verifier + methodology-auditor)이 WebSearch를 통해 모든 수치 주장 교차 검증. 주장을 VERIFIED, UNVERIFIED, CONTRADICTED로 편차 퍼센트와 함께 평가
+- **적대적 레드팀** (Phase B5.7, deep+): 3개 적대적 에이전트가 비즈니스 콘텐츠 스트레스 테스트 — skeptical-investor("왜 투자하면 안 되는가?"), competitor-response("경쟁자가 어떻게 반박할 것인가?"), regulatory-risk("숨겨진 규제 리스크는?"). 비즈니스 유형별 에이전트 선택
+- **일관성 검증** (Phase B7): 최종 리포트 전 수치 일관성, 섹션 간 주장 일관성, 톤 일관성 교차 확인
+- **10개 새 설정 섹션**: static_analysis, threat_modeling, test_generation, debate_escalation, framework_selection, evidence_tiering, scenario_analysis, quantitative_validation, red_team, consistency_validation
+- 33개 에이전트 (기존 27개), 32개 스크립트 (기존 29개), 9개 공유 단계 (기존 3개)
+- **Codex 서브에이전트 마이그레이션**: `config/codex-agents/`를 새 `.codex/agents/` 프로젝트 스코프 포맷으로 교체. 5개 커스텀 에이전트에 최상위 스키마 (`name`, `description`, `developer_instructions`, `nickname_candidates`) 적용. 에이전트별 모델 오버라이드 (security/bugs/architecture에 gpt-5.4 high reasoning, performance/testing에 gpt-5.3-codex-spark medium). 병렬 에이전트 UI 가독성을 위한 디스플레이 닉네임. 에이전트 해상도: `.codex/agents/` (프로젝트) → `~/.codex/agents/` (사용자). `scripts/codex-batch-review.sh`를 통한 CSV 배치 리뷰 (`spawn_agents_on_csv` 지원 + 병렬 서브프로세스 폴백). `max_threads` 3에서 6으로 증가
+
+### v3.2.0
+
+- **커밋/PR 안전 프로토콜**: `git commit`이나 `gh pr create` 전에 필수 리뷰 게이트 + 사용자 확인
+  - 커밋: 시크릿, 디버그 코드, 의도치 않은 파일에 대한 diff 리뷰 → AskUserQuestion 확인
+  - PR: standard+ 강도의 전체 Route D 코드 리뷰 → 리뷰 결과 요약 → AskUserQuestion 확인
+- **Phase 0.1-Pre: 빠른 강도 사전 필터**: 명확한 quick 케이스(이름 변경, 설명, 테스트 실행)에 대해 4개 에이전트 강도 토론을 건너뛰는 규칙 기반 사전 필터, 사소한 요청당 ~$0.50+ 및 ~30초 절감
+- **핵심 규칙 강화**: 모호한 "모든 요청" 규칙을 명시적 면제/비면제 목록으로 대체 — 코드 설명, 커밋, 디버깅 모두 반드시 파이프라인을 거침
+- **3단계 설정 딥 머지**: `load_config()`가 `jq -s` 딥 머지로 default → global → project 설정을 올바르게 병합 (이전에는 첫 번째 발견 파일만 반환)
+- **단계별 비용 추정**: 단계별 토큰/비용 테이블, `--intensity`/`--pipeline`/`--lines`/`--json` 파라미터로 `cost-estimator.sh` 재작성, 에이전트 수와 입력 크기에 따라 스케일링
+- **공유 단계**: 강도 토론, 비용 추정, 피드백 라우팅을 위한 공통 단계 정의(`shared-phases/`) 추출 — 코드와 비즈니스 파이프라인 공유
+- **피드백 기반 라우팅**: `feedback-tracker.sh recommend`가 결합 점수(60% 피드백 정확도 + 40% 벤치마크 F1)를 계산하여 Phase 6/B6에서 모델-카테고리 역할 배정
+- **벤치마크 부정 감지**: `keyword_match_positive()`가 부정된 언급의 오탐 방지 ("no evidence of SQL injection"이 SQL injection 발견으로 카운트되지 않음)
+- **벤치마크 다중 포맷 지원**: `check_ground_truth()`가 객체 배열, 단일 객체, 플랫 배열 ground truth 포맷 처리
+- **캐시 세션 정리**: `cache-manager.sh cleanup-sessions`로 오래된 `/tmp/ai-review-arena*` 디렉토리와 병합된 설정 임시 파일 제거
+- **해시 충돌 저항성**: `project_hash()`가 48비트(12자)에서 80비트(20자)로 확장
+- **i18n 정리**: 라우팅/명령 파일의 모든 프롬프트, 예제, 메타데이터를 영어로 변환; 의도적 i18n 출력 템플릿에만 한국어 유지
+- **컨텍스트 밀도 필터링**: 역할 기반 컨텍스트 필터링으로 각 에이전트에게 관련 코드 패턴만 제공, 노이즈와 토큰 비용 감소 (에이전트당 8,000 토큰 예산)
+- **메모리 계층**: 세션 간 학습을 위한 4계층 메모리 아키텍처 (working/short-term/long-term/permanent)
+- **파이프라인 평가**: LLM-as-Judge 점수화와 위치 편향 완화를 포함한 정밀도/재현율/F1 메트릭
+- **에이전트 강화**: 모든 에이전트에 Error Recovery Protocol 추가 (재시도 → 부분 제출 → 팀 리더 알림)
+- **긍정적 프레이밍** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): 핑크 코끼리 효과를 방지하기 위해 모든 에이전트 사양을 부정형("보고하지 않을 때")에서 긍정형("Reporting Threshold")으로 재구성
+- **Duplicate Prompt Technique** ([arxiv 2512.14982](https://arxiv.org/abs/2512.14982)): 비추론 LLM 정확도 향상을 위해 외부 CLI 스크립트에 핵심 리뷰 지시 반복
+- **리뷰 유효성 검증**: 리뷰 중 코드 변경 시 오래된 발견에 기반한 조치를 방지하는 git 해시 기반 리뷰 신선도 확인
+- **프롬프트 캐시 인식 비용 추정**: Claude의 프리픽스 캐싱으로 정확한 비용 예측을 위한 `prompt_cache_discount` 설정
+- **Codex 구조화된 출력**: `--output-schema` + `-o` 플래그로 보장된 유효 JSON 출력, 4계층 JSON 추출 폴백 제거. 코드 리뷰, 교차 심문, 방어, 비즈니스 리뷰, 비즈니스 교차 리뷰용 5개 JSON 스키마. `models.codex.structured_output` 설정 (기본값: `true`)
+- **Codex 멀티에이전트 서브에이전트**: `.codex/agents/`에 5개 커스텀 에이전트 설정 (새 포맷) — 에이전트별 모델, 추론 노력도, 디스플레이 닉네임. CSV 배치 리뷰 지원. `models.codex.multi_agent.enabled` 설정 (기본값: `true`)
+- **OpenAI WebSocket 토론 가속**: 영구 WebSocket 연결 (`wss://api.openai.com/v1/responses`)로 `previous_response_id` 체이닝을 통한 ~40% 빠른 토론. Python 클라이언트 (`scripts/openai-ws-debate.py`) + 자동 HTTP 폴백. `pip install openai>=2.22.0` 필요. `websocket.enabled` 설정 (기본값: `true`)
+- **Gemini CLI 훅 크로스 호환성**: 네이티브 Gemini CLI AfterTool 훅 어댑터 (`scripts/gemini-hook-adapter.sh`)가 Gemini 훅 이벤트를 Arena 리뷰 파이프라인으로 변환. 설치/제거 스크립트에 Gemini 설정 지원 추가. `gemini_hooks.enabled` 설정 (기본값: `true`)
+
+### v3.1.0
+
+- **비즈니스 파이프라인** Codex/Gemini 외부 CLI 통합
+  - 이중 모드 스크립트: `codex-business-review.sh`와 `gemini-business-review.sh` (`--mode round1` 주 리뷰, `--mode round2` 교차 리뷰)
+  - 강도별 역할: standard/deep에서 교차 리뷰어, comprehensive에서 벤치마크 기반 주 리뷰어
+- **비즈니스 모델 벤치마킹** (Phase B4): 12개 오류 삽입 테스트 케이스 (카테고리당 3개), F1 점수화, 벤치마크 기반 역할 배정
+- **폴백 프레임워크**: 구조화된 6단계(코드) / 5단계(비즈니스) 우아한 성능 저하, 상태 추적 및 리포트 통합
+- **비용 & 시간 추정** (Phase 0.2 / B0.2): 실행 전 비용 내역, 진행/조정/취소 선택
+- **코드 자동 수정 루프** (Phase 6.5): 안전하고 높은 신뢰도의 발견 자동 수정, 테스트 검증, 실패 시 전체 롤백
+- **강도 체크포인트** (Phase 2.9 / B2.9): 리서치 결과에 따른 양방향 파이프라인 중간 조정 (업그레이드/다운그레이드)
+- **피드백 루프**: JSONL 기반 피드백 추적, 모델별/카테고리별 정확도 리포트 (`feedback-tracker.sh`)
+- **컨텍스트 포워딩**: 멀티 라우트 요청이 계층적 토큰 제한(총 20K 하드 리밋)과 함께 파이프라인 간 컨텍스트 전달
+- `business-debate-arbitrator.md` 업데이트: 외부 모델 처리 (동등 가중치, implicit_defend, 신뢰도 정규화)
+
+### v2.7.0
+
+- **비즈니스 콘텐츠 라이프사이클 오케스트레이터** (`arena-business.md`)
+  - Route G (콘텐츠), H (전략), I (커뮤니케이션)
+  - 5개 비즈니스 리뷰어 에이전트 + business-debate-arbitrator
+  - Phase B0-B7: 컨텍스트 추출, 시장 조사, 모범 사례, 정확성 감사, 전략 토론, 리뷰, 리포트
+- ARENA-ROUTER.md 업데이트: 9개 라우트 (A-F 코드, G-I 비즈니스)
+
+### v2.6.0
+
+- **3라운드 교차 심문** Claude, Codex, Gemini 간
+  - 2라운드: 각 모델이 다른 모델의 발견 평가 (agree/disagree/partial)
+  - 3라운드: 각 모델이 도전에 대해 발견 방어 (defend/concede/modify)
+  - 발견별 `cross_examination_trail`과 함께 합의 종합
+- 신규: `codex-cross-examine.sh`, `gemini-cross-examine.sh`
+- 신규 프롬프트 템플릿: `cross-examine.txt`, `defend.txt`
+
+### v2.5.0
+
+- **성공 기준** 구현 전 정의, 최종 리포트에서 검증 (PASS/FAIL)
+- **Scope Reviewer** 에이전트가 수술적 변경 강제
+- [Karpathy의 코딩 원칙](https://github.com/forrestchang/andrej-karpathy-skills)에서 영감
+
+### v2.4.0
+
+- 5개 파이프라인 결정 포인트에서 **Agent Teams 적대적 토론**
+- 정적 키워드 규칙을 에이전트 추론으로 대체
+
+### v2.3.0
+
+- Read 도구로 명령 파일 로드 (무한 재귀 수정)
+
+### v2.2.0
+
+- 의도 기반 라우팅 (키워드 매칭 대체)
+- 언어 무관 (모든 언어에서 작동)
+- Context Discovery 단계
+
+### v2.1.0
+
+- 상시 작동 라우팅
+- 코드베이스 분석 (Phase 0.5)
+- MCP 의존성 감지
+
+### v2.0.0
+
+- 풀 라이프사이클 오케스트레이터, 리서치, 스택 감지, 컴플라이언스, 벤치마킹
+
+### v1.0.0
+
+- Claude + Codex + Gemini를 활용한 멀티 AI 적대적 코드 리뷰
+
+## 제한사항
+
+- **Bash 기반 아키텍처.** 모든 스크립트는 bash 4+가 필요합니다. macOS는 bash 3.2를 기본 제공하며, 설치 프로그램이 이를 우회하지만 Windows는 WSL이 필요합니다. 근거와 트레이드오프는 [ADR-001](docs/adr-001-bash-architecture.md)을 참조하세요.
+- **라우터가 시스템 프롬프트에 ~2KB 추가.** ARENA-ROUTER.md가 모든 Claude Code 세션에 로드됩니다. 사용 가능한 컨텍스트 윈도우가 ~2KB 줄어듭니다.
+- **교차 심문에 외부 CLI 필요.** Codex와 Gemini CLI 없이는 Claude 단독 리뷰로 폴백됩니다. 3라운드 교차 심문에는 최소 2개 모델 패밀리가 필요합니다.
+- **벤치마크는 심어진 버그 사용.** 테스트 케이스는 의도적으로 명확한 취약점을 포함합니다. 실제 코드의 미묘한 이슈는 같은 비율로 잡히지 않을 수 있습니다.
+- **LLM 비결정성.** 결과는 실행마다 달라집니다. 같은 코드에서 다른 발견, 다른 F1 점수, 다른 강도 결정이 나올 수 있습니다.
+- **비용은 강도에 비례.** 3개 모델과 10개 이상 에이전트를 사용하는 `comprehensive` 리뷰는 `quick` Claude 단독 패스보다 크게 비쌉니다. 비용 추정기(Phase 0.2)가 도움이 되지만, 실제 비용은 입력 크기와 모델 가격에 따라 달라집니다.
+- **마크다운 코드 파이프라인.** 파이프라인 정의가 2500줄 이상의 마크다운 파일로 Claude가 실행합니다. 전통적인 코드보다 비전통적이고 디버깅이 어렵습니다. 근거는 [ADR-002](docs/adr-002-markdown-pipelines.md)를 참조하세요.
+
+---
+
+## 배포
+
+Arena는 Claude Code 플러그인으로 배포됩니다. 두 가지 설치 방법을 지원합니다:
+
+| 방법 | 명령어 | 자동 업데이트 |
+|------|--------|-------------|
+| **마켓플레이스** | `/plugin marketplace add HajinJ/ai-review-arena` | 예 |
+| **소스에서** | `git clone` + `./install.sh` | 수동 (`git pull`) |
+
+대부분의 사용자에게 마켓플레이스 방법을 권장합니다. 소스 설치는 개발 도구 (`make test`, `make lint`, `make benchmark`)에 접근할 수 있습니다.
 
 ---
 

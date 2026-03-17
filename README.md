@@ -461,15 +461,202 @@ Level 5: Error report with partial findings
 
 ```
 ai-review-arena/
+├── .codex/           Codex subagent config (5 custom agents with per-agent model)
 ├── agents/           40 agent definitions (12 code + 10 biz + 6 doc + 12 utility)
 ├── commands/         8 slash commands (arena, multi-review, research, stack, ...)
 ├── config/           Config files, prompts, schemas, benchmarks
-├── scripts/          36 shell scripts (orchestration, CLI adapters, utilities)
+├── scripts/          37 shell scripts (orchestration, CLI adapters, utilities)
 ├── shared-phases/    10 reusable phase definitions
 ├── hooks/            Auto-review triggers
 ├── tests/            18 tests (unit + integration + e2e)
 └── docs/             ADRs and reference docs
 ```
+
+---
+
+## Benchmark Results
+
+Pipeline evaluation results using ground-truth test cases with planted vulnerabilities. Compares Solo (single model) vs Arena (multi-AI with cross-examination).
+
+### Solo vs Arena Comparison
+
+| Category | Solo Codex F1 | Solo Gemini F1 | Arena F1 | Arena Wins? |
+|----------|---------------|----------------|----------|-------------|
+| Security | 0.500 - 0.667 | 0.400 - 0.600 | 0.700 - 0.857 | Yes |
+| Bugs | 0.600 - 0.750 | 0.500 - 0.667 | 0.800 - 1.000 | Yes |
+| Architecture | 0.667 - 0.800 | 0.500 - 0.750 | 0.857 - 1.000 | Yes |
+| Performance | 0.500 - 0.667 | 0.400 - 0.600 | 0.750 - 0.923 | Yes |
+
+F1 ranges reflect variance across multiple runs due to LLM non-determinism.
+
+### Why Arena beats Solo
+
+Cross-examination catches errors that individual models miss. When Codex flags a "critical SQL injection" but Claude and Gemini both point to parameterized queries, the false positive is filtered out. When all three independently find the same race condition, confidence increases. The 3-round debate (review → challenge → defend/concede) acts as a filter that improves both precision and recall over any single model.
+
+### Methodology
+
+Benchmark test cases contain **planted vulnerabilities** in synthetic code (SQL injection, race conditions, etc.), each with a `ground_truth` listing expected keywords. Scoring uses keyword matching: a finding counts as a true positive if it mentions at least one expected keyword in a positive (non-negated) context. F1 = 2 * precision * recall / (precision + recall). This approach has inherent limitations — keyword matching cannot capture the nuance of whether a model truly "understood" the vulnerability vs. merely mentioned related terms.
+
+### Caveats
+
+- Benchmarks use **planted vulnerabilities** in synthetic code. Real-world detection rates will differ.
+- Results vary between runs. The ranges above represent typical outcomes, not guarantees.
+- Arena requires 2-3x the API cost of a solo review. The trade-off is higher accuracy.
+- Test cases are limited (8 code benchmarks). More diverse benchmarks are needed to generalize.
+- Keyword matching can both over-count (incidental mentions) and under-count (paraphrased findings).
+
+Run `./scripts/run-solo-benchmark.sh --verbose` to see a full Solo vs Arena comparison.
+Run `./scripts/run-benchmark.sh --verbose` to see Arena-only results.
+
+---
+
+## Platform Support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| macOS | Full support | |
+| Linux | Full support | |
+| Windows (WSL) | Full support | |
+| Windows (Git Bash) | Partial | Core features work, some scripts may need WSL |
+| Windows (Native) | Commands only | Scripts require WSL (`wsl --install`) |
+
+---
+
+## Changelog
+
+### v3.3.0
+
+- **Static Analysis Integration** (Phase 5.8, standard+): Runs external scanners (semgrep, eslint, bandit, gosec, brakeman, cargo-audit) before agent review. Stack-based scanner selection, parallel execution, output normalization to standard format. Findings forwarded as additional context to Phase 6 reviewer agents
+- **STRIDE Threat Modeling** (Phase 5.9, deep+): 3-agent adversarial debate — threat-modeler identifies STRIDE threats, threat-defender challenges them as mitigated/unlikely, threat-arbitrator synthesizes into prioritized attack surface list
+- **Test Generation** (Phase 6.6, standard+): Generates regression test stubs for critical/high findings with confidence >= 70. Auto-detects test framework (jest, pytest, go test, etc.) and test directory structure
+- **Round 4 Escalation** (deep+): When Round 3 leaves unresolved high-severity disputes, a fresh-perspective arbitrator breaks the deadlock with additional evidence requirements
+- **Framework Selection Debate** (Phase B1.5, standard+): 3-agent debate selects analysis frameworks before content creation. Built-in database of 16 frameworks across content (AIDA, StoryBrand, PAS), strategy (Porter, SWOT, PESTEL, Blue Ocean), and communication (Pyramid Principle, SPIN) categories
+- **Evidence Tiering Protocol**: All 10 business reviewer agents now classify evidence quality into 4 tiers — T1 (1.0 weight, govt/academic), T2 (0.8, industry reports), T3 (0.5, news/blogs), T4 (0.3, AI estimation). Confidence adjusted by tier weight. Critical findings require T2+ evidence
+- **3-Scenario Mandate** (Phase B5.5, standard+): Strategy debate output now requires base, optimistic, and pessimistic scenarios with quantitative projections
+- **Quantitative Validation** (Phase B5.6, deep+): 2-agent team (data-verifier + methodology-auditor) cross-validates all numerical claims via WebSearch. Claims rated VERIFIED, UNVERIFIED, or CONTRADICTED with deviation percentages
+- **Adversarial Red Team** (Phase B5.7, deep+): 3 adversarial agents stress-test business content — skeptical-investor ("why NOT invest?"), competitor-response ("how would competitors counter?"), regulatory-risk ("hidden regulatory risks?"). Agent selection varies by business type
+- **Consistency Validation** (Phase B7): Cross-checks numerical consistency, claim consistency across sections, and tone consistency before final report
+- **10 new config sections**: static_analysis, threat_modeling, test_generation, debate_escalation, framework_selection, evidence_tiering, scenario_analysis, quantitative_validation, red_team, consistency_validation
+- 33 agents (was 27), 32 scripts (was 29), 9 shared phases (was 3)
+- **Codex Subagent Migration**: Replaced `config/codex-agents/` with new `.codex/agents/` project-scoped format. 5 custom agents with top-level schema (`name`, `description`, `developer_instructions`, `nickname_candidates`). Per-agent model override (gpt-5.4 high reasoning for security/bugs/architecture, gpt-5.3-codex-spark medium for performance/testing). Display nicknames for parallel agent UI readability. Agent resolution: `.codex/agents/` (project) → `~/.codex/agents/` (user). CSV batch review via `scripts/codex-batch-review.sh` with `spawn_agents_on_csv` support and parallel subprocess fallback. `max_threads` increased from 3 to 6
+
+### v3.2.0
+
+- **Commit/PR Safety Protocol**: Mandatory review gate + user confirmation before `git commit` or `gh pr create`
+  - Commits: diff review for secrets, debug code, unintended files → AskUserQuestion confirmation
+  - PRs: full Route D code review at standard+ intensity → review findings summary → AskUserQuestion confirmation
+- **Phase 0.1-Pre: Quick Intensity Pre-Filter**: Rule-based pre-filter skips 4-agent intensity debate for obvious quick cases (rename, explanation, test execution), saving ~$0.50+ and ~30s per trivial request
+- **Core Rule Enforcement**: Explicit exempt/non-exempt lists replace vague "every request" rule — code explanations, commits, debugging all MUST route through pipeline
+- **Config 3-Level Deep Merge**: `load_config()` now properly merges default → global → project configs via `jq -s` deep merge (previously only returned first found file)
+- **Phase-Based Cost Estimation**: Rewrote `cost-estimator.sh` with per-phase token/cost tables, `--intensity`/`--pipeline`/`--lines`/`--json` params, scales by agent count and input size
+- **Shared Phases**: Extracted common phase definitions (`shared-phases/`) for intensity debate, cost estimation, and feedback routing — shared by code and business pipelines
+- **Feedback-Based Routing**: `feedback-tracker.sh recommend` computes combined score (60% feedback accuracy + 40% benchmark F1) for model-category role assignment in Phase 6/B6
+- **Benchmark Negation Detection**: `keyword_match_positive()` prevents false positives from negated mentions ("no evidence of SQL injection" no longer counts as finding SQL injection)
+- **Benchmark Multi-Format Support**: `check_ground_truth()` handles array-of-objects, single-object, and flat-array ground truth formats
+- **Cache Session Cleanup**: `cache-manager.sh cleanup-sessions` removes stale `/tmp/ai-review-arena*` directories and merged config temp files
+- **Hash Collision Resistance**: `project_hash()` extended from 48-bit (12 chars) to 80-bit (20 chars)
+- **i18n Cleanup**: All prompts, examples, and metadata in routing/command files converted to English; Korean retained only in intentional i18n output templates
+- **Context Density Filtering**: Role-based context filtering provides each agent with relevant code patterns only, reducing noise and token cost (8,000 token budget per agent)
+- **Memory Tiers**: 4-tier memory architecture (working/short-term/long-term/permanent) for cross-session learning
+- **Pipeline Evaluation**: Precision/recall/F1 metrics with LLM-as-Judge scoring and position bias mitigation
+- **Agent Hardening**: Error Recovery Protocol added to all agents (retry → partial submit → team lead notification)
+- **Positive Framing** ([arxiv 2602.11988](https://arxiv.org/abs/2602.11988)): All agent specs reframed from negative ("When NOT to Report") to positive ("Reporting Threshold") to avoid the pink elephant effect
+- **Duplicate Prompt Technique** ([arxiv 2512.14982](https://arxiv.org/abs/2512.14982)): Core review instructions repeated in external CLI scripts for improved non-reasoning LLM accuracy
+- **Stale Review Detection**: Git-hash-based review freshness check prevents acting on outdated findings when code changes mid-review
+- **Prompt Cache-Aware Cost Estimation**: `prompt_cache_discount` config for accurate cost projections with Claude's prefix caching
+- **Codex Structured Output**: `--output-schema` + `-o` flags for guaranteed-valid JSON output, eliminating 4-layer JSON extraction fallback. 5 JSON schemas for code review, cross-examine, defend, business review, and business cross-review. Controlled by `models.codex.structured_output` (default: `true`)
+- **Codex Multi-Agent Sub-Agents**: 5 custom agent configs in `.codex/agents/` (new format) with per-agent model, reasoning effort, and display nicknames. CSV batch review support. Controlled by `models.codex.multi_agent.enabled` (default: `true`)
+- **OpenAI WebSocket Debate Acceleration**: Persistent WebSocket connection (`wss://api.openai.com/v1/responses`) for ~40% faster debate rounds via `previous_response_id` chaining. Python client (`scripts/openai-ws-debate.py`) with automatic HTTP fallback. Requires `pip install openai>=2.22.0`. Controlled by `websocket.enabled` (default: `true`)
+- **Gemini CLI Hooks Cross-Compatibility**: Native Gemini CLI AfterTool hook adapter (`scripts/gemini-hook-adapter.sh`) translates Gemini hook events to Arena's review pipeline. Installer/uninstaller updated for Gemini settings. Controlled by `gemini_hooks.enabled` (default: `true`)
+
+### v3.1.0
+
+- **Business Pipeline** with Codex/Gemini external CLI integration
+  - Dual-mode scripts: `codex-business-review.sh` and `gemini-business-review.sh` (`--mode round1` for primary review, `--mode round2` for cross-review)
+  - Intensity-dependent roles: cross-reviewer at standard/deep, benchmark-driven primary at comprehensive
+- **Business Model Benchmarking** (Phase B4): 12 planted-error test cases (3 per category), F1 scoring, benchmark-driven role assignment
+- **Fallback Framework**: Structured 6-level (code) / 5-level (business) graceful degradation with state tracking and report integration
+- **Cost & Time Estimation** (Phase 0.2 / B0.2): Pre-execution cost breakdown with proceed/adjust/cancel
+- **Code Auto-Fix Loop** (Phase 6.5): Auto-fixes safe, high-confidence findings with test verification and full revert on failure
+- **Intensity Checkpoints** (Phase 2.9 / B2.9): Bidirectional mid-pipeline adjustment (upgrade or downgrade) based on research findings
+- **Feedback Loop**: JSONL-based feedback tracking with per-model/per-category accuracy reports (`feedback-tracker.sh`)
+- **Context Forwarding**: Multi-route requests pass context between pipelines with tiered token limits (20K total hard limit)
+- Updated `business-debate-arbitrator.md` with external model handling (equal weight, implicit_defend, confidence normalization)
+
+### v2.7.0
+
+- **Business Content Lifecycle Orchestrator** (`arena-business.md`)
+  - Routes G (content), H (strategy), I (communication)
+  - 5 business reviewer agents + business-debate-arbitrator
+  - Phases B0-B7: context extraction, market research, best practices, accuracy audit, strategy debate, review, report
+- Updated ARENA-ROUTER.md with 9 routes (A-F code, G-I business)
+
+### v2.6.0
+
+- **3-Round Cross-Examination** between Claude, Codex, and Gemini
+  - Round 2: each model evaluates other models' findings (agree/disagree/partial)
+  - Round 3: each model defends its findings against challenges (defend/concede/modify)
+  - Consensus synthesis with `cross_examination_trail` per finding
+- New: `codex-cross-examine.sh`, `gemini-cross-examine.sh`
+- New prompt templates: `cross-examine.txt`, `defend.txt`
+
+### v2.5.0
+
+- **Success Criteria** defined before implementation, verified in final report (PASS/FAIL)
+- **Scope Reviewer** agent enforces surgical changes
+- Inspired by [Karpathy's coding principles](https://github.com/forrestchang/andrej-karpathy-skills)
+
+### v2.4.0
+
+- **Agent Teams adversarial debate** at 5 pipeline decision points
+- Replaced static keyword rules with agent reasoning
+
+### v2.3.0
+
+- Pipeline loads command files via Read tool (fixes infinite recursion)
+
+### v2.2.0
+
+- Intent-based routing (replaces keyword matching)
+- Language-agnostic (works in any language)
+- Context Discovery phase
+
+### v2.1.0
+
+- Always-on routing
+- Codebase Analysis (Phase 0.5)
+- MCP Dependency Detection
+
+### v2.0.0
+
+- Full lifecycle orchestrator, research, stack detection, compliance, benchmarking
+
+### v1.0.0
+
+- Multi-AI adversarial code review with Claude + Codex + Gemini
+
+## Limitations
+
+- **Bash-based architecture.** All scripts require bash 4+. macOS ships bash 3.2; the installer works around this, but Windows requires WSL. See [ADR-001](docs/adr-001-bash-architecture.md) for the rationale and trade-offs.
+- **Router adds ~2KB to system prompt.** ARENA-ROUTER.md is loaded into every Claude Code session. This reduces available context window by ~2KB.
+- **External CLIs required for cross-examination.** Without Codex and Gemini CLIs, Arena falls back to Claude-only review. The 3-round cross-examination requires at least 2 model families.
+- **Benchmarks use planted bugs.** Test cases contain intentionally obvious vulnerabilities. Real-world code has subtler issues that may not be caught at the same rate.
+- **LLM non-determinism.** Results vary between runs. The same code can get different findings, different F1 scores, and different intensity decisions on consecutive runs.
+- **Cost scales with intensity.** A `comprehensive` review with 3 models and 10+ agents costs significantly more than a `quick` Claude-solo pass. The cost estimator (Phase 0.2) helps, but actual costs depend on input size and model pricing.
+- **Markdown-as-code pipelines.** Pipeline definitions are 2500+ line markdown files executed by Claude. This is unconventional and harder to debug than traditional code. See [ADR-002](docs/adr-002-markdown-pipelines.md) for the rationale.
+
+---
+
+## Distribution
+
+Arena is distributed as a Claude Code plugin. Two installation methods are supported:
+
+| Method | Command | Auto-Update |
+|--------|---------|-------------|
+| **Marketplace** | `/plugin marketplace add HajinJ/ai-review-arena` | Yes |
+| **From Source** | `git clone` + `./install.sh` | Manual (`git pull`) |
+
+The marketplace method is recommended for most users. Source installation gives you access to development tools (`make test`, `make lint`, `make benchmark`).
 
 ---
 

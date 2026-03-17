@@ -2,6 +2,14 @@
 
 ## Project Structure
 - `.claude-plugin/` - Plugin manifest (v3.3.0)
+- `.codex/` - Codex project configuration
+  - `config.toml` - Project-level Codex settings (max_threads=6, max_depth=1)
+  - `agents/` - New-format custom agent definitions (5 agents with per-agent model, nicknames)
+    - security-reviewer.toml (gpt-5.4, high reasoning)
+    - bug-detector.toml (gpt-5.4, high reasoning)
+    - performance-reviewer.toml (gpt-5.3-codex-spark, medium reasoning)
+    - architecture-reviewer.toml (gpt-5.4, high reasoning)
+    - test-coverage-reviewer.toml (gpt-5.3-codex-spark, medium reasoning)
 - `hooks/` - PostToolUse hook for auto-review + Gemini CLI AfterTool hook
 - `commands/` - Slash commands (8 files)
   - `arena` - Full lifecycle orchestrator (research → compliance → benchmark → review → auto-fix)
@@ -21,7 +29,7 @@
   - Debate: debate-arbitrator, business-debate-arbitrator, doc-debate-arbitrator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell/Python scripts (36 files)
+- `scripts/` - Shell/Python scripts (37 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
   - Documentation: codex-doc-review.sh, gemini-doc-review.sh, doc-inventory.sh, benchmark-doc-models.sh
@@ -29,6 +37,7 @@
   - Arena: detect-stack.sh, cache-manager.sh, benchmark-models.sh, benchmark-business-models.sh, search-best-practices.sh, search-guidelines.sh
   - Benchmark: run-benchmark.sh, run-solo-benchmark.sh, benchmark-utils.sh
   - External integrations: openai-ws-debate.py (WebSocket debate), gemini-hook-adapter.sh (Gemini hook adapter)
+  - Batch review: codex-batch-review.sh (CSV batch review via spawn_agents_on_csv)
   - Evaluation: evaluate-pipeline.sh
   - Check: check-model-updates.sh (API-based model version detection)
   - Feedback: feedback-tracker.sh
@@ -40,7 +49,6 @@
   - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks, escalation_triggers, write_scope, contract_verification, spec_verification, agent_teams)
   - review-prompts/ - Role-specific review prompts (15 files: 9 code + 6 doc)
   - schemas/ - Codex structured output JSON schemas (7 files: review, cross-examine, defend, business-review, business-cross-review, doc-review, doc-cross-review)
-  - codex-agents/ - Codex multi-agent TOML configs (5 files: security, bugs, performance, architecture, testing)
   - compliance-rules.json - Feature→guideline mapping
   - tech-queries.json - Technology→search query mapping (31 technologies)
   - benchmarks/ - Model benchmark test cases (28 files: 8 code + 12 business + 8 doc)
@@ -81,9 +89,11 @@
 - Project config: `.ai-review-arena.json` in project root
 - Global config: `~/.claude/.ai-review-arena.json`
 - Default config: `config/default-config.json`
+- Codex config: `.codex/config.toml` (project-scoped Codex settings)
 - Environment variables override config file values
 - Prefix: `MULTI_REVIEW_` (review), `ARENA_` (lifecycle)
 - Config merge: `load_config()` deep-merges default → global → project via jq
+- Codex agent resolution: `.codex/agents/` (project) → `~/.codex/agents/` (user)
 - Routing strategy: `feedback_benchmark` (60% feedback + 40% benchmark by default)
 - Context density: role-based filtering with per-agent token budgets (8000 tokens default)
 - Memory tiers: 4-tier architecture (working/short-term 7d/long-term 90d/permanent)
@@ -107,6 +117,10 @@
 - Write scope constrains auto-fix to files explicitly in scope, with user prompt for out-of-scope modifications
 - Contract verification classifies findings into 6 layers (coding guidelines, org invariants, domain contracts, acceptance criteria, static analysis, debate consensus)
 - Spec verification gate (Phase 5.5.5) transforms LLM-generated Success Criteria into deterministic BDD tests and static assertions
+- Codex custom agents in `.codex/agents/` use new top-level schema (`name`, `description`, `developer_instructions`, `nickname_candidates`, `model`, `model_reasoning_effort`, `sandbox_mode`)
+- Codex agents have inlined `developer_instructions` (no external prompt file dependency) with duplicate prompt technique
+- Security/bugs/architecture agents use gpt-5.4 with high reasoning; performance/testing use gpt-5.3-codex-spark with medium reasoning
+- CSV batch review via `scripts/codex-batch-review.sh` supports `spawn_agents_on_csv` with parallel subprocess fallback
 
 ## Testing
 - Test with intentionally buggy code to verify detection

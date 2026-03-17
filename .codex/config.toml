@@ -1,0 +1,17 @@
+# =============================================================================
+# AI Review Arena - Codex Project Configuration
+#
+# Project-scoped Codex settings for subagent orchestration.
+# Overrides user-level ~/.codex/config.toml for this project.
+# =============================================================================
+
+# --- Agent Orchestration ---
+[agents]
+max_threads = 6          # Max concurrent agent threads (up from 3)
+max_depth = 1            # Direct children only, no deeper nesting
+job_max_runtime_seconds = 300  # 5 min per worker for CSV batch jobs
+
+# --- Default Model ---
+# Agents inherit this unless they override per-agent
+model = "gpt-5.3-codex-spark"
+model_reasoning_effort = "medium"

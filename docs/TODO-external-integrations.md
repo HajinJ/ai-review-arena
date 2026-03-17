@@ -6,51 +6,62 @@ Research completed 2026-02-26. These items require external API changes or featu
 
 ## 1. Codex Sub-Agent Integration
 
-**Status**: Implemented (2026-02-26) — structured output active, sub-agents feature-flagged
+**Status**: Fully migrated (2026-03-17) — new-format custom agents, CSV batch review, per-agent model config
 **Priority**: High
-**Blocked by**: Codex multi-agent feature graduating from experimental (sub-agent path only)
+**Blocked by**: ~~Codex multi-agent feature graduating from experimental~~ GA as of March 2026
 
-### Current State (Feb 2026)
-- Codex CLI sub-agents implemented via PR #3655, tracking issue #2604 closed as COMPLETED (2026-02-23)
-- Still gated behind experimental flag (`/experimental` menu or `~/.codex/config.toml` `[features] multi_agent = true`)
-- Not yet GA -- OpenAI has not removed the experimental label
+### Current State (Mar 2026)
+- Codex CLI subagents now GA with full custom agent support
+- Replaced `config/codex-agents/` with new `.codex/agents/` project-scoped format
+- Per-agent model and reasoning effort configuration
+- CSV batch review support via `spawn_agents_on_csv`
+- Display nicknames for parallel agent UI readability
 
-### Implementation (2026-02-26)
+### Implementation History
 
-**Structured Output** (active by default):
-- Created 5 JSON schemas in `config/schemas/`: `codex-review.json`, `codex-cross-examine.json`, `codex-defend.json`, `codex-business-review.json`, `codex-business-cross-review.json`
-- Updated `codex-review.sh`, `codex-cross-examine.sh`, `codex-business-review.sh` to use `--output-schema` + `-o` flags
-- Eliminates 4-layer JSON extraction fallback when structured output succeeds
+**Phase 1 — Structured Output** (2026-02-26, active by default):
+- Created 5 JSON schemas in `config/schemas/`
+- Updated review scripts to use `--output-schema` + `-o` flags
 - Controlled by `models.codex.structured_output` config (default: `true`)
-- Automatic fallback to existing `extract_json()` if schema mode fails
 
-**Sub-Agent Configs** (feature-flagged, disabled by default):
-- Created 5 TOML agent configs in `config/codex-agents/`: `security.toml`, `bugs.toml`, `performance.toml`, `architecture.toml`, `testing.toml`
-- Added conditional multi-agent path in `codex-review.sh` — checks both config flag AND runtime feature availability
-- Controlled by `models.codex.multi_agent.enabled` config (default: `false`)
-- Automatic fallback to single-agent path if feature unavailable
+**Phase 2 — New-Format Custom Agents** (2026-03-17, active by default):
+- Created `.codex/config.toml` — project-level Codex config with `max_threads=6`, `max_depth=1`, `job_max_runtime_seconds=300`
+- Created 5 new-format agents in `.codex/agents/` with top-level schema:
+  - `security-reviewer.toml` — gpt-5.4, high reasoning, nicknames: Sentinel/Aegis/Guardian/Shield/Warden
+  - `bug-detector.toml` — gpt-5.4, high reasoning, nicknames: Sherlock/Inspector/Tracker/Scout/Sleuth
+  - `performance-reviewer.toml` — gpt-5.3-codex-spark, medium reasoning, nicknames: Flash/Turbo/Blaze/Nitro/Bolt
+  - `architecture-reviewer.toml` — gpt-5.4, high reasoning, nicknames: Blueprint/Compass/Keystone/Pillar/Atlas
+  - `test-coverage-reviewer.toml` — gpt-5.3-codex-spark, medium reasoning, nicknames: Validator/Prober/Checker/Verifier/Auditor
+- Each agent has full `developer_instructions` inlined (no external prompt file dependency)
+- Each agent includes duplicate prompt technique (arxiv 2512.14982) with `[CORE INSTRUCTION REPEAT]`
+- Updated `codex-review.sh` — agent resolution: `.codex/agents/` (project) → `~/.codex/agents/` (user)
+- Created `scripts/codex-batch-review.sh` — CSV batch review with `spawn_agents_on_csv` + parallel fallback
+- Removed legacy `config/codex-agents/` directory
 
-### Original Research Notes
-- Our `codex-review.sh` already uses `codex exec --full-auto` for non-interactive mode
-- Codex supports `--json` for JSONL event streams and `--output-schema` for structured output
-- Codex can run as MCP server: `codex mcp-server` (runs over stdio)
+### Agent Resolution Priority
+1. `.codex/agents/{agent-name}.toml` (project-scoped)
+2. `~/.codex/agents/{agent-name}.toml` (user-scoped)
 
 ### Key Config Knobs
 | Setting | Type | Purpose |
 |---------|------|---------|
-| `agents.max_threads` | number | Max concurrent agent threads |
+| `agents.max_threads` | number | Max concurrent agent threads (default: 6) |
 | `agents.max_depth` | number | Max nesting depth (default: 1) |
+| `agents.job_max_runtime_seconds` | number | Per-worker timeout for CSV batch jobs (default: 300) |
+| `multi_agent.agents_dir` | string | Agent directory (default: `.codex/agents`) |
+| `multi_agent.batch_review.enabled` | boolean | Enable CSV batch review (default: true) |
+| `multi_agent.batch_review.max_files_per_batch` | number | Max files per batch (default: 50) |
 
-### Limitations to Plan For
+### Limitations
 - Sub-agents inherit parent sandbox; cannot escalate permissions
 - Context window pollution across many files (each sub-agent has independent context)
 - Cost scales linearly with sub-agent count
-- Shell escaping required for `codex exec` prompts
+- `spawn_agents_on_csv` requires Codex GA; fallback uses parallel subprocesses
 
 ### Sources
-- [Codex Multi-agents Documentation](https://developers.openai.com/codex/multi-agent/)
+- [Codex Subagents Documentation](https://developers.openai.com/codex/subagents/)
+- [Codex Custom Agents](https://developers.openai.com/codex/custom-agents/)
 - [Codex CLI Reference](https://developers.openai.com/codex/cli/reference/)
-- [Codex Non-interactive Mode](https://developers.openai.com/codex/noninteractive/)
 - [Codex Configuration Reference](https://developers.openai.com/codex/config-reference/)
 
 ---
