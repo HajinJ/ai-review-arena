@@ -39,14 +39,28 @@ case "$ROLE" in
 esac
 
 # --- Map role to agent name ---
-declare -A ROLE_TO_AGENT=(
-  [security]="security_reviewer"
-  [bugs]="bug_detector"
-  [performance]="performance_reviewer"
-  [architecture]="architecture_reviewer"
-  [testing]="test_coverage_reviewer"
-)
-AGENT_NAME="${ROLE_TO_AGENT[$ROLE]}"
+_role_to_agent_name() {
+  case "$1" in
+    security)      echo "security_reviewer" ;;
+    bugs)          echo "bug_detector" ;;
+    performance)   echo "performance_reviewer" ;;
+    architecture)  echo "architecture_reviewer" ;;
+    testing)       echo "test_coverage_reviewer" ;;
+    *)             echo "" ;;
+  esac
+}
+
+_role_to_agent_file() {
+  case "$1" in
+    security)      echo "security-reviewer" ;;
+    bugs)          echo "bug-detector" ;;
+    performance)   echo "performance-reviewer" ;;
+    architecture)  echo "architecture-reviewer" ;;
+    testing)       echo "test-coverage-reviewer" ;;
+    *)             echo "" ;;
+  esac
+}
+AGENT_NAME="$(_role_to_agent_name "$ROLE")"
 
 # --- Check dependencies ---
 if ! command -v codex &>/dev/null; then
@@ -97,11 +111,11 @@ fi
 
 # --- Check if .codex/agents/ exists with our agent ---
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PLUGIN_DIR")
-CODEX_AGENT_FILE="${PROJECT_ROOT}/.codex/agents/${ROLE_TO_AGENT_FILE[$ROLE]:-}.toml"
+CODEX_AGENT_FILE="${PROJECT_ROOT}/.codex/agents/$(_role_to_agent_file "$ROLE").toml"
 
 # --- Generate CSV ---
-CSV_FILE=$(mktemp --suffix=.csv)
-OUTPUT_CSV=$(mktemp --suffix=.csv)
+CSV_FILE=$(mktemp "${TMPDIR:-/tmp}/arena-batch-XXXXXX") && mv "$CSV_FILE" "${CSV_FILE}.csv" && CSV_FILE="${CSV_FILE}.csv"
+OUTPUT_CSV=$(mktemp "${TMPDIR:-/tmp}/arena-batch-out-XXXXXX") && mv "$OUTPUT_CSV" "${OUTPUT_CSV}.csv" && OUTPUT_CSV="${OUTPUT_CSV}.csv"
 echo "path,role,agent" > "$CSV_FILE"
 for file in "${FILES[@]}"; do
   echo "${file},${ROLE},${AGENT_NAME}" >> "$CSV_FILE"

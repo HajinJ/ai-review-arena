@@ -42,7 +42,10 @@ EXCLUDE_PATTERNS=("node_modules" "vendor" "dist" ".git" "*.min.*")
 if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
   cfg_extensions=$(jq -r '.docs.doc_extensions // empty' "$CONFIG_FILE" 2>/dev/null || true)
   if [ -n "$cfg_extensions" ]; then
-    mapfile -t DOC_EXTENSIONS < <(echo "$cfg_extensions" | jq -r '.[]')
+    DOC_EXTENSIONS=()
+    while IFS= read -r ext; do
+      [ -n "$ext" ] && DOC_EXTENSIONS+=("$ext")
+    done < <(echo "$cfg_extensions" | jq -r '.[]')
   fi
 fi
 
@@ -106,7 +109,9 @@ while IFS= read -r file; do
   if command -v git &>/dev/null && git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree &>/dev/null; then
     last_modified=$(git -C "$PROJECT_ROOT" log -1 --format="%aI" -- "$rel_path" 2>/dev/null || echo "unknown")
   else
-    last_modified=$(stat -f "%Sm" -t "%Y-%m-%dT%H:%M:%S" "$file" 2>/dev/null || stat --format="%Y" "$file" 2>/dev/null || echo "unknown")
+    last_modified=$(stat -f "%Sm" -t "%Y-%m-%dT%H:%M:%S" "$file" 2>/dev/null \
+      || stat --format="%y" "$file" 2>/dev/null | cut -d. -f1 \
+      || echo "unknown")
   fi
 
   ext="${file##*.}"

@@ -24,6 +24,24 @@ PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 
 source "$SCRIPT_DIR/utils.sh"
 
+# bc fallback: use awk when bc is not available (Windows Git Bash, some Linux)
+_calc() {
+  if command -v bc &>/dev/null; then
+    echo "$1" | bc 2>/dev/null || echo "0"
+  else
+    awk "BEGIN { printf \"%.3f\", $1 }" 2>/dev/null || echo "0"
+  fi
+}
+
+# bc comparison fallback: returns "1" if expression is true, "0" otherwise
+_bc_test() {
+  if command -v bc &>/dev/null; then
+    echo "$1" | bc 2>/dev/null || echo "0"
+  else
+    awk "BEGIN { print ($1) ? 1 : 0 }" 2>/dev/null || echo "0"
+  fi
+}
+
 CONFIG_FILE="${1:-}"
 TEST_DIR=""
 OUTPUT_FORMAT="markdown"
@@ -193,19 +211,19 @@ calculate_metrics() {
   local fpr=0
 
   if [ $((tp + fp)) -gt 0 ]; then
-    precision=$(echo "scale=3; $tp / ($tp + $fp)" | bc || echo "0")
+    precision=$(_calc "scale=3; $tp / ($tp + $fp)")
   fi
 
   if [ $((tp + fn)) -gt 0 ]; then
-    recall=$(echo "scale=3; $tp / ($tp + $fn)" | bc || echo "0")
+    recall=$(_calc "scale=3; $tp / ($tp + $fn)")
   fi
 
-  if [ "$(echo "$precision + $recall > 0" | bc 2>/dev/null)" = "1" ]; then
-    f1=$(echo "scale=3; 2 * $precision * $recall / ($precision + $recall)" | bc || echo "0")
+  if [ "$(_bc_test "$precision + $recall > 0")" = "1" ]; then
+    f1=$(_calc "scale=3; 2 * $precision * $recall / ($precision + $recall)")
   fi
 
   if [ $((fp + tp)) -gt 0 ]; then
-    fpr=$(echo "scale=3; $fp / ($fp + $tp)" | bc || echo "0")
+    fpr=$(_calc "scale=3; $fp / ($fp + $tp)")
   fi
 
   cat <<METRICS_JSON
@@ -371,10 +389,10 @@ MOCK_FINDING
   tc_recall=$(echo "$METRICS" | jq '.recall // 0')
 
   passed="true"
-  if [ "$(echo "$tc_precision < $min_precision" | bc 2>/dev/null)" = "1" ]; then
+  if [ "$(_bc_test "$tc_precision < $min_precision")" = "1" ]; then
     passed="false"
   fi
-  if [ "$(echo "$tc_recall < $min_recall" | bc 2>/dev/null)" = "1" ]; then
+  if [ "$(_bc_test "$tc_recall < $min_recall")" = "1" ]; then
     passed="false"
   fi
 
@@ -404,19 +422,19 @@ AGG_F1=0
 AGG_FPR=0
 
 if [ $((TOTAL_TP + TOTAL_FP)) -gt 0 ]; then
-  AGG_PRECISION=$(echo "scale=3; $TOTAL_TP / ($TOTAL_TP + $TOTAL_FP)" | bc || echo "0")
+  AGG_PRECISION=$(_calc "scale=3; $TOTAL_TP / ($TOTAL_TP + $TOTAL_FP)")
 fi
 
 if [ $((TOTAL_TP + TOTAL_FN)) -gt 0 ]; then
-  AGG_RECALL=$(echo "scale=3; $TOTAL_TP / ($TOTAL_TP + $TOTAL_FN)" | bc || echo "0")
+  AGG_RECALL=$(_calc "scale=3; $TOTAL_TP / ($TOTAL_TP + $TOTAL_FN)")
 fi
 
-if [ "$(echo "$AGG_PRECISION + $AGG_RECALL > 0" | bc 2>/dev/null)" = "1" ]; then
-  AGG_F1=$(echo "scale=3; 2 * $AGG_PRECISION * $AGG_RECALL / ($AGG_PRECISION + $AGG_RECALL)" | bc || echo "0")
+if [ "$(_bc_test "$AGG_PRECISION + $AGG_RECALL > 0")" = "1" ]; then
+  AGG_F1=$(_calc "scale=3; 2 * $AGG_PRECISION * $AGG_RECALL / ($AGG_PRECISION + $AGG_RECALL)")
 fi
 
 if [ $((TOTAL_FP + TOTAL_TP)) -gt 0 ]; then
-  AGG_FPR=$(echo "scale=3; $TOTAL_FP / ($TOTAL_FP + $TOTAL_TP)" | bc || echo "0")
+  AGG_FPR=$(_calc "scale=3; $TOTAL_FP / ($TOTAL_FP + $TOTAL_TP)")
 fi
 
 CASES_EVALUATED=${#RESULTS[@]}

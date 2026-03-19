@@ -129,7 +129,7 @@ arena_timeout() {
     local watchdog=$!
     wait "$pid" 2>/dev/null
     local ret=$?
-    kill "$watchdog" 2>/dev/null
+    kill "$watchdog" 2>/dev/null || true
     wait "$watchdog" 2>/dev/null
     return $ret
   fi

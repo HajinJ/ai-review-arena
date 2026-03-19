@@ -160,7 +160,7 @@ Commits and PRs are NOT eligible for auto-quick — they always go through the S
 | Intensity | Code Phases | Business Phases | Documentation Phases |
 |-----------|-------------|-----------------|---------------------|
 | `quick` | 0 → 0.1-Pre → 0.5 | B0 → B0.1-Pre → B0.5 | D0 → D0.1-Pre → D0.5 |
-| `standard` | 0 → 0.1 → 0.2 → 0.5 → 1 → 5.5 → 5.8 → 6 → 6.5 → 6.6 → 6.7 → 7 | B0 → B0.1 → B0.2 → B0.5 → B1 → B1.5 → B5.5(+scenarios) → B6 → B6.5 → B7(+consistency) | D0 → D0.1 → D0.2 → D0.5 → D1 → D5.5 → D6 → D6.5 → D6.6 → D7 |
+| `standard` | 0 → 0.1 → 0.2 → 0.5(+escalation) → 1 → 5.5 → 5.5.5(spec) → 5.8 → 6 → 6.5(+scope) → 6.6(+spec) → 6.7 → 7(+contract) | B0 → B0.1 → B0.2 → B0.5 → B1 → B1.5 → B5.5(+scenarios) → B6 → B6.5 → B7(+consistency) | D0 → D0.1 → D0.2 → D0.5 → D1 → D5.5 → D6 → D6.5 → D6.6 → D7 |
 | `deep` | + Phase 2, 2.9, 3, 5.9, Round 4 escalation | + B2, B2.9, B3, B5.6, B5.7 | + D2(+debate), D3(+debate) |
 | `comprehensive` | + Phase 4, 5 | + B4 | + D4(benchmark) |
 

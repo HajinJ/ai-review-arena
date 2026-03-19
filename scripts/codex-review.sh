@@ -85,13 +85,17 @@ MULTI_AGENT=false
 AGENT_CONFIG=""
 
 # Map role names to new-format agent filenames in .codex/agents/
-declare -A ROLE_TO_NEW_AGENT=(
-  [security]="security-reviewer"
-  [bugs]="bug-detector"
-  [performance]="performance-reviewer"
-  [architecture]="architecture-reviewer"
-  [testing]="test-coverage-reviewer"
-)
+# Using case statement for Bash 3.2 compatibility (macOS default — no declare -A)
+_role_to_agent_file() {
+  case "$1" in
+    security)      echo "security-reviewer" ;;
+    bugs)          echo "bug-detector" ;;
+    performance)   echo "performance-reviewer" ;;
+    architecture)  echo "architecture-reviewer" ;;
+    testing)       echo "test-coverage-reviewer" ;;
+    *)             echo "" ;;
+  esac
+}
 
 if [ -f "$CONFIG_FILE" ]; then
   cfg_multi_agent=$(jq -r '.models.codex.multi_agent.enabled // false' "$CONFIG_FILE" || true)
@@ -102,7 +106,7 @@ if [ -f "$CONFIG_FILE" ]; then
 
       # Priority 1: .codex/agents/ (project-scoped)
       PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-      NEW_AGENT_FILE="${ROLE_TO_NEW_AGENT[$ROLE]:-}.toml"
+      NEW_AGENT_FILE="$(_role_to_agent_file "$ROLE").toml"
 
       if [ -n "$PROJECT_ROOT" ] && [ -f "${PROJECT_ROOT}/.codex/agents/${NEW_AGENT_FILE}" ]; then
         AGENT_CONFIG="${PROJECT_ROOT}/.codex/agents/${NEW_AGENT_FILE}"
