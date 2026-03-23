@@ -109,9 +109,6 @@ if codex --help 2>&1 | grep -q "spawn_agents_on_csv" 2>/dev/null; then
   NATIVE_CSV=true
 fi
 
-# --- Resolve project root ---
-PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PLUGIN_DIR")
-
 # --- Generate CSV ---
 CSV_FILE=$(mktemp "${TMPDIR:-/tmp}/arena-batch-XXXXXX") && mv "$CSV_FILE" "${CSV_FILE}.csv" && CSV_FILE="${CSV_FILE}.csv"
 OUTPUT_CSV=$(mktemp "${TMPDIR:-/tmp}/arena-batch-out-XXXXXX") && mv "$OUTPUT_CSV" "${OUTPUT_CSV}.csv" && OUTPUT_CSV="${OUTPUT_CSV}.csv"
