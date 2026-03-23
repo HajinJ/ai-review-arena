@@ -109,9 +109,8 @@ if codex --help 2>&1 | grep -q "spawn_agents_on_csv" 2>/dev/null; then
   NATIVE_CSV=true
 fi
 
-# --- Check if .codex/agents/ exists with our agent ---
+# --- Resolve project root ---
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PLUGIN_DIR")
-CODEX_AGENT_FILE="${PROJECT_ROOT}/.codex/agents/$(_role_to_agent_file "$ROLE").toml"
 
 # --- Generate CSV ---
 CSV_FILE=$(mktemp "${TMPDIR:-/tmp}/arena-batch-XXXXXX") && mv "$CSV_FILE" "${CSV_FILE}.csv" && CSV_FILE="${CSV_FILE}.csv"
@@ -209,7 +208,7 @@ if [ -f "$OUTPUT_CSV" ] && [ -s "$OUTPUT_CSV" ]; then
   # Output CSV has columns: path, role, agent, job_id, item_id, status, last_error, result_json
   echo "["
   FIRST=true
-  while IFS=, read -r path role agent job_id item_id status last_error result_json; do
+  while IFS=, read -r path role _ _ _ status last_error result_json; do
     [ "$path" = "path" ] && continue  # skip header
     [ "$FIRST" = "true" ] && FIRST=false || echo ","
     if [ "$status" = "completed" ] && [ -n "$result_json" ]; then
