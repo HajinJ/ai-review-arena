@@ -26,7 +26,6 @@ shift 2
 
 # --- Resolve paths ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/utils.sh"
 
 # --- Validate role ---
@@ -50,16 +49,6 @@ _role_to_agent_name() {
   esac
 }
 
-_role_to_agent_file() {
-  case "$1" in
-    security)      echo "security-reviewer" ;;
-    bugs)          echo "bug-detector" ;;
-    performance)   echo "performance-reviewer" ;;
-    architecture)  echo "architecture-reviewer" ;;
-    testing)       echo "test-coverage-reviewer" ;;
-    *)             echo "" ;;
-  esac
-}
 AGENT_NAME="$(_role_to_agent_name "$ROLE")"
 
 # --- Check dependencies ---
