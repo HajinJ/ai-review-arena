@@ -378,6 +378,75 @@ Debate: "AI #2, you said this is safe. AI #1 says it's not. Defend your position
 
 ---
 
+## v3.4.0 — Self-Improving Review Pipeline
+
+### Gotchas: Domain-Specific False Positive Filters
+
+Every agent now has a `## Gotchas` section — patterns that *look* like issues but aren't:
+
+```
+Security Reviewer Gotchas:
+─────────────────────────
+✗ "Prisma ORM query → SQL injection"       → ORM is parameterized by default
+✗ ".env.example has API_KEY=xxx"            → placeholder, not real secret
+✗ "test file has hardcoded password"        → mock credentials for tests
+✗ "CORS wildcard in dev config"             → expected in development
+```
+
+This was the #1 source of noise. 40 agents × 3-6 gotchas each = significantly fewer false positives.
+
+### Visual Reports with Mermaid
+
+Review reports now include auto-generated diagrams:
+
+```
+┌─────────────────────────────────────────────┐
+│  📊 Severity Pie Chart                       │
+│  Critical: 1 | High: 3 | Medium: 5 | Low: 2 │
+├─────────────────────────────────────────────┤
+│  🔗 Agent Participation Graph                │
+│  Claude ──► Security(3) ──► Consensus(2✓ 1✗)│
+│  Codex  ──► Bugs(2)     ──► Consensus(2✓)   │
+├─────────────────────────────────────────────┤
+│  🔄 Review Flow Diagram                      │
+│  Config → Intensity → Codebase → Review → …  │
+└─────────────────────────────────────────────┘
+```
+
+### Iterative Review (Ralph Loop)
+
+Inspired by the "Ralph loop" pattern — review, fix, review again with fresh context:
+
+```bash
+scripts/ralph-loop.sh src/auth/
+# Iteration 1: 3 critical found → fix
+# Iteration 2: 1 high found → fix
+# Iteration 3: clean ✓ — all issues resolved
+```
+
+### Cross-Agent Signal Log
+
+Agents now persist signals to a JSONL log during reviews:
+
+```bash
+scripts/signal-log.sh stats .          # aggregate signal statistics
+scripts/signal-log.sh learn .          # extract patterns for future reviews
+```
+
+### More in v3.4.0
+
+| Feature | Description |
+|---------|-------------|
+| **Session Handover** | Auto-saves state when context window fills, resumes in new session |
+| **FTS5 Search** | BM25-ranked full-text search across cache, memory, and signal logs |
+| **Knowledge Graph** | JSONL triple store tracking finding relationships over time |
+| **Fleet/Swarm Mode** | Fleet = same review × multiple targets; Swarm = parallel aspect review |
+| **Phase Contracts** | YAML definitions of inputs/outputs between pipeline phases |
+| **Feedback → Gotchas** | `feedback-tracker.sh improve` generates gotcha suggestions from false positive patterns |
+| **Review Daemon** | Background queue for async PR reviews |
+
+---
+
 ## Quick Start
 
 ### Install
