@@ -464,9 +464,9 @@ ai-review-arena/
 ├── .codex/           Codex subagent config (5 custom agents with per-agent model)
 ├── agents/           40 agent definitions (12 code + 10 biz + 6 doc + 12 utility)
 ├── commands/         8 slash commands (arena, multi-review, research, stack, ...)
-├── config/           Config files, prompts, schemas, benchmarks
-├── scripts/          37 shell scripts (orchestration, CLI adapters, utilities)
-├── shared-phases/    10 reusable phase definitions
+├── config/           Config files, prompts, schemas, benchmarks, phase contracts
+├── scripts/          39 shell scripts (orchestration, CLI adapters, utilities)
+├── shared-phases/    13 reusable phase definitions
 ├── hooks/            Auto-review triggers
 ├── tests/            18 tests (unit + integration + e2e)
 └── docs/             ADRs and reference docs
@@ -523,6 +523,23 @@ Run `./scripts/run-benchmark.sh --verbose` to see Arena-only results.
 ---
 
 ## Changelog
+
+### v3.4.0
+
+- **Gotchas Sections**: All 40 agents now have `## Gotchas` with 3-6 domain-specific false positive patterns each, reducing noise from known-safe patterns (e.g., ORM parameterized queries flagged as SQL injection, test file mock credentials flagged as hardcoded secrets)
+- **Mermaid Report Visualization**: `generate-report.sh` outputs severity pie chart, agent participation graph, and review flow diagram as Mermaid blocks — renders in GitHub PR comments and markdown viewers
+- **Intensity Rationale**: Reports now explain *why* a specific intensity was chosen (e.g., "deep — auth-related changes detected")
+- **JSONL Signal Log** (`signal-log.sh`): Cross-agent signals (finding, challenge, support, escalation, consensus) persisted as append-only JSONL. `learn` command extracts patterns for future reviews
+- **Session Handover Protocol** (`shared-phases/session-handover.md`): Auto-saves review state when context window exceeds 60%, generates resume-prompt for seamless continuation in new session
+- **Phase Artifact Contracts** (`config/phase-contracts.yaml`): YAML definitions of inputs, outputs, and `consumed_by` relationships for all pipeline phases across code, business, and doc pipelines
+- **Feedback Auto-Improvement**: `feedback-tracker.sh improve` analyzes false positive patterns to generate gotcha suggestions; `patterns` extracts best models per category (cognee observe-inspect-amend-evaluate pattern)
+- **FTS5 Search with BM25** (`cache-manager.sh search`): SQLite FTS5 full-text search across memory tiers and signal logs with BM25 ranking. Auto-builds index, grep fallback when SQLite unavailable
+- **Knowledge Graph** (`cache-manager.sh graph-*`): JSONL triple store for tracking finding relationships, agent performance, and pattern evolution over time
+- **Fleet/Swarm Mode**: Fleet = same review across multiple targets (monorepo); Swarm = parallel aspect review with convergence. Configurable via `fleet_swarm` config section
+- **Ralph Loop** (`ralph-loop.sh`): Iterative review-fix-review loop with fresh context per iteration, runs until no critical/high findings remain (max 5 iterations)
+- **Review Daemon** (`review-daemon.sh`): Async ticket queue for background PR reviews with enqueue/process/status/list commands
+- **Review Visualization Templates** (`shared-phases/review-visualization.md`): 4 Mermaid diagram templates (severity pie, review flow, agent participation, intensity mindmap)
+- 40 agents (each +Gotchas), 39 scripts (was 37), 13 shared phases (was 10), 4 new config sections
 
 ### v3.3.0
 

@@ -1,0 +1,249 @@
+# =============================================================================
+# Phase Artifact Contracts
+# Defines required inputs/outputs between pipeline phases.
+# Each phase declares what it produces and what it consumes.
+# Used by arena.md to validate phase handoffs.
+# =============================================================================
+
+# --- Code Pipeline Phases ---
+
+phase_0_context:
+  outputs:
+    project_root: "Absolute path to project root"
+    merged_config: "Deep-merged config (default → global → project)"
+    target_files: "List of files in review scope"
+  consumed_by: [phase_0_1, phase_0_5]
+
+phase_0_1_intensity:
+  inputs:
+    target_files: "from phase_0"
+    merged_config: "from phase_0"
+  outputs:
+    intensity: "quick|standard|deep|comprehensive"
+    intensity_rationale: "JSON object with reasons for the chosen intensity"
+    escalation_triggers_found: "List of matched escalation patterns"
+  consumed_by: [phase_0_2, phase_0_5, phase_7]
+
+phase_0_2_cost:
+  inputs:
+    intensity: "from phase_0_1"
+    merged_config: "from phase_0"
+  outputs:
+    cost_estimate: "JSON with estimated tokens, time, and cost"
+    user_approved: "boolean - user confirmed proceed"
+  consumed_by: [phase_0_5]
+
+phase_0_5_codebase:
+  inputs:
+    target_files: "from phase_0"
+    intensity: "from phase_0_1"
+  outputs:
+    conventions: "Project coding conventions and patterns"
+    reusable_code: "Existing patterns that should be reused"
+    codebase_structure: "Directory tree and module relationships"
+  consumed_by: [phase_1, phase_5_5, phase_6]
+
+phase_1_stack:
+  inputs:
+    project_root: "from phase_0"
+  outputs:
+    stack_detection: "JSON with languages, frameworks, build tools"
+    reviewer_role_hints: "Which reviewer agents are most relevant"
+  consumed_by: [phase_3, phase_5_8, phase_6]
+
+phase_2_research:
+  requires_intensity: "deep+"
+  inputs:
+    target_files: "from phase_0"
+    stack_detection: "from phase_1"
+  outputs:
+    research_findings: "Prioritized research results"
+    best_practices: "Applicable best practices for the stack"
+  consumed_by: [phase_5_5, phase_6]
+
+phase_2_9_checkpoint:
+  requires_intensity: "deep+"
+  inputs:
+    research_findings: "from phase_2"
+    intensity: "from phase_0_1"
+  outputs:
+    adjusted_intensity: "Potentially escalated intensity level"
+    escalation_reason: "Why intensity was adjusted (if changed)"
+  consumed_by: [phase_3]
+
+phase_3_compliance:
+  requires_intensity: "deep+"
+  inputs:
+    stack_detection: "from phase_1"
+    target_files: "from phase_0"
+  outputs:
+    compliance_guidelines: "Applicable guidelines (OWASP, WCAG, etc.)"
+    compliance_scope: "Which files/features need compliance review"
+  consumed_by: [phase_6]
+
+phase_4_benchmark:
+  requires_intensity: "comprehensive"
+  inputs:
+    merged_config: "from phase_0"
+  outputs:
+    model_scores: "Benchmark results per model per category"
+    role_assignments: "Which model gets which reviewer role"
+  consumed_by: [phase_6]
+
+phase_5_5_strategy:
+  requires_intensity: "standard+"
+  inputs:
+    codebase_structure: "from phase_0_5"
+    target_files: "from phase_0"
+  outputs:
+    implementation_strategy: "Agreed approach from debate"
+    success_criteria: "List of acceptance criteria"
+    risk_assessment: "Identified risks and mitigations"
+  consumed_by: [phase_5_5_5, phase_6, phase_7]
+
+phase_5_5_5_spec:
+  requires_intensity: "standard+"
+  inputs:
+    success_criteria: "from phase_5_5"
+  outputs:
+    approved_spec_criteria: "JSON array of testable criteria"
+    test_classifications: "automated_test|static_assertion|manual_check per criterion"
+    user_approved: "boolean - spec approved by user"
+  consumed_by: [phase_6_6, phase_7]
+
+phase_5_8_static:
+  requires_intensity: "standard+"
+  inputs:
+    stack_detection: "from phase_1"
+    target_files: "from phase_0"
+  outputs:
+    scanner_results: "Normalized findings from static analysis tools"
+    scanners_used: "List of scanners that ran successfully"
+  consumed_by: [phase_6]
+
+phase_5_9_threat:
+  requires_intensity: "deep+"
+  inputs:
+    codebase_structure: "from phase_0_5"
+    target_files: "from phase_0"
+  outputs:
+    threat_model: "STRIDE-based threat analysis"
+    attack_surface: "Prioritized attack vectors"
+    threat_consensus: "Agreed threat priorities from 3-agent debate"
+  consumed_by: [phase_6]
+
+phase_6_review:
+  inputs:
+    target_files: "from phase_0"
+    conventions: "from phase_0_5"
+    stack_detection: "from phase_1"
+    compliance_guidelines: "from phase_3 (if available)"
+    scanner_results: "from phase_5_8 (if available)"
+    threat_model: "from phase_5_9 (if available)"
+  outputs:
+    consensus_findings: "JSON with accepted/rejected/disputed findings"
+    signal_log: "JSONL of real-time cross-agent signals"
+    debate_rounds: "Number of debate rounds completed"
+    models_used: "List of models that participated"
+  consumed_by: [phase_6_5, phase_6_6, phase_7]
+
+phase_6_5_autofix:
+  requires_intensity: "standard+"
+  inputs:
+    consensus_findings: "from phase_6"
+    target_files: "from phase_0"
+  outputs:
+    applied_fixes: "List of fixes applied with before/after"
+    skipped_fixes: "Fixes not applied (out of scope, escalation blocked)"
+    test_results: "Pass/fail after applying fixes"
+  consumed_by: [phase_7]
+
+phase_6_6_tests:
+  requires_intensity: "standard+"
+  inputs:
+    consensus_findings: "from phase_6"
+    approved_spec_criteria: "from phase_5_5_5 (if available)"
+  outputs:
+    regression_tests: "Generated test stubs for critical findings"
+    acceptance_tests: "BDD tests from spec criteria"
+    test_framework: "Detected test framework and directory"
+  consumed_by: [phase_7]
+
+phase_6_7_visual:
+  requires_intensity: "standard+"
+  requires: "frontend stack detected"
+  inputs:
+    consensus_findings: "from phase_6"
+    target_files: "from phase_0"
+  outputs:
+    css_selectors: "Extracted CSS selectors for affected components"
+    visual_checklist: "Visual regression verification items"
+  consumed_by: [phase_7]
+
+phase_7_report:
+  inputs:
+    intensity: "from phase_0_1"
+    intensity_rationale: "from phase_0_1"
+    consensus_findings: "from phase_6"
+    signal_log: "from phase_6"
+    applied_fixes: "from phase_6_5 (if available)"
+    regression_tests: "from phase_6_6 (if available)"
+    acceptance_tests: "from phase_6_6 (if available)"
+    visual_checklist: "from phase_6_7 (if available)"
+    approved_spec_criteria: "from phase_5_5_5 (if available)"
+  outputs:
+    final_report: "Markdown report with all sections"
+    spec_test_results: "PASS/FAIL per acceptance criterion"
+    mermaid_diagrams: "Visualization of findings and review flow"
+
+# --- Business Pipeline Phases ---
+
+phase_b0_context:
+  outputs:
+    business_context: "Industry, audience, tone, objectives"
+    content_type: "content|strategy|communication"
+  consumed_by: [phase_b0_1]
+
+phase_b0_1_intensity:
+  inputs:
+    business_context: "from phase_b0"
+  outputs:
+    intensity: "quick|standard|deep|comprehensive"
+    intensity_rationale: "Reasons for chosen intensity"
+  consumed_by: [phase_b0_2]
+
+phase_b6_review:
+  inputs:
+    business_context: "from phase_b0"
+    content_draft: "Business content to review"
+  outputs:
+    consensus_findings: "Business review findings"
+    signal_log: "JSONL cross-agent signals"
+  consumed_by: [phase_b7]
+
+# --- Documentation Pipeline Phases ---
+
+phase_d0_context:
+  outputs:
+    doc_inventory: "List of documentation files with metadata"
+    review_category: "accuracy|completeness|freshness|readability|examples|consistency|all"
+  consumed_by: [phase_d0_1]
+
+phase_d0_1_intensity:
+  inputs:
+    doc_inventory: "from phase_d0"
+    review_category: "from phase_d0"
+  outputs:
+    intensity: "quick|standard|deep|comprehensive"
+    intensity_rationale: "Reasons for chosen intensity"
+  consumed_by: [phase_d0_2]
+
+phase_d6_review:
+  inputs:
+    doc_inventory: "from phase_d0"
+    review_category: "from phase_d0"
+  outputs:
+    consensus_findings: "Documentation review findings"
+    code_doc_diff: "Discrepancies between code and documentation"
+    signal_log: "JSONL cross-agent signals"
+  consumed_by: [phase_d7]

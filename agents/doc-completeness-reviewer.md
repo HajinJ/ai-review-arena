@@ -204,6 +204,12 @@ These are standard documentation practices — their presence is intentional, no
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical gaps (entirely undocumented public modules, missing setup/installation docs)
 
+## Gotchas
+
+- **README scope**: Not every project needs a comprehensive README — CLIs need usage examples, libraries need API docs, internal tools need setup instructions; match expectations to project type
+- **API documentation depth**: Documenting every parameter of internal APIs creates maintenance burden — focus completeness checks on public-facing APIs
+- **Changelog granularity**: Not every commit needs a changelog entry — batch minor changes under a release version
+
 ## Rules
 
 1. Every finding MUST include `related_source` pointing to the source file containing the undocumented item when available

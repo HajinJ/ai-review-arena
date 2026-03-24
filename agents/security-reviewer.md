@@ -206,6 +206,15 @@ These indicate the security category is already handled — their presence confi
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings with summary noting "Review incomplete — {N} files pending due to time constraints"
 
+## Gotchas
+
+- **Framework-managed CSRF**: Next.js Server Actions and SvelteKit form actions handle CSRF automatically — do NOT flag these as missing CSRF protection
+- **ORM parameterization**: Prisma, SQLAlchemy, GORM queries are parameterized by default — only flag raw SQL or `$queryRaw`/`text()` usage
+- **Environment variable secrets**: `.env.example` files with placeholder values are NOT hardcoded secrets — check for actual values vs templates
+- **Test file credentials**: API keys and passwords in test fixtures (`__tests__/`, `*_test.go`, `spec/`) are typically mock values — verify before flagging
+- **CORS wildcard in development**: `Access-Control-Allow-Origin: *` in development configs is expected — only flag in production configurations
+- **Content Security Policy in SPAs**: React/Vue/Svelte apps often need `unsafe-inline` for styled-components — flag only when combined with user-generated content rendering
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

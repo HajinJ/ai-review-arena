@@ -187,6 +187,13 @@ These are typically required to support in-scope changes -- their presence does 
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings with coverage summary noting which files were not reviewed
 
+## Gotchas
+
+- **Refactoring cascades**: Renaming a widely-used type or function necessarily touches many files — large diffs from mechanical changes are not scope creep
+- **Lock file changes**: `package-lock.json`, `yarn.lock`, `go.sum` changes are expected side effects of dependency updates — don't count as scope expansion
+- **Migration + schema changes**: Database migrations paired with model changes are a single logical unit — don't flag the migration as out of scope
+- **Test file additions**: New tests accompanying new code are expected, not scope creep — only flag if test files are unrelated to the PR's stated purpose
+
 ## Rules
 
 1. Every finding MUST reference a specific file and line number

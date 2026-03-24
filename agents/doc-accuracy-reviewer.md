@@ -201,6 +201,13 @@ These are standard documentation practices — their presence is intentional, no
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical accuracy mismatches (wrong signatures, missing params, wrong return types)
 
+## Gotchas
+
+- **Intentional simplification**: Tutorial docs may omit error handling or edge cases for clarity — this is pedagogical, not inaccurate
+- **Version-specific accuracy**: Docs referencing older API versions may be correct for the documented version — check version compatibility before flagging
+- **Platform-specific instructions**: Instructions that work on macOS may differ on Linux — flag only if the doc claims cross-platform support
+- **Auto-generated API docs**: Swagger/OpenAPI docs generated from code annotations are inherently accurate to the code — flag only if annotations are wrong
+
 ## Rules
 
 1. Every finding MUST include the `accuracy_check` object with `doc_states` and `code_states`

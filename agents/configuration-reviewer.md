@@ -213,6 +213,13 @@ These indicate the configuration category is already handled -- their presence c
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing secret exposure and critical security issues first
 
+## Gotchas
+
+- **Docker multi-stage builds**: `FROM node:latest` in a build stage that's discarded is less risky than in the runtime stage — focus severity on final stage configurations
+- **Terraform plan vs apply**: Configuration that looks dangerous in `.tf` files may have plan-time guards — check for `prevent_destroy` lifecycle rules before flagging
+- **Environment-specific overrides**: Values that look wrong in `docker-compose.yml` may be development defaults overridden in production via environment variables
+- **Kubernetes resource limits**: Missing resource limits in development namespaces is expected — only flag for production or shared cluster configurations
+
 ## Rules
 
 1. Every finding MUST reference a specific file and line number in the reviewed code

@@ -243,6 +243,13 @@ These are standard fundraising patterns — their presence is intentional, not p
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical due diligence risks and investor red flags
 
+## Gotchas
+
+- **Stage-appropriate metrics**: Pre-seed decks showing engagement metrics instead of revenue is expected — don't demand Series B metrics from a pre-seed company
+- **Deck length conventions**: YC-style decks are 10-12 slides; traditional VC decks are 15-20 — both are valid depending on the target investor ecosystem
+- **Team slide completeness**: Not every team member needs a photo and full bio — advisory board and extended team can be mentioned without full profiles
+- **Exit strategy realism**: Early-stage companies listing potential acquirers is speculative by nature — evaluate whether the acquirer category makes sense, not whether a specific acquisition is likely
+
 ## Rules
 
 1. Every finding MUST reference a specific section in the reviewed content and the investor expectation it violates

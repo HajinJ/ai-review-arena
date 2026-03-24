@@ -202,6 +202,13 @@ These indicate the dependency category is already handled -- their presence conf
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical CVEs and supply chain risks
 
+## Gotchas
+
+- **Pinned transitive dependencies**: Lockfile-pinned transitive deps with known CVEs may not be exploitable in the current usage context — check if the vulnerable code path is actually called
+- **Major version bumps**: Suggesting latest major versions without checking breaking changes causes more issues than it solves — always note migration requirements
+- **Deprecated but stable**: Packages marked deprecated but widely used (e.g., `request`, `moment`) may be intentional choices in legacy codebases — suggest alternatives without demanding replacement
+- **Dev dependency CVEs**: Security vulnerabilities in devDependencies (test frameworks, linters) don't affect production unless they run in CI with secrets access
+
 ## Rules
 
 1. Every finding MUST reference a specific line in a manifest or lockfile

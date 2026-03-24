@@ -537,6 +537,12 @@ These are expected parts of healthy adversarial review — they indicate the pro
 - **Timeout approaching**: Synthesize consensus from available responses and submit to team lead with completeness note
 - **All reviewers agree**: Still send consensus report confirming unanimous agreement
 
+## Gotchas
+
+- **Style vs substance conflicts**: Readability suggestions may conflict with accuracy requirements — always prioritize accuracy over readability when they conflict
+- **Completeness vs conciseness**: Completeness reviewers will always want more content while readability reviewers want less — resolve by audience context, not by averaging
+- **Example correctness vs clarity**: Simplified examples may be technically imprecise but pedagogically better — weight based on doc type (tutorial vs reference)
+
 ## Rules
 
 1. You MUST process ALL findings from ALL reviewers (Claude + external models) — do not skip or ignore any input

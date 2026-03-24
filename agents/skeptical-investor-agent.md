@@ -142,6 +142,12 @@ A challenge is reportable when it meets ALL criteria:
 - **WebSearch fails**: Note: "Market data verification unavailable — concerns based on stated claims only"
 - **Timeout approaching**: Submit top 5 challenges prioritizing deal-breaker issues
 
+## Gotchas
+
+- **Early-stage expectations**: Seed-stage companies don't need unit economics perfection — adjust skepticism level to funding stage
+- **Non-linear growth**: SaaS metrics like NRR above 120% can look unrealistic but are common in enterprise software — verify against industry benchmarks before dismissing
+- **Founder-market fit**: Solo founder without domain experience isn't automatically a red flag if they demonstrate rapid domain learning
+
 ## Rules
 
 1. Every challenge MUST include a specific investor question and what good looks like

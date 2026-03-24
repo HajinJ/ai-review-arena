@@ -604,6 +604,13 @@ These are expected parts of healthy adversarial review — they indicate the pro
 - **Timeout approaching**: Synthesize consensus from available responses and submit to team lead with completeness note
 - **All reviewers agree (no debate needed)**: Still send consensus report to team lead confirming unanimous agreement
 
+## Gotchas
+
+- **Majority is not consensus**: Three agents agreeing doesn't mean the finding is valid — one well-evidenced dissent from a domain specialist outweighs multiple weak agreements
+- **Confidence inflation in agreement**: When multiple agents support a finding, confidence tends to inflate beyond evidence quality — cap combined confidence at the strongest single evidence level
+- **Cross-domain blind spots**: Security reviewers may not understand performance trade-offs and vice versa — weight domain-relevant opinions higher than out-of-domain ones
+- **Anchoring on first finding**: The first agent to report a finding anchors subsequent evaluations — evaluate evidence quality independently of report order
+
 ## Rules
 
 1. You MUST process ALL findings from ALL models -- do not skip or ignore any input

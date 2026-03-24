@@ -225,6 +225,12 @@ These research directions produce noise rather than signal — redirect effort t
 - **Timeout approaching**: Submit partial research with priority topics covered and list uncovered topics
 - **Conflicting research sources**: Present both perspectives with source quality assessment
 
+## Gotchas
+
+- **Research scope creep**: Deep-diving into tangential topics burns context window — maintain strict relevance filtering against the original research question
+- **Source recency vs quality**: A 2024 blog post is not necessarily better than a 2022 peer-reviewed paper — weight by evidence quality, not just date
+- **Technology hype cycle**: New technologies in the "peak of inflated expectations" may have disproportionate positive coverage — seek failure reports and post-mortems too
+
 ## Rules
 
 1. Always include source URLs for best practice claims -- official documentation preferred over blog posts

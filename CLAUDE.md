@@ -1,4 +1,4 @@
-# AI Review Arena v3.3.0 - Development Rules
+# AI Review Arena v3.4.0 - Development Rules
 
 ## Project Structure
 - `.claude-plugin/` - Plugin manifest (v3.3.0)
@@ -29,7 +29,7 @@
   - Debate: debate-arbitrator, business-debate-arbitrator, doc-debate-arbitrator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell/Python scripts (37 files)
+- `scripts/` - Shell/Python scripts (39 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
   - Documentation: codex-doc-review.sh, gemini-doc-review.sh, doc-inventory.sh, benchmark-doc-models.sh
@@ -40,13 +40,17 @@
   - Batch review: codex-batch-review.sh (CSV batch review via spawn_agents_on_csv)
   - Evaluation: evaluate-pipeline.sh
   - Check: check-model-updates.sh (API-based model version detection)
-  - Feedback: feedback-tracker.sh
+  - Feedback: feedback-tracker.sh (record/report/stats/recommend/search/improve/patterns)
   - Context: context-filter.sh (role-based code filtering for review agents)
+  - Signal logging: signal-log.sh (JSONL cross-agent signal log with learning extraction)
+  - Iterative review: ralph-loop.sh (Ralph-style iterative review with fresh context per iteration)
+  - Async queue: review-daemon.sh (ticket-based async review processing)
   - Static analysis: static-analysis.sh, normalize-scanner-output.sh
   - Validation: validate-config.sh, normalize-severity.sh
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
-  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks, escalation_triggers, write_scope, contract_verification, spec_verification, agent_teams)
+  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks, escalation_triggers, write_scope, contract_verification, spec_verification, agent_teams, fleet_swarm, knowledge_graph, ralph_loop, review_daemon)
+  - phase-contracts.yaml - Phase artifact contracts (inputs/outputs/consumed_by for all pipeline phases)
   - review-prompts/ - Role-specific review prompts (15 files: 9 code + 6 doc)
   - schemas/ - Codex structured output JSON schemas (7 files: review, cross-examine, defend, business-review, business-cross-review, doc-review, doc-cross-review)
   - compliance-rules.json - Feature→guideline mapping
@@ -58,7 +62,7 @@
   - router-examples.md, context-forwarding.md, safety-protocol.md - Router reference docs
   - TODO-external-integrations.md - Research-backed TODO items for external API integrations
 - `tests/` - Test suite (18 test files: 8 unit + 8 integration + 2 e2e)
-- `shared-phases/` - Common phase definitions shared by code and business pipelines
+- `shared-phases/` - Common phase definitions shared by code and business pipelines (13 phases)
   - `intensity-decision.md` - Phase 0.1/B0.1: Agent Teams intensity debate (shared template)
   - `cost-estimation.md` - Phase 0.2/B0.2: Cost & time estimation using cost-estimator.sh
   - `feedback-routing.md` - Feedback-based model-category role assignment for Phase 6/B6
@@ -70,6 +74,8 @@
   - `framework-selection.md` - Phase B1.5: Business framework selection debate
   - `quantitative-validation.md` - Phase B5.6: Numerical claim cross-validation
   - `adversarial-red-team.md` - Phase B5.7: Adversarial red team stress test
+  - `session-handover.md` - Session handover protocol for long-running reviews (resume-prompt, gap analysis)
+  - `review-visualization.md` - Mermaid diagram templates for review reports (severity pie, flow, agent participation)
 - `cache/` - Runtime knowledge cache (gitignored, TTL-managed)
 
 ## Coding Rules
@@ -102,7 +108,8 @@
 - Stale review detection: git-hash-based invalidation (Code Factory pattern) in aggregate-findings.sh
 
 ## Agent Design
-- All 34 agents have three hardened sections before `## Rules`: `## Reporting Threshold` (or `Escalation Threshold`/`Research Threshold`) + `## Error Recovery Protocol`
+- All agents have four hardened sections before `## Rules`: `## Reporting Threshold` (or `Escalation Threshold`/`Research Threshold`) + `## Error Recovery Protocol` + `## Gotchas`
+- Gotchas sections document **domain-specific false positive patterns**, common misclassifications, and context-dependent pitfalls (Thariq/Anthropic: "highest-signal content in any skill")
 - Reporting Threshold uses **positive framing** ("report ONLY when criteria met") to avoid the "pink elephant effect" (arxiv 2602.11988: negative instructions increase agent focus on excluded patterns)
 - Each threshold lists **recognized patterns** (secure patterns, accepted conventions, genre norms) as confirmation of mitigation, not as prohibitions
 - "Error Recovery Protocol" ensures graceful degradation (retry, partial submit, team lead notification)
@@ -121,6 +128,16 @@
 - Codex agents have inlined `developer_instructions` (no external prompt file dependency) with duplicate prompt technique
 - Security/bugs/architecture agents use gpt-5.4 with high reasoning; performance/testing use gpt-5.3-codex-spark with medium reasoning
 - CSV batch review via `scripts/codex-batch-review.sh` supports `spawn_agents_on_csv` with parallel subprocess fallback
+- Signal logging (`signal-log.sh`) captures cross-agent signals as JSONL for post-review learning extraction
+- Feedback auto-improvement (`feedback-tracker.sh improve`) analyzes feedback patterns to generate Gotcha suggestions and routing recommendations (cognee observe→inspect→amend→evaluate pattern)
+- Ralph-style iterative review (`ralph-loop.sh`) runs review→fix→re-review loops with fresh context per iteration (context window hygiene)
+- Session handover protocol (`shared-phases/session-handover.md`) preserves review state across Claude sessions when context window exceeds 60%
+- Review reports include Mermaid visualizations: severity distribution pie, review flow diagram, agent participation graph
+- Phase artifact contracts (`config/phase-contracts.yaml`) define required inputs/outputs between pipeline phases (gstack sprint coordination pattern)
+- Knowledge graph (`cache-manager.sh graph-*`) tracks finding relationships, agent performance, and pattern evolution as JSONL triples
+- FTS5 search (`cache-manager.sh search`) provides BM25-ranked full-text search across memory tiers and signal logs
+- Fleet/Swarm mode (`fleet_swarm` config) distinguishes between fleet (same review across targets) and swarm (parallel aspect review with convergence)
+- Review daemon (`review-daemon.sh`) provides async ticket queue for background review processing
 
 ## Testing
 - Test with intentionally buggy code to verify detection

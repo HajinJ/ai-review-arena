@@ -127,6 +127,12 @@ Escalate ONLY when:
 - **Contradictory evidence**: Flag as "needs human review" with both perspectives
 - **Timeout approaching**: Submit partial arbitration prioritizing critical/high threats
 
+## Gotchas
+
+- **Risk acceptance is valid**: Some threats are accepted by the business as cost of operation — don't force mitigation on every identified threat if the risk is acknowledged
+- **Mitigation cost vs impact**: A $10K mitigation for a $1K-impact threat is not rational — include cost-benefit in prioritization
+- **Cascading threat chains**: Individual low-risk threats that chain together can create critical risk — evaluate threat combinations, not just individual threats
+
 ## Rules
 
 1. MUST process ALL threats from threat-modeler

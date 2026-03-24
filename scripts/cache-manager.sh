@@ -9,6 +9,10 @@
 #   cache-manager.sh list    <project-root>
 #   cache-manager.sh cleanup <project-root> [--max-age <days>] [--max-size <mb>]
 #   cache-manager.sh hash    <project-root>
+#   cache-manager.sh search  <project-root> <query> [--tier <tier>] [--limit <N>]
+#   cache-manager.sh graph-add   <project-root> <subject> <predicate> <object> [--metadata <json>]
+#   cache-manager.sh graph-query <project-root> [--subject <s>] [--predicate <p>] [--object <o>]
+#   cache-manager.sh graph-stats <project-root>
 #
 # Cache location:
 #   ~/.claude/plugins/ai-review-arena/cache/{project-hash}/{category}/{key}
@@ -497,13 +501,309 @@ cmd_memory_list() {
 }
 
 # =============================================================================
+# FTS5 Search (Full-Text Search with BM25 ranking)
+# =============================================================================
+# Enhanced search using SQLite FTS5 for finding patterns across review history.
+# Falls back to grep-based search if SQLite is not available.
+
+cmd_search() {
+  local project_root="${1:?Usage: cache-manager.sh search <project-root> <query> [--tier <tier>] [--limit <N>]}"
+  local query="${2:?Usage: cache-manager.sh search <project-root> <query>}"
+  shift 2
+
+  ensure_jq
+
+  local tier=""
+  local limit=10
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --tier) tier="${2:?--tier requires a value}"; shift 2 ;;
+      --limit) limit="${2:?--limit requires a value}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  local base
+  base=$(cache_base_dir "$project_root")
+
+  # Try FTS5 with SQLite first
+  if command -v sqlite3 &>/dev/null; then
+    _search_fts5 "$base" "$query" "$tier" "$limit"
+  else
+    _search_grep "$base" "$query" "$tier" "$limit"
+  fi
+}
+
+_search_fts5() {
+  local base="$1"
+  local query="$2"
+  local tier="$3"
+  local limit="$4"
+
+  local db_file="${base}/search-index.sqlite"
+
+  # Build index if needed
+  if [ ! -f "$db_file" ]; then
+    _build_fts5_index "$base" "$db_file"
+  fi
+
+  # Check if index is stale (older than 1 hour)
+  local db_mtime=0
+  if stat -f %m "$db_file" &>/dev/null 2>&1; then
+    db_mtime=$(stat -f %m "$db_file" || echo "0")
+  else
+    db_mtime=$(stat -c %Y "$db_file" || echo "0")
+  fi
+  local now_epoch
+  now_epoch=$(date +%s)
+  local age=$((now_epoch - db_mtime))
+  if [ "$age" -gt 3600 ]; then
+    _build_fts5_index "$base" "$db_file"
+  fi
+
+  # Search with BM25 ranking
+  local tier_filter=""
+  if [ -n "$tier" ]; then
+    tier_filter="AND tier = '${tier}'"
+  fi
+
+  sqlite3 -json "$db_file" "
+    SELECT tier, key, snippet(search_idx, 2, '>>>', '<<<', '...', 32) as snippet,
+           rank as bm25_score
+    FROM search_idx
+    WHERE search_idx MATCH '${query}' ${tier_filter}
+    ORDER BY rank
+    LIMIT ${limit};
+  " 2>/dev/null || echo "[]"
+}
+
+_build_fts5_index() {
+  local base="$1"
+  local db_file="$2"
+
+  rm -f "$db_file" 2>/dev/null
+
+  sqlite3 "$db_file" "
+    CREATE VIRTUAL TABLE IF NOT EXISTS search_idx USING fts5(
+      tier,
+      key,
+      content,
+      tokenize='porter unicode61'
+    );
+  " 2>/dev/null || return 1
+
+  # Index all memory tier entries
+  for tier_name in short-term long-term permanent; do
+    local dir="${base}/memory/${tier_name}"
+    [ -d "$dir" ] || continue
+
+    for entry in "$dir"/*; do
+      [ -f "$entry" ] || continue
+      case "$entry" in *.timestamp) continue ;; esac
+
+      local key
+      key=$(basename "$entry")
+      local content
+      content=$(cat "$entry" 2>/dev/null | head -c 10000 | sed "s/'/''/g")
+
+      sqlite3 "$db_file" "
+        INSERT INTO search_idx(tier, key, content) VALUES ('${tier_name}', '${key}', '${content}');
+      " 2>/dev/null || true
+    done
+  done
+
+  # Also index signal log entries
+  local signal_file="${base}/signal-log/signals.jsonl"
+  if [ -f "$signal_file" ]; then
+    while IFS= read -r line; do
+      local agent_id
+      agent_id=$(echo "$line" | jq -r '.agent_id // "unknown"' 2>/dev/null)
+      local signal_type
+      signal_type=$(echo "$line" | jq -r '.signal_type // "unknown"' 2>/dev/null)
+      local data
+      data=$(echo "$line" | jq -r '.data | tostring' 2>/dev/null | head -c 5000 | sed "s/'/''/g")
+
+      sqlite3 "$db_file" "
+        INSERT INTO search_idx(tier, key, content) VALUES ('signal-log', '${agent_id}:${signal_type}', '${data}');
+      " 2>/dev/null || true
+    done < "$signal_file"
+  fi
+}
+
+_search_grep() {
+  local base="$1"
+  local query="$2"
+  local tier="$3"
+  local limit="$4"
+
+  # Fallback: grep-based search with simple BM25-like scoring
+  local results_jsonl=""
+  local count=0
+
+  local search_dirs=()
+  if [ -n "$tier" ]; then
+    search_dirs=("${base}/memory/${tier}")
+  else
+    search_dirs=("${base}/memory/short-term" "${base}/memory/long-term" "${base}/memory/permanent")
+  fi
+
+  for dir in "${search_dirs[@]}"; do
+    [ -d "$dir" ] || continue
+    local tier_name
+    tier_name=$(basename "$dir")
+
+    for entry in "$dir"/*; do
+      [ -f "$entry" ] || continue
+      case "$entry" in *.timestamp) continue ;; esac
+      [ "$count" -ge "$limit" ] && break 2
+
+      local key
+      key=$(basename "$entry")
+      local match_count=0
+      match_count=$(grep -ci "$query" "$entry" 2>/dev/null || echo "0")
+
+      if [ "$match_count" -gt 0 ]; then
+        local snippet
+        snippet=$(grep -i "$query" "$entry" 2>/dev/null | head -1 | cut -c1-200)
+        results_jsonl="${results_jsonl}$(jq -cn \
+          --arg tier "$tier_name" \
+          --arg key "$key" \
+          --arg snippet "$snippet" \
+          --argjson score "$match_count" \
+          '{tier: $tier, key: $key, snippet: $snippet, bm25_score: $score}')
+"
+        count=$((count + 1))
+      fi
+    done
+  done
+
+  if [ -n "$results_jsonl" ]; then
+    echo "$results_jsonl" | jq -s 'sort_by(-.bm25_score)'
+  else
+    echo "[]"
+  fi
+}
+
+# =============================================================================
+# Knowledge Graph Commands
+# =============================================================================
+# Lightweight knowledge graph using JSONL for tracking finding relationships,
+# agent performance, and pattern evolution across reviews.
+
+cmd_graph_add() {
+  local project_root="${1:?Usage: cache-manager.sh graph-add <project-root> <subject> <predicate> <object> [--metadata <json>]}"
+  local subject="${2:?Missing subject}"
+  local predicate="${3:?Missing predicate}"
+  local object="${4:?Missing object}"
+  shift 4
+
+  ensure_jq
+
+  local metadata="{}"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --metadata) metadata="${2:?--metadata requires JSON}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  local base
+  base=$(cache_base_dir "$project_root")
+  local graph_dir="${base}/knowledge-graph"
+  mkdir -p "$graph_dir"
+  local graph_file="${graph_dir}/triples.jsonl"
+
+  local now_iso
+  now_iso=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  jq -cn \
+    --arg s "$subject" \
+    --arg p "$predicate" \
+    --arg o "$object" \
+    --arg ts "$now_iso" \
+    --argjson meta "$metadata" \
+    '{subject: $s, predicate: $p, object: $o, timestamp: $ts, metadata: $meta}' \
+    >> "$graph_file"
+
+  return 0
+}
+
+cmd_graph_query() {
+  local project_root="${1:?Usage: cache-manager.sh graph-query <project-root> [--subject <s>] [--predicate <p>] [--object <o>]}"
+  shift 1
+
+  ensure_jq
+
+  local subject=""
+  local predicate=""
+  local object=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --subject) subject="${2:?--subject requires a value}"; shift 2 ;;
+      --predicate) predicate="${2:?--predicate requires a value}"; shift 2 ;;
+      --object) object="${2:?--object requires a value}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  local base
+  base=$(cache_base_dir "$project_root")
+  local graph_file="${base}/knowledge-graph/triples.jsonl"
+
+  if [ ! -f "$graph_file" ]; then
+    echo "[]"
+    return 0
+  fi
+
+  local jq_filter="."
+  if [ -n "$subject" ]; then
+    jq_filter="${jq_filter} | select(.subject == \"$subject\")"
+  fi
+  if [ -n "$predicate" ]; then
+    jq_filter="${jq_filter} | select(.predicate == \"$predicate\")"
+  fi
+  if [ -n "$object" ]; then
+    jq_filter="${jq_filter} | select(.object == \"$object\")"
+  fi
+
+  jq -s "[.[] | $jq_filter]" "$graph_file" 2>/dev/null || echo "[]"
+  return 0
+}
+
+cmd_graph_stats() {
+  local project_root="${1:?Usage: cache-manager.sh graph-stats <project-root>}"
+
+  ensure_jq
+
+  local base
+  base=$(cache_base_dir "$project_root")
+  local graph_file="${base}/knowledge-graph/triples.jsonl"
+
+  if [ ! -f "$graph_file" ]; then
+    echo '{"total_triples": 0}'
+    return 0
+  fi
+
+  jq -s '{
+    total_triples: length,
+    subjects: ([.[].subject] | unique | length),
+    predicates: ([.[].predicate] | unique | sort),
+    objects: ([.[].object] | unique | length),
+    latest: (sort_by(.timestamp) | last.timestamp // "N/A")
+  }' "$graph_file" 2>/dev/null || echo '{"total_triples": 0, "error": "parse_failed"}'
+  return 0
+}
+
+# =============================================================================
 # Main Dispatch
 # =============================================================================
 
 COMMAND="${1:-}"
 
 if [ -z "$COMMAND" ]; then
-  log_error "Usage: cache-manager.sh <read|write|check|list|cleanup|cleanup-sessions|hash|memory-read|memory-write|memory-list> ..."
+  log_error "Usage: cache-manager.sh <read|write|check|list|cleanup|cleanup-sessions|hash|memory-read|memory-write|memory-list|search|graph-add|graph-query|graph-stats> ..."
   exit 0
 fi
 
@@ -520,6 +820,10 @@ case "$COMMAND" in
   memory-read)      cmd_memory_read "$@" ;;
   memory-write)     cmd_memory_write "$@" ;;
   memory-list)      cmd_memory_list "$@" ;;
+  search)           cmd_search "$@" ;;
+  graph-add)        cmd_graph_add "$@" ;;
+  graph-query)      cmd_graph_query "$@" ;;
+  graph-stats)      cmd_graph_stats "$@" ;;
   *)
     log_error "Unknown command: $COMMAND"
     exit 0

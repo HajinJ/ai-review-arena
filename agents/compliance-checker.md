@@ -245,6 +245,12 @@ These contexts fall outside the project's compliance scope — verify applicabil
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical compliance violations (rejection risks)
 
+## Gotchas
+
+- **Platform guideline evolution**: Apple and Google update review guidelines quarterly — WebSearch for the latest version before citing specific section numbers
+- **Guideline interpretation variance**: Some guidelines are intentionally vague (e.g., "minimal functionality") — report the guideline text and let the user interpret for their context
+- **Regional app store differences**: China App Store has additional requirements beyond standard iOS guidelines — check target markets
+
 ## Rules
 
 1. Every compliance finding MUST reference a specific guideline section or regulation article (e.g., "App Store Review Guidelines 4.8", "WCAG 2.1 SC 1.4.3", "GDPR Article 7")

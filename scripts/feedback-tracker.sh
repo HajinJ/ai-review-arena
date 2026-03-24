@@ -9,6 +9,8 @@
 #   feedback-tracker.sh stats
 #   feedback-tracker.sh recommend [--days <N>] [--min-samples <N>]
 #   feedback-tracker.sh search <query> [--mode bm25|semantic|hybrid] [--top <N>] [--days <N>]
+#   feedback-tracker.sh improve [--days <N>] [--min-samples <N>] [--format json|markdown]
+#   feedback-tracker.sh patterns [--days <N>]
 #
 # Storage:
 #   ~/.claude/plugins/ai-review-arena/cache/feedback/feedback-log.jsonl
@@ -554,13 +556,304 @@ cmd_search() {
 }
 
 # =============================================================================
+# Auto-Improvement: Feedback-Driven Agent Prompt Enhancement
+#
+# Analyzes accumulated feedback to identify systematic issues and generate
+# suggestions for improving agent definitions. Inspired by:
+#   - cognee's observe→inspect→amend→evaluate loop
+#   - Hermes Agent's auto-memory from conversations
+#   - Ralph's AGENTS.md institutional knowledge pattern
+#
+# The improve command outputs actionable suggestions that can be appended
+# to agent Gotchas sections or used to adjust review prompts.
+# =============================================================================
+
+cmd_improve() {
+  # Analyze feedback to generate agent improvement suggestions.
+  # Outputs:
+  #   - False positive patterns (what agents keep getting wrong)
+  #   - Severity miscalibration (where confidence doesn't match verdicts)
+  #   - Model-category weaknesses (which model struggles with what)
+  #   - Gotcha suggestions (ready to paste into agent definitions)
+  local filter_days="$DEFAULT_REPORT_DAYS"
+  local min_samples=3
+  local output_format="json"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --days) filter_days="${2:?--days requires a value}"; shift 2 ;;
+      --min-samples) min_samples="${2:?--min-samples requires a value}"; shift 2 ;;
+      --format) output_format="${2:?--format requires a value}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  ensure_feedback_log
+
+  if [ ! -s "$FEEDBACK_LOG" ]; then
+    jq -n '{"status":"insufficient_data","improvements":[]}'
+    exit 0
+  fi
+
+  local cutoff_epoch
+  cutoff_epoch=$(( $(date +%s) - (filter_days * 86400) ))
+
+  local cutoff_ts
+  if date -u -r 0 +%Y-%m-%dT%H:%M:%SZ &>/dev/null 2>&1; then
+    cutoff_ts=$(date -u -r "$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ || echo "1970-01-01T00:00:00Z")
+  else
+    cutoff_ts=$(date -u -d "@$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ || echo "1970-01-01T00:00:00Z")
+  fi
+
+  local improvements
+  improvements=$(jq -s \
+    --arg cutoff "$cutoff_ts" \
+    --argjson min_samples "$min_samples" \
+    --argjson days "$filter_days" \
+    '
+    [ .[] | select(.timestamp >= $cutoff) ] |
+    . as $data |
+
+    # 1. False positive patterns by category
+    (
+      [ $data[] | select(.verdict == "false_positive" and .category != "") ] |
+      group_by(.category) |
+      map(select(length >= $min_samples)) |
+      map({
+        type: "false_positive_pattern",
+        category: .[0].category,
+        count: length,
+        rate: (length / ([ $data[] | select(.category == .[0].category) ] | length) * 100 | . * 10 | round | . / 10),
+        models_affected: ([.[].model | select(. != "")] | unique),
+        sample_findings: [.[:3][] | .finding_id],
+        gotcha_suggestion: ("Frequently flagged as false positive (\(length) times in \($days)d) — verify this pattern is actually exploitable before reporting")
+      })
+    ) +
+
+    # 2. Severity miscalibration (high confidence but false_positive verdict)
+    (
+      [ $data[] | select(.verdict == "false_positive" and .severity != "") ] |
+      group_by(.severity) |
+      map(select(length >= $min_samples)) |
+      map({
+        type: "severity_miscalibration",
+        severity: .[0].severity,
+        false_positive_count: length,
+        total_at_severity: ([ $data[] | select(.severity == .[0].severity) ] | length),
+        fp_rate: (length / ([ $data[] | select(.severity == .[0].severity) ] | length) * 100 | . * 10 | round | . / 10),
+        recommendation: (
+          if .[0].severity == "critical" or .[0].severity == "high" then
+            "High false positive rate at \(.[0].severity) severity — tighten reporting threshold or add Recognized Secure Patterns"
+          else
+            "Consider reviewing confidence scoring criteria for \(.[0].severity) findings"
+          end
+        )
+      })
+    ) +
+
+    # 3. Model-specific weaknesses
+    (
+      [ $data[] | select(.model != "" and .category != "") ] |
+      group_by([.model, .category] | join(":")) |
+      map(select(length >= $min_samples)) |
+      map(
+        ([ .[] | select(.verdict == "false_positive") ] | length) as $fp |
+        ([ .[] | select(.verdict == "useful") ] | length) as $useful |
+        select(($fp / length) > 0.3) |
+        {
+          type: "model_weakness",
+          model: .[0].model,
+          category: .[0].category,
+          total: length,
+          false_positives: $fp,
+          useful: $useful,
+          fp_rate: ($fp / length * 100 | . * 10 | round | . / 10),
+          recommendation: "Consider routing \(.[0].category) reviews away from \(.[0].model) (FP rate: \($fp / length * 100 | round)%)"
+        }
+      )
+    ) +
+
+    # 4. Underperforming categories (low useful rate overall)
+    (
+      [ $data[] | select(.category != "") ] |
+      group_by(.category) |
+      map(select(length >= $min_samples)) |
+      map(
+        ([ .[] | select(.verdict == "useful") ] | length) as $useful |
+        select(($useful / length) < 0.5) |
+        {
+          type: "underperforming_category",
+          category: .[0].category,
+          total: length,
+          useful: $useful,
+          useful_rate: ($useful / length * 100 | . * 10 | round | . / 10),
+          recommendation: "Category \(.[0].category) has low useful rate (\($useful / length * 100 | round)%) — review agent reporting threshold and recognized patterns"
+        }
+      )
+    ) |
+
+    # Combine and sort by impact
+    sort_by(-.count // -.total // 0) |
+
+    {
+      period_days: $days,
+      min_samples: $min_samples,
+      total_feedback_records: ($data | length),
+      improvements: .,
+      summary: {
+        false_positive_patterns: [.[] | select(.type == "false_positive_pattern")] | length,
+        severity_issues: [.[] | select(.type == "severity_miscalibration")] | length,
+        model_weaknesses: [.[] | select(.type == "model_weakness")] | length,
+        underperforming: [.[] | select(.type == "underperforming_category")] | length
+      }
+    }
+    ' "$FEEDBACK_LOG")
+
+  if [ "$output_format" = "markdown" ]; then
+    # Convert to markdown format suitable for appending to AGENTS.md or agent Gotchas
+    echo "$improvements" | jq -r '
+      "# Feedback-Driven Improvement Suggestions",
+      "Period: \(.period_days) days | Records analyzed: \(.total_feedback_records)",
+      "",
+      if (.improvements | length) == 0 then
+        "No improvement suggestions — all categories performing within acceptable range."
+      else
+        (
+          (.improvements[] |
+            if .type == "false_positive_pattern" then
+              "## False Positive: \(.category)\n- Count: \(.count) | Rate: \(.rate)%\n- Models: \(.models_affected | join(", "))\n- **Gotcha**: \(.gotcha_suggestion)\n"
+            elif .type == "severity_miscalibration" then
+              "## Severity Issue: \(.severity)\n- FP count: \(.false_positive_count) / \(.total_at_severity) total\n- **Action**: \(.recommendation)\n"
+            elif .type == "model_weakness" then
+              "## Model Weakness: \(.model) → \(.category)\n- FP rate: \(.fp_rate)% (\(.false_positives)/\(.total))\n- **Action**: \(.recommendation)\n"
+            elif .type == "underperforming_category" then
+              "## Underperforming: \(.category)\n- Useful rate: \(.useful_rate)%\n- **Action**: \(.recommendation)\n"
+            else empty end
+          )
+        )
+      end
+    '
+  else
+    echo "$improvements"
+  fi
+}
+
+cmd_patterns() {
+  # Extract recurring feedback patterns for cross-agent learning.
+  # Outputs patterns that can be saved to signal-log or memory tiers.
+  local filter_days="$DEFAULT_REPORT_DAYS"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --days) filter_days="${2:?--days requires a value}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  ensure_feedback_log
+
+  if [ ! -s "$FEEDBACK_LOG" ]; then
+    jq -n '{"patterns":[]}'
+    exit 0
+  fi
+
+  local cutoff_epoch
+  cutoff_epoch=$(( $(date +%s) - (filter_days * 86400) ))
+
+  local cutoff_ts
+  if date -u -r 0 +%Y-%m-%dT%H:%M:%SZ &>/dev/null 2>&1; then
+    cutoff_ts=$(date -u -r "$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ || echo "1970-01-01T00:00:00Z")
+  else
+    cutoff_ts=$(date -u -d "@$cutoff_epoch" +%Y-%m-%dT%H:%M:%SZ || echo "1970-01-01T00:00:00Z")
+  fi
+
+  jq -s \
+    --arg cutoff "$cutoff_ts" \
+    --argjson days "$filter_days" \
+    '
+    [ .[] | select(.timestamp >= $cutoff) ] |
+    . as $data |
+
+    {
+      period_days: $days,
+      patterns: {
+        # Best model per category (highest useful rate)
+        best_models: (
+          [ $data[] | select(.model != "" and .category != "") ] |
+          group_by([.model, .category] | join(":")) |
+          map({
+            model: .[0].model,
+            category: .[0].category,
+            useful_rate: (([ .[] | select(.verdict == "useful") ] | length) / length * 100 | round),
+            sample_size: length
+          }) |
+          group_by(.category) |
+          map(sort_by(-.useful_rate) | first) |
+          map({(.category): {model: .model, useful_rate: .useful_rate, samples: .sample_size}}) |
+          add // {}
+        ),
+
+        # Most reliable finding types (highest useful rate by finding pattern)
+        reliable_findings: (
+          [ $data[] | select(.verdict == "useful" and .category != "") ] |
+          group_by(.category) |
+          map({category: .[0].category, count: length}) |
+          sort_by(-.count) |
+          .[:5]
+        ),
+
+        # Most problematic finding types (highest false positive rate)
+        problematic_findings: (
+          [ $data[] | select(.verdict == "false_positive" and .category != "") ] |
+          group_by(.category) |
+          map({category: .[0].category, fp_count: length}) |
+          sort_by(-.fp_count) |
+          .[:5]
+        ),
+
+        # Temporal trends (is accuracy improving or declining?)
+        trend: (
+          $data |
+          sort_by(.timestamp) |
+          # Split into halves
+          (length / 2 | floor) as $half |
+          {
+            first_half_useful_rate: (
+              .[:$half] |
+              if length > 0 then
+                ([ .[] | select(.verdict == "useful") ] | length) / length * 100 | round
+              else null end
+            ),
+            second_half_useful_rate: (
+              .[$half:] |
+              if length > 0 then
+                ([ .[] | select(.verdict == "useful") ] | length) / length * 100 | round
+              else null end
+            )
+          } |
+          . + {
+            direction: (
+              if .first_half_useful_rate != null and .second_half_useful_rate != null then
+                if .second_half_useful_rate > .first_half_useful_rate then "improving"
+                elif .second_half_useful_rate < .first_half_useful_rate then "declining"
+                else "stable" end
+              else "insufficient_data" end
+            )
+          }
+        )
+      }
+    }
+    ' "$FEEDBACK_LOG"
+}
+
+# =============================================================================
 # Main Dispatch
 # =============================================================================
 
 COMMAND="${1:-}"
 
 if [ -z "$COMMAND" ]; then
-  log_error "Usage: feedback-tracker.sh <record|report|stats|recommend|search> ..."
+  log_error "Usage: feedback-tracker.sh <record|report|stats|recommend|search|improve|patterns> ..."
   exit 0
 fi
 
@@ -572,6 +865,8 @@ case "$COMMAND" in
   stats)     cmd_stats "$@" ;;
   recommend) cmd_recommend "$@" ;;
   search)    cmd_search "$@" ;;
+  improve)   cmd_improve "$@" ;;
+  patterns)  cmd_patterns "$@" ;;
   *)
     log_error "Unknown command: $COMMAND"
     exit 0

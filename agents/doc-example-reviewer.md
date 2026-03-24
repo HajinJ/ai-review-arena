@@ -219,6 +219,12 @@ These are standard documentation practices — their presence is intentional, no
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical issues (security vulnerabilities in examples, completely broken examples in getting-started sections)
 
+## Gotchas
+
+- **Pseudo-code examples**: Conceptual docs may use pseudo-code or simplified syntax intentionally — don't flag as "non-runnable code"
+- **Framework version differences**: Example code may target a specific framework version — check compatibility before suggesting modern syntax
+- **Security in examples**: Example code showing API keys like `sk-xxx` or `your-api-key-here` are placeholder patterns, not leaked credentials
+
 ## Rules
 
 1. Every finding MUST include the `example_validation` object with `status` and `language`

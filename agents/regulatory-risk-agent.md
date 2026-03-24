@@ -139,6 +139,12 @@ A risk is reportable when it meets ALL criteria:
 - **Cannot determine jurisdiction**: Note: "Jurisdiction-dependent — analysis covers major jurisdictions (US, EU, UK)"
 - **Timeout approaching**: Submit top 5 risks prioritizing critical compliance issues
 
+## Gotchas
+
+- **Jurisdiction specificity**: GDPR applies to EU data subjects regardless of company location — don't limit regulatory analysis to company's home jurisdiction
+- **Regulatory safe harbors**: Some industries have safe harbor provisions that reduce compliance burden — check for applicable safe harbors before flagging full compliance requirements
+- **Pending legislation**: Flagging risks from proposed (not enacted) legislation should be clearly marked as speculative — don't treat bills as current law
+
 ## Rules
 
 1. Every risk MUST cite a specific regulation, law, or standard

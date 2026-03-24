@@ -232,6 +232,14 @@ These contexts operate under different architectural standards — assess within
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical/high severity issues
 
+## Gotchas
+
+- **Monorepo shared code**: Code that appears duplicated across packages may be intentional per-package isolation — check if packages are independently deployable before flagging DRY violations
+- **Barrel exports (index.ts)**: Re-exporting from index files is a common public API pattern, not unnecessary indirection — only flag if it creates circular dependencies
+- **God object vs aggregate root**: Large domain classes in DDD are often aggregate roots by design — check bounded context before flagging single-responsibility violations
+- **Micro-services calling patterns**: Direct service-to-service calls may be intentional for latency-sensitive paths — not every interaction needs an event bus
+- **Config duplication across environments**: Repeated config structures across dev/staging/prod are expected — flag only when behavior-changing values should be shared
+
 ## Rules
 
 1. Every finding MUST reference a specific line number (or line range starting point) in the reviewed code

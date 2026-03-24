@@ -863,6 +863,53 @@
       "description_en": "Research team shares findings during search execution"
     }
   },
+  "fleet_swarm": {
+    "enabled": true,
+    "mode_selection": "auto",
+    "fleet": {
+      "description": "Same review applied across multiple files/repos simultaneously",
+      "max_parallel": 5,
+      "use_worktree_isolation": true,
+      "merge_strategy": "pr_per_target"
+    },
+    "swarm": {
+      "description": "Different review aspects handled by different agents in parallel, results converged",
+      "max_parallel": 8,
+      "convergence_strategy": "debate_arbitrator",
+      "signal_sharing": true
+    },
+    "auto_selection_rules": {
+      "fleet_when": ["multi_repo_pr", "bulk_dependency_update", "cross_project_refactor"],
+      "swarm_when": ["single_repo_deep_review", "security_audit", "architecture_review"]
+    }
+  },
+  "knowledge_graph": {
+    "enabled": true,
+    "auto_populate": true,
+    "relationships": {
+      "finding_caused_by": "Links finding to root cause pattern",
+      "finding_co_occurs_with": "Links findings that appear together",
+      "finding_detected_by": "Links finding to the agent that found it",
+      "finding_escalates_to": "Links finding to escalation phase",
+      "agent_specializes_in": "Links agent to finding categories",
+      "pattern_mitigated_by": "Links vulnerability pattern to recognized mitigation"
+    },
+    "storage": "jsonl",
+    "max_triples": 10000
+  },
+  "ralph_loop": {
+    "enabled": false,
+    "max_iterations": 5,
+    "stop_condition": "no_critical_high",
+    "iteration_intensity": "quick",
+    "learning_log": "ralph-loop-log.md"
+  },
+  "review_daemon": {
+    "enabled": false,
+    "max_concurrent": 1,
+    "poll_interval_seconds": 30,
+    "auto_process": false
+  },
   "memory_search": {
     "enabled": true,
     "default_mode": "bm25",

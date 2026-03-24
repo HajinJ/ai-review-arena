@@ -147,6 +147,10 @@ if [ "$OUTPUT_LANG" = "ko" ]; then
   L_CONTRACT_STATUS="상태"
   L_CONTRACT_ISSUES="이슈"
   L_CONTRACT_OVERALL="전체 검증 결과"
+  L_VISUALIZATION_TITLE="### 리뷰 시각화"
+  L_INTENSITY_RATIONALE_TITLE="### Intensity 결정 근거"
+  L_AGENT_PARTICIPATION="에이전트 참여"
+  L_FINDINGS_DISTRIBUTION="발견 분포"
 else
   L_TITLE="## AI Review Arena Report"
   L_MODELS="Models"
@@ -179,6 +183,10 @@ else
   L_CONTRACT_STATUS="Status"
   L_CONTRACT_ISSUES="Issues"
   L_CONTRACT_OVERALL="Overall Verification"
+  L_VISUALIZATION_TITLE="### Review Visualization"
+  L_INTENSITY_RATIONALE_TITLE="### Intensity Decision Rationale"
+  L_AGENT_PARTICIPATION="Agent Participation"
+  L_FINDINGS_DISTRIBUTION="Findings Distribution"
 fi
 
 # =============================================================================
@@ -199,6 +207,22 @@ fi
 echo "${L_MODELS}: ${MODELS_USED} | ${L_INTENSITY}: ${INTENSITY} | ${L_FOCUS}: ${FOCUS_AREAS:-all}"
 echo "${L_FILES}: ${FILE_COUNT} | ${L_FINDINGS}: ${ACCEPTED_COUNT} ${L_ACCEPTED}, ${REJECTED_COUNT} ${L_REJECTED}, ${DISPUTED_COUNT} ${L_DISPUTED}"
 echo ""
+
+# --- Intensity Rationale ---
+INTENSITY_RATIONALE=""
+if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+  INTENSITY_RATIONALE=$(jq -r '.intensity_rationale // ""' "$CONFIG_FILE" 2>/dev/null || echo "")
+fi
+
+# Also check if rationale was passed as environment variable
+INTENSITY_RATIONALE="${ARENA_INTENSITY_RATIONALE:-$INTENSITY_RATIONALE}"
+
+if [ -n "$INTENSITY_RATIONALE" ] && [ "$INTENSITY_RATIONALE" != "null" ] && [ "$INTENSITY_RATIONALE" != "" ]; then
+  echo "$L_INTENSITY_RATIONALE_TITLE"
+  echo ""
+  echo "$INTENSITY_RATIONALE"
+  echo ""
+fi
 
 # --- Helper: render findings list ---
 render_findings() {
@@ -359,4 +383,128 @@ if [ "$SHOW_COST" = "true" ] && [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ]; 
     echo "$COST_ESTIMATE"
     echo ""
   fi
+fi
+
+# =============================================================================
+# Mermaid Visualizations
+# =============================================================================
+
+if [ "$TOTAL_FINDINGS" -gt 0 ]; then
+  echo "$L_VISUALIZATION_TITLE"
+  echo ""
+
+  # Findings severity distribution pie chart
+  echo "$L_FINDINGS_DISTRIBUTION"
+  echo ""
+  echo '```mermaid'
+  echo "pie title ${L_FINDINGS_DISTRIBUTION}"
+
+  if [ "$CRITICAL_COUNT" -gt 0 ]; then
+    echo "    \"Critical\" : ${CRITICAL_COUNT}"
+  fi
+  if [ "$HIGH_COUNT" -gt 0 ]; then
+    echo "    \"High\" : ${HIGH_COUNT}"
+  fi
+  if [ "$MEDIUM_COUNT" -gt 0 ]; then
+    echo "    \"Medium\" : ${MEDIUM_COUNT}"
+  fi
+  if [ "$LOW_COUNT" -gt 0 ]; then
+    echo "    \"Low\" : ${LOW_COUNT}"
+  fi
+
+  echo '```'
+  echo ""
+
+  # Agent participation diagram
+  AGENT_COUNTS=$(echo "$ALL_FINDINGS" | jq -r '
+    [.[].models[]?] |
+    group_by(.) |
+    map({model: .[0], count: length}) |
+    sort_by(-.count)
+  ' 2>/dev/null || echo "[]")
+
+  AGENT_COUNT_LEN=$(echo "$AGENT_COUNTS" | jq 'length' 2>/dev/null || echo "0")
+
+  if [ "$AGENT_COUNT_LEN" -gt 0 ]; then
+    echo "$L_AGENT_PARTICIPATION"
+    echo ""
+    echo '```mermaid'
+    echo "graph LR"
+
+    echo "$AGENT_COUNTS" | jq -r '.[] | "    \(.model)[\(.model)<br/>\(.count) findings]"' 2>/dev/null || true
+
+    # Connect all agents to consensus
+    echo "    subgraph Consensus"
+    echo "        ACC[\"${ACCEPTED_COUNT} ${L_ACCEPTED}\"]"
+    if [ "$DISPUTED_COUNT" -gt 0 ]; then
+      echo "        DIS[\"${DISPUTED_COUNT} ${L_DISPUTED}\"]"
+    fi
+    echo "    end"
+
+    echo "$AGENT_COUNTS" | jq -r '.[] | "    \(.model) --> ACC"' 2>/dev/null || true
+
+    echo '```'
+    echo ""
+  fi
+
+  # Review flow diagram
+  echo '```mermaid'
+  echo "flowchart TD"
+  echo "    P0[Context] --> P01{Intensity: ${INTENSITY}}"
+
+  case "$INTENSITY" in
+    quick)
+      echo "    P01 --> P05[Codebase Analysis]"
+      echo "    P05 --> P6[Review]"
+      echo "    P6 --> P7[Report]"
+      ;;
+    standard)
+      echo "    P01 --> P02[Cost Estimation]"
+      echo "    P02 --> P05[Codebase Analysis]"
+      echo "    P05 --> P1[Stack Detection]"
+      echo "    P1 --> P58[Static Analysis]"
+      echo "    P58 --> P55[Strategy Debate]"
+      echo "    P55 --> P6[Agent Team Review]"
+      echo "    P6 --> P65[Auto-Fix]"
+      echo "    P65 --> P66[Test Generation]"
+      echo "    P66 --> P7[Report]"
+      ;;
+    deep)
+      echo "    P01 --> P02[Cost Estimation]"
+      echo "    P02 --> P05[Codebase Analysis]"
+      echo "    P05 --> P1[Stack Detection]"
+      echo "    P1 --> P2[Research]"
+      echo "    P2 --> P3[Compliance]"
+      echo "    P3 --> P58[Static Analysis]"
+      echo "    P58 --> P59[Threat Modeling]"
+      echo "    P59 --> P55[Strategy Debate]"
+      echo "    P55 --> P6[Agent Team Review]"
+      echo "    P6 --> P65[Auto-Fix]"
+      echo "    P65 --> P66[Test Generation]"
+      echo "    P66 --> P67[Visual Verification]"
+      echo "    P67 --> P7[Report]"
+      ;;
+    comprehensive)
+      echo "    P01 --> P02[Cost Estimation]"
+      echo "    P02 --> P05[Codebase Analysis]"
+      echo "    P05 --> P1[Stack Detection]"
+      echo "    P1 --> P2[Research]"
+      echo "    P2 --> P3[Compliance]"
+      echo "    P3 --> P4[Benchmarking]"
+      echo "    P4 --> P58[Static Analysis]"
+      echo "    P58 --> P59[Threat Modeling]"
+      echo "    P59 --> P55[Strategy Debate]"
+      echo "    P55 --> P6[Agent Team Review]"
+      echo "    P6 --> P65[Auto-Fix]"
+      echo "    P65 --> P66[Test Generation]"
+      echo "    P66 --> P67[Visual Verification]"
+      echo "    P67 --> P7[Report]"
+      ;;
+  esac
+
+  echo "    P6 -.- R6[\"${ACCEPTED_COUNT} accepted / ${REJECTED_COUNT} rejected / ${DISPUTED_COUNT} disputed\"]"
+  echo "    style P6 fill:#f9f,stroke:#333"
+  echo "    style P7 fill:#bbf,stroke:#333"
+  echo '```'
+  echo ""
 fi

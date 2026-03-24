@@ -240,6 +240,14 @@ These contexts have inherently bounded performance characteristics — optimize 
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical bottlenecks
 
+## Gotchas
+
+- **React re-renders**: Not every re-render is a performance issue — React's reconciliation is fast for small component trees; only flag when measurable impact exists (large lists, frequent updates)
+- **Premature memoization**: `useMemo`/`useCallback` on cheap operations adds overhead — flag missing memoization only for expensive computations or components with many children
+- **Database N+1 with DataLoader**: GraphQL resolvers using DataLoader batch queries automatically — the N+1 pattern is expected at the resolver level
+- **Lazy loading overhead**: Code splitting every component adds chunk loading latency — small components under 5KB are better bundled together
+- **Python GIL**: Suggesting threading for CPU-bound Python tasks is wrong — only `multiprocessing` or async I/O actually parallelize; threading only helps I/O-bound work
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

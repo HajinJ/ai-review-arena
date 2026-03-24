@@ -239,6 +239,14 @@ These are intentional patterns — their presence confirms deliberate design:
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings with summary noting incomplete coverage
 
+## Gotchas
+
+- **Optional chaining as null guard**: `foo?.bar?.baz` is intentional null handling, not a missing null check — only flag when the chain result is used unsafely
+- **Intentional empty catch blocks**: `catch {}` after `JSON.parse()` or `parseInt()` with fallback values is a valid pattern — check if fallback exists before flagging
+- **Async iterator patterns**: `for await...of` with generators may look like missing error handling but the generator itself may handle cleanup
+- **Type narrowing**: TypeScript discriminated unions and Go type switches already handle exhaustiveness — don't flag missing cases that the type system prevents
+- **React useEffect cleanup**: Missing cleanup functions are only a bug for subscriptions/timers — simple data fetches with AbortController don't always need explicit cleanup
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

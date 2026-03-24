@@ -163,6 +163,12 @@ A threat is reportable when it meets ALL criteria:
 - **Empty scope**: Send message to team lead: "threat-modeler received empty scope — awaiting input"
 - **Timeout approaching**: Submit partial threat model prioritizing critical/high threats
 
+## Gotchas
+
+- **STRIDE completeness trap**: Not every STRIDE category applies to every component — a static file server has no Elevation of Privilege concern; skip non-applicable categories
+- **Threat vs vulnerability**: Threats are potential attack types; vulnerabilities are actual weaknesses — don't conflate "an attacker could try X" with "the system is vulnerable to X"
+- **Trust boundary granularity**: Placing trust boundaries between every microservice creates noise — focus on boundaries where authentication/authorization context changes
+
 ## Rules
 
 1. Every threat MUST specify a concrete STRIDE category

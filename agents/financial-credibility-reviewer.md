@@ -223,6 +223,13 @@ These are standard business communication patterns — their presence is intenti
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical financial inconsistencies and mathematical errors
 
+## Gotchas
+
+- **Pre-revenue financials**: Seed-stage companies with zero revenue are expected — don't flag absence of revenue metrics when the company is explicitly pre-product-market-fit
+- **Gross margin variance by industry**: SaaS (70-80%), hardware (30-50%), and marketplace (40-60%) have vastly different healthy margins — apply industry-appropriate benchmarks
+- **Rounding in projections**: Financial projections often round to nearest thousand or million — small arithmetic discrepancies from rounding are not credibility issues
+- **Currency and accounting standards**: Non-US companies may use different accounting standards (IFRS vs GAAP) and report in local currency — don't flag as inconsistency without checking context
+
 ## Rules
 
 1. Every finding MUST reference a specific section and include the exact financial claim being evaluated

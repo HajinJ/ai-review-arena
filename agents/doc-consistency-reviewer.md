@@ -218,6 +218,12 @@ These are standard documentation practices — their presence is intentional, no
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical issues (broken cross-references, naming mismatches that would cause code errors)
 
+## Gotchas
+
+- **Intentional terminology variants**: Some projects use both "endpoint" and "route" deliberately (endpoint = external, route = internal) — check for semantic distinction before flagging as inconsistency
+- **Multi-audience docs**: Docs targeting different audiences (user guide vs API reference) may intentionally use different terminology levels
+- **Historical naming**: Older docs may use previous product names that were deliberately kept for SEO or redirect purposes
+
 ## Rules
 
 1. Every finding MUST include the `consistency_map` object with both variants, their occurrence counts, and affected files

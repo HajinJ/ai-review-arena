@@ -199,6 +199,13 @@ These indicate the API contract category is already handled -- their presence co
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings with summary noting "Review incomplete -- {N} endpoints pending due to time constraints"
 
+## Gotchas
+
+- **GraphQL nullable by default**: In GraphQL, fields are nullable unless explicitly marked `!` — this is by design, not a missing validation
+- **REST PATCH partial updates**: PATCH endpoints legitimately accept partial payloads — don't flag missing required fields that are only required for PUT/POST
+- **API versioning preferences**: `/v2/` path versioning and header-based versioning are both valid — don't impose a preference unless the project already has a convention
+- **gRPC backward compatibility**: Adding new fields to protobuf messages IS backward compatible — only flag removals or type changes
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

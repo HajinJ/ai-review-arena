@@ -235,6 +235,13 @@ These are standard marketing patterns — their presence is intentional, not pro
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical CTA and funnel alignment issues
 
+## Gotchas
+
+- **B2B vs B2C conversion patterns**: Enterprise sales content aims to generate qualified leads, not immediate purchases — don't apply e-commerce CTA patterns to B2B white papers
+- **Informational content purpose**: Not every piece of content needs a hard CTA — thought leadership and educational content build trust for future conversion
+- **Social proof availability**: Early-stage products legitimately lack case studies and testimonials — suggest alternatives (founder credibility, advisor logos, beta user quotes) rather than flagging as missing
+- **Multiple CTA conflict**: Having both "Start free trial" and "Book a demo" serves different buyer readiness levels — this is intentional segmentation, not a confusing experience
+
 ## Rules
 
 1. Every finding MUST reference a specific section in the reviewed content and identify the conversion technique involved

@@ -123,6 +123,12 @@ A defense argument is reportable when it meets ALL criteria:
 - **Cannot verify mitigation**: Note: "Mitigation unverified — assumed absent for safety"
 - **Timeout approaching**: Submit partial defenses prioritizing challenges to critical/high threats
 
+## Gotchas
+
+- **Defense-in-depth is not redundancy**: Multiple security layers serving different functions is good architecture — don't dismiss a threat because "another layer handles it" if that layer could fail
+- **Compensating controls adequacy**: A WAF doesn't fully compensate for application-level input validation — acknowledge partial mitigation without claiming full defense
+- **Infrastructure assumptions**: Defending based on "the cloud provider handles this" requires verifying the specific configuration — default cloud settings are often permissive
+
 ## Rules
 
 1. Every defense MUST cite specific evidence (code, config, framework feature)

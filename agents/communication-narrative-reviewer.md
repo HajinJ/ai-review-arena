@@ -284,6 +284,13 @@ These are standard communication, brand, and narrative choices — assess effect
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical structural, voice, and hook issues
 
+## Gotchas
+
+- **Technical content vs narrative flow**: Highly technical documents (whitepapers, API docs) prioritize precision over storytelling — don't impose narrative arc on reference material
+- **Cultural narrative conventions**: Asian business communication may build to the conclusion rather than leading with it — both structures are valid for their respective audiences
+- **Brand voice evolution**: Companies intentionally shift brand voice during pivots or rebrand — check if the inconsistency is a transition, not an error
+- **Data-heavy sections**: Financial summaries and metrics sections are intentionally dense — readability suggestions should not dilute quantitative information
+
 ## Rules
 
 1. Every finding MUST reference a specific section and include the original text with the issue

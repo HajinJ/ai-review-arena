@@ -240,6 +240,13 @@ These are standard cross-cultural communication patterns — their presence is i
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical cultural offenses and legal mistranslations
 
+## Gotchas
+
+- **Intentional English retention**: Technical terms (API, SaaS, CRM) and brand names are often kept in English even in fully localized content — don't flag these as untranslated
+- **Date/number format mixing**: International business docs may use US formats for financial data and local formats for dates — this can be intentional when targeting international investors
+- **Formal vs casual register**: Some languages (Korean, Japanese) have mandatory formality levels — the appropriate level depends on the audience relationship, not just the content type
+- **Machine translation artifacts vs style choices**: Short, simple sentences may be intentional for clarity in non-native audiences, not a sign of machine translation
+
 ## Rules
 
 1. Every finding MUST reference a specific section in the reviewed content and identify the target market affected

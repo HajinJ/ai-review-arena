@@ -210,6 +210,12 @@ These are standard documentation practices — their presence is intentional, no
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical readability blockers (wrong audience level, broken document structure, information impossible to locate)
 
+## Gotchas
+
+- **Technical terminology**: Domain-specific jargon is appropriate for docs targeting domain experts — don't suggest simplification for API references aimed at developers
+- **Code-heavy documentation**: Reference docs are intentionally code-heavy — readability suggestions should not reduce code examples
+- **Cultural writing styles**: Technical writing conventions vary by culture — Korean docs may use different structure than English docs; both are valid
+
 ## Rules
 
 1. Every finding MUST explain the impact on the reader, not just describe the structural issue

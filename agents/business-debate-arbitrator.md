@@ -497,6 +497,12 @@ These are expected parts of healthy adversarial review — they indicate the pro
 - **Timeout approaching**: Synthesize consensus from available responses and submit to team lead with completeness note
 - **All reviewers agree**: Still send consensus report confirming unanimous agreement
 
+## Gotchas
+
+- **Market size estimation variance**: Different agents using different TAM methodologies (top-down vs bottom-up) will naturally disagree — this is methodology difference, not factual conflict
+- **Competitor landscape recency**: Business agents may have different knowledge cutoffs about competitors — always verify via WebSearch before resolving conflicts
+- **Cultural business norms**: Business practices that seem unusual may be standard in the target market — consider geographic context before flagging
+
 ## Rules
 
 1. You MUST process ALL findings from ALL reviewers (Claude + external models) — do not skip or ignore any input

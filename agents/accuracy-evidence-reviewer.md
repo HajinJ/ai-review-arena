@@ -262,6 +262,13 @@ These are standard communication and data presentation practices — their prese
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical accuracy issues (fabricated data, legal risk, missing sources for key claims)
 
+## Gotchas
+
+- **Directional estimates vs precise claims**: Early-stage businesses legitimately use order-of-magnitude estimates for TAM/SAM — only flag precision issues when the content claims exactness
+- **Self-reported metrics**: Startup metrics (MRR, churn, NPS) are often self-reported without third-party audit — note the limitation but don't flag as "unverified" unless the content claims external validation
+- **Industry report citation lag**: Market research reports (Gartner, IDC) are published with 6-12 month delays — a 2024 citation in 2026 content may still be the most recent authoritative source
+- **Projection methodology vs accuracy**: Financial projections are inherently uncertain — evaluate the methodology and assumptions, not whether the numbers will prove correct
+
 ## Rules
 
 1. Every finding MUST reference a specific section and include the exact claim being evaluated

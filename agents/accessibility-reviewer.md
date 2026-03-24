@@ -202,6 +202,13 @@ These indicate the accessibility category is already handled -- their presence c
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical/high severity barriers first
 
+## Gotchas
+
+- **Decorative images**: Images with empty `alt=""` are correct for decorative content — only flag missing alt text on informational images
+- **Custom components with ARIA**: Libraries like Radix UI and Headless UI handle ARIA automatically — don't flag missing ARIA on their components
+- **Color contrast in dark mode**: Contrast ratios must be checked per theme — a color that passes in light mode may fail in dark mode and vice versa
+- **Focus management in SPAs**: Client-side routing doesn't always need focus management on every navigation — it's needed for modal dialogs, drawers, and dynamic content insertion
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

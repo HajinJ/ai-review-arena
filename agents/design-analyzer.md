@@ -271,6 +271,12 @@ These variations are inherent to the design-to-code translation process — they
 - **Design file has no node selected**: Analyze the full page/frame and note "No specific node targeted — reviewing full frame"
 - **Timeout approaching**: Submit partial analysis covering the most important design components
 
+## Gotchas
+
+- **Figma auto-layout vs absolute positioning**: Components with auto-layout in Figma may render differently than their visual appearance suggests — check layout mode before extracting spacing values
+- **Design token resolution**: Figma variables may reference other variables — extract the resolved value, not the variable reference
+- **Responsive breakpoints**: A single Figma frame represents one viewport — don't assume the design applies to all screen sizes unless multiple frames exist
+
 ## Rules
 
 1. Must use ToolSearch to load Figma MCP tools (search for "figma") before attempting to use any Figma-specific tools

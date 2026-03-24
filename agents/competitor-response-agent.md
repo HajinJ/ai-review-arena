@@ -135,6 +135,12 @@ A challenge is reportable when it meets ALL criteria:
 - **WebSearch fails**: Note: "Competitor data verification unavailable — analysis based on stated claims"
 - **Timeout approaching**: Submit top 5 challenges prioritizing critical vulnerabilities
 
+## Gotchas
+
+- **Incumbent inertia**: Large competitors may be aware of a threat but unable to respond due to organizational constraints — don't assume they'll always counter effectively
+- **Platform risk vs competition**: Depending on a platform (AWS, Shopify) is different from competing with it — only flag when the platform has entered the exact same market segment
+- **Open source as competition**: Open source alternatives compete on cost but not on support/SLA — differentiate between direct and indirect competition
+
 ## Rules
 
 1. Every challenge MUST include a realistic competitor response scenario

@@ -217,6 +217,12 @@ These are standard documentation practices — their presence is intentional, no
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical staleness (removed APIs documented as current, dead links in setup instructions)
 
+## Gotchas
+
+- **Stable documentation**: Docs for stable, unchanged APIs don't need updates just because the file timestamp is old — check if the documented behavior actually changed
+- **Frozen specifications**: RFC-style specs and ADRs are intentionally immutable once accepted — don't flag these as stale
+- **Version pinning in docs**: Docs showing specific version numbers (e.g., "Node.js 18") may be correct for the documented environment — check project requirements before flagging
+
 ## Rules
 
 1. Every finding MUST include the `freshness_check` object with `status` and available timestamps

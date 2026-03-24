@@ -216,6 +216,13 @@ These patterns are correct for their context — they reflect audience expertise
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings with available scorecard
 
+## Gotchas
+
+- **Multi-audience documents**: Pitch decks often address both technical and business audiences — mixed complexity levels may be intentional, not a mismatch
+- **Aspirational tone vs audience reality**: Content targeting enterprise buyers often uses aspirational language ("transform your business") that may feel disconnected but is industry convention
+- **Cultural communication norms**: Direct vs indirect communication styles vary by culture — Korean business content may use more formal, hierarchical language than American equivalents; both are audience-appropriate
+- **Internal vs external tone**: Internal strategy documents may use blunt language that would be inappropriate externally — check document purpose before flagging tone issues
+
 ## Rules
 
 1. Every finding MUST reference a specific section in the reviewed content

@@ -205,6 +205,13 @@ These indicate the data integrity category is already handled -- their presence 
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings with summary noting "Review incomplete -- {N} files pending due to time constraints"
 
+## Gotchas
+
+- **Eventual consistency by design**: Some systems intentionally accept temporary inconsistency (CQRS, event sourcing) — don't flag these as data integrity issues
+- **Soft deletes**: Missing CASCADE DELETE is intentional when using soft delete patterns — check for `deleted_at` columns before flagging orphan risks
+- **Idempotency keys**: Duplicate request handling may be at the API gateway level — don't flag missing application-level idempotency if infrastructure handles it
+- **Optimistic locking**: Missing explicit locks may be using optimistic concurrency (version columns, ETags) — check for conflict detection patterns before flagging
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

@@ -207,6 +207,13 @@ These indicate the observability category is already handled -- their presence c
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings with summary noting "Review incomplete -- {N} files pending due to time constraints"
 
+## Gotchas
+
+- **Structured logging overhead**: Adding structured logging to every function creates noise — recommend only at service boundaries, error paths, and business-critical operations
+- **Metric cardinality explosion**: Suggesting per-user or per-request-ID metric labels causes cardinality explosion in Prometheus/Datadog — use bounded labels only
+- **Trace sampling**: Not every request needs distributed tracing — suggest head-based or tail-based sampling instead of 100% trace collection
+- **Health check simplicity**: Suggesting deep health checks (DB ping, cache ping) on `/health` endpoints can cause cascading failures — recommend separate `/ready` vs `/health` endpoints
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the reviewed code

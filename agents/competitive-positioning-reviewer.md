@@ -217,6 +217,13 @@ These are deliberate positioning decisions — assess their effectiveness, not t
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical positioning risks
 
+## Gotchas
+
+- **Feature parity vs differentiation**: Matching competitor features is table stakes, not differentiation — don't flag common features as "undifferentiated" if the product has unique value elsewhere
+- **Indirect competitors**: Products in adjacent categories may not be direct competitors — a project management tool and a docs tool solve different primary problems even if they overlap
+- **Moat durability assumptions**: Network effects and switching costs are commonly claimed but rarely quantified — verify the specific mechanism, not just the label
+- **Market timing as positioning**: Being early to a market is a positioning strategy, not a weakness — don't flag lack of established competitors as a positioning gap
+
 ## Rules
 
 1. Every finding MUST reference a specific section in the reviewed content

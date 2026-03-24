@@ -212,6 +212,14 @@ These patterns have no meaningful runtime behavior to verify — tests would be 
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings focusing on critical untested paths
 
+## Gotchas
+
+- **Generated code**: Auto-generated files (protobuf, GraphQL codegen, OpenAPI) don't need unit tests — test the generators and integration instead
+- **Simple getters/setters**: Testing trivial property access adds maintenance burden without value — focus test recommendations on business logic
+- **Snapshot tests**: Suggesting snapshot tests for dynamic content (timestamps, random IDs) creates flaky tests — recommend deterministic assertions instead
+- **100% coverage trap**: Recommending coverage for error paths that require infrastructure failures (disk full, OOM) leads to brittle mocks — focus on business-critical paths
+- **E2E vs unit boundary**: Don't recommend unit tests for code that's purely orchestration (calling other tested functions in sequence) — integration/E2E tests are more appropriate
+
 ## Rules
 
 1. Every finding MUST reference a specific line number in the production code that lacks test coverage or in the test code that has quality issues

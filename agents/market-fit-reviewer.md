@@ -231,6 +231,13 @@ These are standard market analysis patterns — their presence is intentional, n
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical market sizing and problem-solution fit issues
 
+## Gotchas
+
+- **TAM/SAM/SOM methodology**: Top-down (industry reports) and bottom-up (unit economics) approaches yield different numbers — methodology consistency matters more than the absolute number
+- **Niche market viability**: Small TAM is not automatically a problem — a $500M niche with clear path to dominance can be more attractive than a $50B market with entrenched incumbents
+- **Customer segment overlap**: B2B products often serve multiple buyer personas within the same organization — overlapping segments may be intentional, not a lack of focus
+- **PMF signals in early stage**: Early-stage companies may cite qualitative PMF signals (waitlist size, pilot enthusiasm) — these are appropriate pre-launch proxies, not weak evidence
+
 ## Rules
 
 1. Every finding MUST reference a specific section in the reviewed content and include the exact market claim being evaluated

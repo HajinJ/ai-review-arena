@@ -223,6 +223,13 @@ These are standard business communication patterns — their presence is intenti
 - **Malformed debate input**: Request clarification from sender via SendMessage before responding
 - **Timeout approaching**: Submit partial findings prioritizing critical legal risks (liability exposure, regulatory violations)
 
+## Gotchas
+
+- **Puffery vs misleading claims**: Marketing superlatives like "best-in-class" are legally protected puffery — only flag specific, quantifiable claims that could be proven false
+- **Terms of service boilerplate**: Standard ToS clauses (limitation of liability, arbitration) are industry-standard legal protections, not red flags — flag only unusual or missing clauses
+- **Open source license compatibility**: Permissive licenses (MIT, Apache 2.0) are generally business-friendly — only flag copyleft licenses (GPL, AGPL) when used in proprietary products
+- **Privacy policy scope**: Not every mention of user data requires a full GDPR disclosure — check if the product actually processes EU personal data before flagging
+
 ## Rules
 
 1. Every finding MUST reference a specific section and include the exact statement creating legal risk
