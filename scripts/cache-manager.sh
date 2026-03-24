@@ -142,11 +142,21 @@ cmd_write() {
 
   mkdir -p "$dir"
 
-  # Read content from stdin
-  cat > "$cache_file"
+  # Read content from stdin into variable for injection scanning
+  local content
+  content=$(cat)
 
-  # Write timestamp
-  date +%s > "$ts_file"
+  # Scan for prompt injection before writing
+  if ! validate_cache_content "$content"; then
+    log_warn "Cache write rejected for $category/$key: injection pattern detected"
+    return 1
+  fi
+
+  # Atomic write: temp file + mv to prevent partial-write corruption
+  atomic_write "$cache_file" "$content"
+
+  # Write timestamp atomically
+  atomic_write "$ts_file" "$(date +%s)"
 
   return 0
 }

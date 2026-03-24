@@ -138,6 +138,10 @@
 - FTS5 search (`cache-manager.sh search`) provides BM25-ranked full-text search across memory tiers and signal logs
 - Fleet/Swarm mode (`fleet_swarm` config) distinguishes between fleet (same review across targets) and swarm (parallel aspect review with convergence)
 - Review daemon (`review-daemon.sh`) provides async ticket queue for background review processing
+- **Frozen Snapshot Pattern** (`pipeline_memory_snapshot()` in utils.sh): reads all memory tiers once at pipeline start, subsequent phases use snapshot — prevents mid-pipeline mutations from causing inconsistent agent behavior (Hermes Agent pattern)
+- **Content Injection Scanning** (`validate_cache_content()` in utils.sh): regex-based validation on cache/memory/signal-log writes — blocks prompt injection, identity overrides, data exfiltration URLs, invisible unicode (Hermes Agent pattern)
+- **Atomic File Writes** (`atomic_write()`, `atomic_write_stdin()` in utils.sh): mktemp + mv pattern prevents partial-write corruption from concurrent agent access; signal-log uses flock-based atomic append (Hermes Agent pattern)
+- **Self-Improving Gotchas** (`signal-log.sh gotcha-suggest`): converts false-positive patterns from signal log learnings into Gotcha suggestions; `--save` stores to short-term memory for next pipeline run (Hermes Agent skill self-improvement pattern)
 
 ## Testing
 - Test with intentionally buggy code to verify detection

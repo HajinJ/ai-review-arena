@@ -7,6 +7,7 @@
 #   signal-log.sh read  <project-root> [--agent <id>] [--type <type>] [--since <epoch>]
 #   signal-log.sh stats <project-root>
 #   signal-log.sh learn <project-root>
+#   signal-log.sh gotcha-suggest <project-root> [--save]
 #
 # Maintains a JSONL append-only log of cross-agent signals during review.
 # Inspired by Ralph's progress.txt pattern and Agent-Skills-for-Context-Engineering.
@@ -82,20 +83,34 @@ cmd_write() {
     return 1
   fi
 
-  # Append signal entry
+  # Scan for prompt injection in signal data
+  if ! validate_cache_content "$data_json"; then
+    log_warn "Signal write rejected for agent $agent_id: injection pattern detected in data"
+    return 1
+  fi
+
+  # Build signal entry
   local now_epoch
   now_epoch=$(date +%s)
   local now_iso
   now_iso=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-  jq -cn \
+  local entry
+  entry=$(jq -cn \
     --arg agent "$agent_id" \
     --arg type "$signal_type" \
     --argjson ts "$now_epoch" \
     --arg ts_iso "$now_iso" \
     --argjson data "$data_json" \
-    '{agent_id: $agent, signal_type: $type, timestamp: $ts, timestamp_iso: $ts_iso, data: $data}' \
-    >> "$log_file"
+    '{agent_id: $agent, signal_type: $type, timestamp: $ts, timestamp_iso: $ts_iso, data: $data}')
+
+  # Atomic append: write to temp file then append with lock
+  # Uses flock if available, direct append as fallback
+  if command -v flock &>/dev/null; then
+    (flock -x 200; echo "$entry" >> "$log_file") 200>"${log_file}.lock"
+  else
+    echo "$entry" >> "$log_file"
+  fi
 
   return 0
 }
@@ -242,6 +257,76 @@ cmd_learn() {
   return 0
 }
 
+cmd_gotcha_suggest() {
+  # Converts accumulated learnings into Gotcha suggestions for agent definitions.
+  # Reads from learnings.jsonl and produces markdown-formatted Gotcha entries
+  # that can be appended to agent files or stored in short-term memory for
+  # next pipeline run. Inspired by Hermes Agent's skill self-improvement pattern.
+  #
+  # Usage: signal-log.sh gotcha-suggest <project-root> [--save]
+  #   --save: write suggestions to short-term memory for next pipeline run
+
+  local project_root="${1:?Usage: signal-log.sh gotcha-suggest <project-root> [--save]}"
+  shift 1
+
+  local save_to_memory="false"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --save) save_to_memory="true"; shift ;;
+      *) shift ;;
+    esac
+  done
+
+  ensure_jq
+
+  local learn_file
+  learn_file=$(learnings_file "$project_root")
+
+  if [ ! -f "$learn_file" ] || [ ! -s "$learn_file" ]; then
+    echo "No learnings found. Run 'signal-log.sh learn' first."
+    return 0
+  fi
+
+  # Generate Gotcha suggestions from false_positive_pattern learnings
+  local suggestions
+  suggestions=$(jq -s '
+    [.[] | select(.learning_type == "false_positive_pattern" and .occurrences >= 2)] |
+    group_by(.pattern) |
+    map({
+      agent: (.[0].agents_involved[0] // "unknown"),
+      pattern: .[0].pattern,
+      total_occurrences: ([.[].occurrences] | add),
+      suggestion: "- **\(.[0].pattern)**: This pattern was challenged \([.[].occurrences] | add) times across reviews and frequently dismissed — likely a false positive that should be added to Gotchas"
+    }) |
+    sort_by(-.total_occurrences)
+  ' "$learn_file" 2>/dev/null || echo "[]")
+
+  local count
+  count=$(echo "$suggestions" | jq 'length')
+
+  if [ "$count" = "0" ]; then
+    echo "No Gotcha suggestions found (need patterns with 2+ occurrences)."
+    return 0
+  fi
+
+  # Output as markdown
+  echo "## Auto-Generated Gotcha Suggestions"
+  echo ""
+  echo "Based on $count false-positive patterns detected across reviews:"
+  echo ""
+  echo "$suggestions" | jq -r '.[] | "### Agent: \(.agent)\n\(.suggestion)\n  (seen \(.total_occurrences) times)\n"'
+
+  # Optionally save to memory for next pipeline run
+  if [ "$save_to_memory" = "true" ]; then
+    local gotcha_md
+    gotcha_md=$(echo "$suggestions" | jq -r '[.[].suggestion] | join("\n")')
+    echo "$gotcha_md" | "$SCRIPT_DIR/cache-manager.sh" memory-write "$project_root" short-term "gotcha-suggestions"
+    log_info "Gotcha suggestions saved to short-term memory (key: gotcha-suggestions)"
+  fi
+
+  return 0
+}
+
 # =============================================================================
 # Main Dispatch
 # =============================================================================
@@ -249,7 +334,7 @@ cmd_learn() {
 COMMAND="${1:-}"
 
 if [ -z "$COMMAND" ]; then
-  log_error "Usage: signal-log.sh <write|read|stats|learn> ..."
+  log_error "Usage: signal-log.sh <write|read|stats|learn|gotcha-suggest> ..."
   exit 0
 fi
 
@@ -260,6 +345,7 @@ case "$COMMAND" in
   read)  cmd_read "$@" ;;
   stats) cmd_stats "$@" ;;
   learn) cmd_learn "$@" ;;
+  gotcha-suggest) cmd_gotcha_suggest "$@" ;;
   *)
     log_error "Unknown command: $COMMAND"
     exit 0

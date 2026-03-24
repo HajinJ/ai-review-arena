@@ -20,6 +20,11 @@
 #   get_config_value               - jq wrapper for config values
 #   get_current_year               - current year string
 #   format_timestamp               - human readable from epoch
+#   pipeline_memory_snapshot       - frozen memory read for pipeline consistency
+#   pipeline_memory_reset          - reset snapshot between pipeline runs
+#   validate_cache_content         - injection scanning for cache/memory writes
+#   atomic_write                   - atomic file write via temp+mv
+#   atomic_write_stdin             - atomic file write from stdin
 #
 # Error Handling Convention:
 #   - External CLI calls: capture stderr via log_stderr_file(), never 2>/dev/null
@@ -352,4 +357,131 @@ format_timestamp() {
     # GNU/Linux
     date -d "@$epoch" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$epoch"
   fi
+}
+
+# =============================================================================
+# Pipeline Memory Snapshot (Frozen Snapshot Pattern)
+# =============================================================================
+# Reads memory state once and stores it. All subsequent pipeline phases use the
+# snapshot instead of live reads, preventing mid-pipeline memory mutations from
+# creating inconsistent agent behavior.
+# Inspired by Hermes Agent's frozen system prompt pattern.
+
+_PIPELINE_MEMORY_SNAPSHOT=""
+_PIPELINE_MEMORY_SNAPSHOT_LOADED="false"
+
+# Capture a frozen snapshot of memory state for the current pipeline run.
+# Call once at pipeline start (Phase 0). Subsequent calls are no-ops.
+# Usage: pipeline_memory_snapshot <project-root>
+pipeline_memory_snapshot() {
+  local project_root="${1:?Usage: pipeline_memory_snapshot <project-root>}"
+
+  if [ "$_PIPELINE_MEMORY_SNAPSHOT_LOADED" = "true" ]; then
+    echo "$_PIPELINE_MEMORY_SNAPSHOT"
+    return 0
+  fi
+
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+  # Collect all memory tiers into a single JSON snapshot
+  local working short_term long_term permanent
+  working=$("$script_dir/cache-manager.sh" memory-list "$project_root" working 2>/dev/null || echo "[]")
+  short_term=$("$script_dir/cache-manager.sh" memory-list "$project_root" short-term 2>/dev/null || echo "[]")
+  long_term=$("$script_dir/cache-manager.sh" memory-list "$project_root" long-term 2>/dev/null || echo "[]")
+  permanent=$("$script_dir/cache-manager.sh" memory-list "$project_root" permanent 2>/dev/null || echo "[]")
+
+  _PIPELINE_MEMORY_SNAPSHOT=$(jq -cn \
+    --argjson w "$working" \
+    --argjson s "$short_term" \
+    --argjson l "$long_term" \
+    --argjson p "$permanent" \
+    '{working: $w, short_term: $s, long_term: $l, permanent: $p, snapshot_epoch: now | floor}' 2>/dev/null || echo '{}')
+
+  _PIPELINE_MEMORY_SNAPSHOT_LOADED="true"
+  echo "$_PIPELINE_MEMORY_SNAPSHOT"
+}
+
+# Reset snapshot (e.g., between pipeline runs in ralph-loop)
+pipeline_memory_reset() {
+  _PIPELINE_MEMORY_SNAPSHOT=""
+  _PIPELINE_MEMORY_SNAPSHOT_LOADED="false"
+}
+
+# =============================================================================
+# Content Injection Scanning
+# =============================================================================
+# Scans content before writing to cache/memory/signal-log to prevent prompt
+# injection attacks that could influence agent behavior.
+# Inspired by Hermes Agent's memory injection scanner.
+
+# Returns 0 if content is safe, 1 if injection detected.
+# Usage: validate_cache_content "$content" && echo "safe"
+validate_cache_content() {
+  local content="$1"
+
+  if [ -z "$content" ]; then
+    return 0
+  fi
+
+  # Prompt injection patterns
+  if echo "$content" | grep -qiE 'ignore (previous|prior|above|all) (instructions|prompts|rules)'; then
+    log_warn "Injection scan: prompt override pattern detected"
+    return 1
+  fi
+  if echo "$content" | grep -qiE 'you are now|new (system|base) prompt|override (system|your)'; then
+    log_warn "Injection scan: identity override pattern detected"
+    return 1
+  fi
+  if echo "$content" | grep -qiE 'system prompt[:\s]|<\|im_start\|>system|<system>'; then
+    log_warn "Injection scan: system prompt injection pattern detected"
+    return 1
+  fi
+
+  # Data exfiltration patterns
+  if echo "$content" | grep -qiE '(curl|wget|fetch|nc|ncat)\s+https?://[^ ]*\.(txt|log|env|key|pem|json)'; then
+    log_warn "Injection scan: data exfiltration pattern detected"
+    return 1
+  fi
+
+  # Invisible unicode (zero-width chars used to hide instructions)
+  if echo "$content" | grep -qP '[\x{200B}\x{200C}\x{200D}\x{FEFF}\x{2060}]' 2>/dev/null; then
+    log_warn "Injection scan: invisible unicode characters detected"
+    return 1
+  fi
+
+  return 0
+}
+
+# =============================================================================
+# Atomic File Write
+# =============================================================================
+# Writes content to a file atomically via temp file + mv.
+# Prevents partial-write corruption from concurrent access.
+# Inspired by Hermes Agent's tempfile.mkstemp() + os.replace() pattern.
+#
+# Usage: atomic_write <target-path> <content>
+#    or: echo "content" | atomic_write_stdin <target-path>
+atomic_write() {
+  local target="${1:?Usage: atomic_write <target> <content>}"
+  local content="$2"
+  local dir
+  dir=$(dirname "$target")
+  mkdir -p "$dir"
+
+  local tmp
+  tmp=$(mktemp "${target}.XXXXXX") || return 1
+  echo "$content" > "$tmp" && mv "$tmp" "$target"
+}
+
+# Atomic write from stdin (for piped content)
+atomic_write_stdin() {
+  local target="${1:?Usage: echo 'content' | atomic_write_stdin <target>}"
+  local dir
+  dir=$(dirname "$target")
+  mkdir -p "$dir"
+
+  local tmp
+  tmp=$(mktemp "${target}.XXXXXX") || return 1
+  cat > "$tmp" && mv "$tmp" "$target"
 }
