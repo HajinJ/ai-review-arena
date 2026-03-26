@@ -184,8 +184,9 @@ Phase 5.5  Strategy            ●        ●           ●
 Phase 5.5.5 Spec Gate          ●        ●           ●
 Phase 5.8 Static Analysis      ●        ●           ●
 Phase 5.9 Threat Model                  ●           ●
+Phase 5.95 Review Contract      ●        ●           ●  ← NEW
 Phase 6   Team Review          ●        ●           ●
-Phase 6.5 Auto-Fix            ●        ●           ●
+Phase 6.5 Auto-Fix (+eval)     ●        ●           ●  ← IMPROVED
 Phase 6.6 Test Gen            ●        ●           ●
 Phase 6.7 Visual Verify        ●        ●           ●
 Phase 7   Report     ●          ●        ●           ●
@@ -568,11 +569,11 @@ Level 5: Error report with partial findings
 ```
 ai-review-arena/
 ├── .codex/           Codex subagent config (5 custom agents with per-agent model)
-├── agents/           40 agent definitions (12 code + 10 biz + 6 doc + 12 utility)
+├── agents/           41 agent definitions (12 code + 10 biz + 6 doc + 13 utility)
 ├── commands/         8 slash commands (arena, multi-review, research, stack, ...)
 ├── config/           Config files, prompts, schemas, benchmarks, phase contracts
-├── scripts/          39 shell scripts (orchestration, CLI adapters, utilities)
-├── shared-phases/    13 reusable phase definitions
+├── scripts/          40 shell scripts (orchestration, CLI adapters, utilities)
+├── shared-phases/    14 reusable phase definitions
 ├── hooks/            Auto-review triggers
 ├── tests/            18 tests (unit + integration + e2e)
 └── docs/             ADRs and reference docs
@@ -629,6 +630,18 @@ Run `./scripts/run-benchmark.sh --verbose` to see Arena-only results.
 ---
 
 ## Changelog
+
+### v3.5.0 — Harness Design Improvements
+
+Six improvements derived from Anthropic's "Harness Design for Long-Running Apps" blog. Core insights: Generator-Evaluator separation, proactive context reset, model-capability-based harness tuning.
+
+- **Weighted Evaluation Rubric**: Project-type-specific category weights for review prioritization. Presets for fintech (security 3x), gaming (performance 3x), healthcare (security 2.5x, bugs 2x), startup MVP. Default weights are all 1.0 (no behavior change). Medium findings in high-weight categories get "elevated" marking. Config: `review.evaluation_weights`
+- **Evaluator Skepticism Tuning**: 4-level review strictness presets (lenient/balanced/strict/adversarial) controlling challenge threshold, unique finding acceptance score, defense penalty multiplier, and consensus threshold. Applied to all 3 debate arbitrators (code, business, doc). Default "balanced" matches existing hardcoded values. Config: `debate.skepticism`
+- **Proactive Context Reset**: Phase-boundary context resets at Phase 5.9→6 (pre-review) and Phase 6.7→7 (pre-report) when context utilization exceeds threshold. Ensures reviewers and report generator operate with fresh context. Complements existing reactive handover (>60% utilization). Config: `arena.context_reset`
+- **Auto-Fix Evaluator Loop** (Generator-Evaluator separation): Replaces batch-apply-then-test with per-fix verification. Each fix is individually applied → tested → evaluated by independent `fix-verification-evaluator` agent → failed fixes revert individually (not all). Up to 3 retry attempts with evaluator's suggested revisions. New agent: `agents/fix-verification-evaluator.md`. Config: `arena.autofix_evaluator`
+- **Review Contract** (Phase 5.95): Generates a contract defining accepted patterns, severity overrides, focus areas, and known technical debt before Phase 6 review. Auto-detects codebase conventions (naming, error handling, imports). Merges with user overrides from `.ai-review-arena.json`. Distributed to all reviewers to reduce false positives from project-intentional patterns. New shared phase: `shared-phases/review-contract.md`. Config: `arena.review_contract`
+- **Capability-Relative Harness**: Model-capability profiles that skip unnecessary phases based on empirical F1 benchmarks. `scripts/harness-stress-test.sh` runs phase ablation studies — disables each phase one-by-one, measures F1 impact, recommends skip candidates. **Disabled by default** (`enabled: false`); requires explicit activation after running stress tests. Config: `model_capability`
+- 41 agents (was 40), 40 scripts (was 39), 14 shared phases (was 13), 6 new config sections
 
 ### v3.4.0
 

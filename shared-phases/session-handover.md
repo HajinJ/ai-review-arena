@@ -9,6 +9,36 @@ When a review pipeline approaches context window limits (>60% utilization) or wh
 - Compaction warning appears ("Compacting conversation...")
 - Review has been running for >45 minutes with significant findings
 
+## Proactive Reset Checkpoints
+
+Phase 경계에서 선제적으로 리셋하여 리뷰 품질을 보장합니다. 기존 반응적 핸드오프(>60% utilization)를 보완하여 phase 전환 시 fresh context를 확보합니다.
+
+### 기본 체크포인트
+- **Pre-Review Reset**: Phase 5.9 → Phase 6 전환 시 (리뷰 진입 전 fresh context 확보)
+- **Pre-Report Reset**: Phase 6.7 → Phase 7 전환 시 (리포트 생성 시 full context 확보)
+
+### 트리거 조건
+- `context_reset.proactive_enabled` = true (config)
+- 현재 context utilization > `context_reset.proactive_threshold` (default: 40%)
+- 또는 Phase 6 진입 시 무조건 (if `context_reset.always_reset_before_review` = true)
+
+### 리셋 프로세스
+1. 현재까지의 phase outputs를 SESSION_DIR에 저장 (Step 3의 Save Artifacts와 동일)
+2. Resume prompt 생성 (Step 2와 동일)
+3. 사용자에게 자동 리셋 알림 (`silent_mode`에서는 알림 없이 진행)
+4. 새 세션에서 resume prompt 로드 후 다음 phase부터 실행
+
+### 프로액티브 리셋 vs 리액티브 핸드오버
+
+| 구분 | 프로액티브 리셋 | 리액티브 핸드오버 |
+|------|---------------|-----------------|
+| 트리거 | Phase 경계 도달 + config 조건 | Context window > 60% |
+| 목적 | Fresh context로 리뷰 품질 보장 | Context window 소진 방지 |
+| 시점 | Phase 5.9→6, Phase 6.7→7 | 어느 phase에서든 |
+| 제어 | config로 비활성화 가능 | 항상 활성 |
+
+---
+
 ## Handover Process
 
 ### Step 1: Freeze Write Operations

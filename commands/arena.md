@@ -114,6 +114,26 @@ DEFAULT_CONFIG="${CONFIG_DIR}/default-config.json"
 SESSION_DIR="/tmp/ai-review-arena/$(date +%Y%m%d-%H%M%S)"
 ```
 
+## Capability Check Protocol
+
+**Applies when**: `model_capability.enabled` is true in config.
+
+Before executing any phase, check whether the current model's capability profile allows skipping it:
+
+```
+IF config.model_capability.enabled:
+  current_model = detect_current_model()  # e.g., "claude-opus-4-6"
+  profile = config.model_capability.profiles[current_model]
+
+  IF profile AND current_phase IN profile.skip_phases:
+    Log: "Phase {current_phase} skipped — model capability profile indicates sufficient baseline quality"
+    SKIP to next phase
+```
+
+This check is applied at the entry of each phase. Phases not listed in `skip_phases` execute normally. The `skip_phases` list should only be populated based on empirical results from `scripts/harness-stress-test.sh`.
+
+---
+
 ## Phase 0: Context & Configuration
 
 Establish project context, load configuration, and prepare the session environment.
@@ -1480,11 +1500,53 @@ The threat modeling phase spawns 3 agents (threat-modeler, threat-defender, thre
 
 ---
 
+## Context Reset Checkpoint (Pre-Review)
+
+**Applies to**: standard, deep, comprehensive intensity. Skip for quick.
+
+Before entering Phase 6, check whether a proactive context reset is needed to ensure reviewers operate with fresh context.
+
+```
+IF config.arena.context_reset.proactive_enabled:
+  IF config.arena.context_reset.always_reset_before_review OR context_utilization > config.arena.context_reset.proactive_threshold:
+    1. Read `${PLUGIN_DIR}/shared-phases/session-handover.md` — Proactive Reset Checkpoints section
+    2. Execute proactive reset with current_phase = "5.9", next_phase = "6"
+    3. Save all phase outputs accumulated so far to SESSION_DIR
+    4. Generate resume prompt targeting Phase 6
+    5. IF NOT config.arena.context_reset.silent_mode:
+       Notify user: "Proactive context reset at Phase 5.9→6 boundary for review quality"
+    6. Resume from Phase 6 with fresh context
+```
+
+If `context_reset.proactive_enabled` is false or threshold not met, proceed directly to Phase 5.95.
+
+---
+
+## Phase 5.95: Review Contract (standard/deep/comprehensive intensity)
+
+**Applies to**: standard, deep, comprehensive intensity. Skip for quick.
+
+**Purpose**: Generate a review contract that defines accepted patterns and known technical debt for the codebase, reducing false positives in Phase 6 review.
+
+```
+IF config.arena.review_contract.enabled:
+  Read `${PLUGIN_DIR}/shared-phases/review-contract.md` and execute with:
+  - CONVENTIONS: from Phase 0.5
+  - STACK_DETECTION: from Phase 1
+  - COMPLIANCE_GUIDELINES: from Phase 3 (if available)
+
+  Output: REVIEW_CONTRACT — distributed to all Phase 6 reviewers in their spawn context.
+ELSE:
+  Skip review contract generation. Phase 6 proceeds without contract.
+```
+
+---
+
 ## Phase 6: Agent Team Review
 
 > **Feedback Routing**: If `feedback.use_for_routing` is true, read `${PLUGIN_DIR}/shared-phases/feedback-routing.md` and apply feedback-based model-category role assignments before spawning reviewers.
 
-This phase follows the same pattern as multi-review.md but with ENRICHED context from Phases 1-5. Reviewer teammates receive stack detection results, relevant best practices, compliance requirements, and scale considerations in addition to the code.
+This phase follows the same pattern as multi-review.md but with ENRICHED context from Phases 1-5. Reviewer teammates receive stack detection results, relevant best practices, compliance requirements, review contract (from Phase 5.95), and scale considerations in addition to the code.
 
 ### Step 6.1: Scope Resolution
 
@@ -1556,6 +1618,18 @@ Teammate(
 ```
 
 ### Step 6.4: Create Review Tasks
+
+**Review Contract Distribution**: If `REVIEW_CONTRACT` exists (from Phase 5.95), include it in each reviewer's task description. Append to each task description:
+```
+Review Contract (from Phase 5.95):
+- Accepted patterns: {REVIEW_CONTRACT.accepted_patterns}
+- Severity overrides: {REVIEW_CONTRACT.severity_overrides}
+- Focus areas: {REVIEW_CONTRACT.focus_areas}
+- Ignore paths: {REVIEW_CONTRACT.ignore_paths}
+- Known debt: {REVIEW_CONTRACT.known_debt}
+
+You MUST NOT report findings that match accepted_patterns or known_debt items.
+```
 
 Create tasks in the shared task list for each active role. Include new Arena-specific roles:
 
@@ -2457,55 +2531,94 @@ FOR each finding in AUTO_FIXABLE:
      }
 ```
 
-### Step 6.5.3: Test Verification
+### Step 6.5.3: Individual Fix Verification Loop
 
-After ALL fixes are applied, verify with the project's test suite:
+Apply and verify each fix individually with optional independent evaluator agent. This replaces the previous batch-apply-then-test approach with per-fix verification for better isolation.
 
+```
+# Detect test command once (reused per fix)
+TEST_CMD = detect_test_command()  # package.json → npm test, pyproject.toml → pytest, etc.
+
+FOR each finding in AUTO_FIXABLE:
+  iteration = 0
+  MAX_RETRIES = config.arena.autofix_evaluator.max_retries OR 3
+
+  WHILE iteration < MAX_RETRIES:
+    # 1. Apply fix
+    Read target file with Read tool
+    Apply the suggestion using Edit tool
+    Track the change (finding_id, file, line, original_code, fixed_code)
+
+    # 2. Run tests (if test suite detected)
+    IF TEST_CMD exists:
+      Run TEST_CMD, capture result
+    ELSE:
+      test_result = "no_test_suite"
+
+    # 3. Independent evaluator verification (if enabled)
+    IF config.arena.autofix_evaluator.enabled AND config.arena.autofix_evaluator.use_independent_evaluator:
+      Spawn fix-verification-evaluator as Agent (subagent_type: "general-purpose", NOT a teammate):
+        Pass: original_finding, applied_diff, test_result, surrounding_context (20 lines above/below)
+      Receive verdict: { verdict: "pass|fail|needs_revision", reason, suggested_revision }
+    ELSE:
+      evaluator_verdict = "pass" if tests pass, "fail" if tests fail
+
+    # 4. Evaluate results
+    IF (test_result == "pass" OR test_result == "no_test_suite") AND evaluator_verdict == "pass":
+      Mark as "auto-fix-applied-verified"
+      BREAK  # Move to next finding
+
+    ELIF evaluator_verdict == "needs_revision" AND iteration < (MAX_RETRIES - 1):
+      # Revert this fix only
+      git checkout -- {finding.file}
+      # Apply evaluator's suggested revision instead
+      Apply suggested_revision using Edit tool
+      iteration += 1
+      CONTINUE  # Re-verify with the revision
+
+    ELSE:  # tests FAIL OR evaluator verdict == "fail"
+      # Revert this fix only (not all fixes)
+      git checkout -- {finding.file}
+      Mark as "auto-fix-failed"
+      Log: "Fix for {finding.title} failed after {iteration + 1} attempt(s): {evaluator_verdict.reason}"
+      BREAK  # Move to next finding
+
+  # Track retry history for report
+  finding.retry_history = {
+    attempts: iteration + 1,
+    final_verdict: evaluator_verdict,
+    evaluator_used: config.arena.autofix_evaluator.use_independent_evaluator
+  }
+```
+
+**Test command detection:**
 ```bash
-# Detect and run appropriate test command
 if [ -f "package.json" ]; then
-  # Check for test script
   TEST_CMD=$(jq -r '.scripts.test // empty' package.json)
-  if [ -n "$TEST_CMD" ]; then
-    npm test 2>&1 | tail -50
-  fi
+  if [ -n "$TEST_CMD" ]; then TEST_CMD="npm test"; fi
 elif [ -f "pytest.ini" ] || [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
-  python -m pytest --tb=short 2>&1 | tail -50
+  TEST_CMD="python -m pytest --tb=short"
 elif [ -f "go.mod" ]; then
-  go test ./... 2>&1 | tail -50
+  TEST_CMD="go test ./..."
 elif [ -f "Cargo.toml" ]; then
-  cargo test 2>&1 | tail -50
+  TEST_CMD="cargo test"
 fi
-```
-
-**If tests FAIL:**
-```
-# Revert ALL auto-fixes
-git checkout -- .
-
-# Mark all findings as auto-fix-failed
-FOR each applied_fix:
-  applied_fix.status = "auto-fix-failed"
-
-# Log which test failed
-WARN: "Auto-fix verification failed. All fixes reverted. Manual review required."
-WARN: "Failed test: {test_name}"
-WARN: "Possible culprit: {most_recent_fix}"
-```
-
-**If tests PASS:**
-```
-FOR each applied_fix:
-  applied_fix.status = "auto-fix-applied-verified"
 ```
 
 **If NO test suite detected:**
 ```
-FOR each applied_fix:
-  applied_fix.status = "auto-fix-applied-unverified"
+FOR each applied_fix with status "auto-fix-applied-verified":
+  IF evaluator was not used:
+    applied_fix.status = "auto-fix-applied-unverified"
 
-WARN: "No test suite found. Auto-fixes applied but NOT verified. Manual verification recommended."
+WARN: "No test suite found. Auto-fixes applied but NOT fully verified. Manual verification recommended."
 ```
+
+**Error Handling:**
+- If Edit tool fails on a specific file: skip that fix, mark as "edit-failed", continue with remaining fixes.
+- If git checkout fails during per-fix revert: warn user, list modified file for manual recovery.
+- If evaluator agent spawn fails: fall back to test-only verification (no evaluator verdict).
+- If test command hangs (>120s): kill process, treat as test failure, revert current fix.
 
 ### Step 6.5.4: Display Applied Fixes
 
@@ -2710,9 +2823,13 @@ Read `${PLUGIN_DIR}/shared-phases/visual-verification.md` and execute the phase 
 
    ## Critical & High Severity Findings
 
-   ### [{severity}] {title}
+   {Findings are sorted by effective_severity_score (weighted) when evaluation_weights is enabled.
+    Otherwise, sorted by raw severity then confidence.}
+
+   ### [{severity}] {title} {if elevated: "⚠ ELEVATED"}
    - **File:** `{file_path}:{line}`
    - **Confidence:** {confidence}% {cross-validated badge if applicable}
+   - **Effective Weight:** {effective_severity_score} (category weight: {category_weight}x)
    - **Found by:** {model(s)}
    - **Cross-Examination:** {confirmed|challenged|modified|conceded}
    - **Round 2:** Codex: {agree/disagree/partial}, Gemini: {agree/disagree/partial}

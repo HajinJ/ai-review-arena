@@ -53,7 +53,23 @@
     },
     "max_file_lines": 500,
     "file_extensions": ["ts", "tsx", "js", "jsx", "py", "go", "rs", "java", "kt", "swift", "rb", "php", "c", "cpp", "cs"],
-    "exclude_patterns": ["*.test.*", "*.spec.*", "*.d.ts", "node_modules/**", "vendor/**", "dist/**"]
+    "exclude_patterns": ["*.test.*", "*.spec.*", "*.d.ts", "node_modules/**", "vendor/**", "dist/**"],
+    "evaluation_weights": {
+      "enabled": true,
+      "weights": {
+        "security": 1.0,
+        "bugs": 1.0,
+        "architecture": 1.0,
+        "performance": 1.0,
+        "testing": 1.0
+      },
+      "presets": {
+        "fintech": { "security": 3.0, "bugs": 1.5, "architecture": 1.0, "performance": 0.8, "testing": 1.2 },
+        "gaming": { "security": 0.8, "bugs": 1.0, "architecture": 0.8, "performance": 3.0, "testing": 1.0 },
+        "healthcare": { "security": 2.5, "bugs": 2.0, "architecture": 1.0, "performance": 0.8, "testing": 1.5 },
+        "startup_mvp": { "security": 1.0, "bugs": 1.5, "architecture": 0.5, "performance": 0.5, "testing": 0.8 }
+      }
+    }
   },
   "debate": {
     "enabled": true,
@@ -64,7 +80,16 @@
     "require_majority": true,
     "web_search_enabled": true,
     "round2_timeout_seconds": 180,
-    "round3_timeout_seconds": 180
+    "round3_timeout_seconds": 180,
+    "skepticism": {
+      "level": "balanced",
+      "presets": {
+        "lenient":     { "challenge_threshold": 50, "unique_finding_min_score": 4, "defense_penalty_multiplier": 0.8, "consensus_threshold": 75 },
+        "balanced":    { "challenge_threshold": 60, "unique_finding_min_score": 5, "defense_penalty_multiplier": 1.0, "consensus_threshold": 80 },
+        "strict":      { "challenge_threshold": 70, "unique_finding_min_score": 6, "defense_penalty_multiplier": 1.5, "consensus_threshold": 85 },
+        "adversarial": { "challenge_threshold": 80, "unique_finding_min_score": 7, "defense_penalty_multiplier": 2.0, "consensus_threshold": 90 }
+      }
+    }
   },
   "hook_mode": {
     "enabled": false,
@@ -144,7 +169,27 @@
     "enabled": true,
     "phases": ["codebase", "stack", "research", "compliance", "benchmark", "review"],
     "default_phase": "all",
-    "interactive_by_default": false
+    "interactive_by_default": false,
+    "context_reset": {
+      "proactive_enabled": true,
+      "proactive_threshold": 40,
+      "always_reset_before_review": false,
+      "checkpoints": ["pre_review", "pre_report"],
+      "silent_mode": false
+    },
+    "autofix_evaluator": {
+      "enabled": true,
+      "max_retries": 3,
+      "use_independent_evaluator": true,
+      "evaluator_agent": "fix-verification-evaluator",
+      "per_fix_verification": true
+    },
+    "review_contract": {
+      "enabled": true,
+      "auto_detect_patterns": true,
+      "merge_user_overrides": true,
+      "distribute_to_reviewers": true
+    }
   },
   "cache": {
     "enabled": true,
@@ -932,5 +977,27 @@
     "history_memory_tier": "long-term",
     "benchmark_models": ["codex", "gemini"],
     "lock_timeout_seconds": 300
+  },
+  "model_capability": {
+    "enabled": false,
+    "profiles": {
+      "claude-opus-4-6": {
+        "skip_phases": [],
+        "reduce_debate_rounds_to": null,
+        "solo_sufficient_for": ["rename", "typo", "single-function-add"],
+        "notes": "Latest model - evaluate if phases can be skipped via harness-stress-test.sh"
+      },
+      "claude-sonnet-4-6": {
+        "skip_phases": [],
+        "reduce_debate_rounds_to": null,
+        "solo_sufficient_for": ["rename", "typo"]
+      }
+    },
+    "stress_test": {
+      "schedule": "manual",
+      "benchmark_each_phase": true,
+      "min_f1_to_skip": 0.95,
+      "results_dir": "cache/capability-tests"
+    }
   }
 }

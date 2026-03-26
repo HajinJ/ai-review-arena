@@ -591,9 +591,14 @@ Build the report in the configured language (`output.language`):
 
 ## Critical & High Severity Findings
 
-### [{severity}] {title}
+{Findings are sorted by effective_severity_score (weighted) when config.review.evaluation_weights.enabled is true.
+ effective_severity_score = base_severity * evaluation_weight[finding.category]
+ Otherwise, sorted by raw severity then confidence.}
+
+### [{severity}] {title} {if elevated: "⚠ ELEVATED"}
 - **File:** `{file_path}:{line}`
 - **Confidence:** {confidence}% {cross-validated badge if applicable}
+- **Effective Weight:** {effective_severity_score} (category weight: {category_weight}x)
 - **Found by:** {model(s)}
 - **Debate status:** {confirmed|adjusted|disputed}
 - **Agreement:** {unanimous|majority|single-source-validated}

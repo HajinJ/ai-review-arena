@@ -132,6 +132,25 @@ phase_5_9_threat:
     threat_consensus: "Agreed threat priorities from 3-agent debate"
   consumed_by: [phase_6]
 
+phase_context_reset:
+  inputs:
+    all_prior_phase_outputs: "Accumulated outputs from phases 0-5.9"
+    context_utilization: "Current context window usage percentage"
+  outputs:
+    resume_prompt: "Path to .ai-review-arena-resume.md"
+    session_artifacts: "Path to .ai-review-arena-session/ directory"
+  consumed_by: [phase_6_review]
+
+phase_5_95_review_contract:
+  requires_intensity: "standard+"
+  inputs:
+    conventions: "from phase_0_5"
+    stack_detection: "from phase_1"
+    compliance_guidelines: "from phase_3 (if available)"
+  outputs:
+    review_contract: "JSON contract with accepted patterns, overrides, focus areas"
+  consumed_by: [phase_6_review]
+
 phase_6_review:
   inputs:
     target_files: "from phase_0"
@@ -140,6 +159,7 @@ phase_6_review:
     compliance_guidelines: "from phase_3 (if available)"
     scanner_results: "from phase_5_8 (if available)"
     threat_model: "from phase_5_9 (if available)"
+    review_contract: "from phase_5_95 (if available)"
   outputs:
     consensus_findings: "JSON with accepted/rejected/disputed findings"
     signal_log: "JSONL of real-time cross-agent signals"
@@ -156,6 +176,8 @@ phase_6_5_autofix:
     applied_fixes: "List of fixes applied with before/after"
     skipped_fixes: "Fixes not applied (out of scope, escalation blocked)"
     test_results: "Pass/fail after applying fixes"
+    evaluator_verdicts: "Per-fix verification results from evaluator agent"
+    retry_history: "Revision attempts per finding"
   consumed_by: [phase_7]
 
 phase_6_6_tests:

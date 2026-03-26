@@ -164,6 +164,25 @@ Commits and PRs are NOT eligible for auto-quick — they always go through the S
 | `deep` | + Phase 2, 2.9, 3, 5.9, Round 4 escalation | + B2, B2.9, B3, B5.6, B5.7 | + D2(+debate), D3(+debate) |
 | `comprehensive` | + Phase 4, 5 | + B4 | + D4(benchmark) |
 
+### Capability-Relative Harness
+
+When `model_capability.enabled` is true, the pipeline additionally checks the current model's capability profile before executing each phase:
+
+- **Phase skipping**: Phases listed in `model_capability.profiles[model].skip_phases` are automatically skipped. This is populated by running `scripts/harness-stress-test.sh`, which performs ablation studies to identify phases that can be removed without F1 quality loss.
+- **Solo sufficiency**: For task types listed in `model_capability.profiles[model].solo_sufficient_for`, the pipeline may auto-assign `quick` intensity even if the pre-filter would normally require debate.
+- **Debate reduction**: If `reduce_debate_rounds_to` is set, debate rounds are capped at that value.
+
+**Default**: `model_capability.enabled` is `false`. Users must explicitly enable it after running stress tests to populate profiles with empirical data.
+
+```
+Example flow with capability enabled:
+Request: "Add input validation"
+→ Route A → Phase 0.1 Debate → standard
+→ Capability check: current model = claude-opus-4-6, skip_phases = ["5.8"]
+→ Phase 5.8 (Static Analysis) skipped — model handles this internally
+→ All other phases execute normally
+```
+
 ---
 
 ## Argument Extraction

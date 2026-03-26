@@ -1,4 +1,4 @@
-# AI Review Arena v3.4.0 - Development Rules
+# AI Review Arena v3.5.0 - Development Rules
 
 ## Project Structure
 - `.claude-plugin/` - Plugin manifest (v3.3.0)
@@ -20,16 +20,17 @@
   - `multi-review` - Multi-AI adversarial code review
   - `multi-review-config` - Review config management
   - `multi-review-status` - Review status dashboard
-- `agents/` - Claude agent definitions (40 agents)
+- `agents/` - Claude agent definitions (41 agents)
   - Code review: security-reviewer, bug-detector, architecture-reviewer, performance-reviewer, test-coverage-reviewer, scope-reviewer, dependency-reviewer, api-contract-reviewer, observability-reviewer, data-integrity-reviewer, accessibility-reviewer, configuration-reviewer
   - Business review: accuracy-evidence-reviewer, audience-fit-reviewer, competitive-positioning-reviewer, communication-narrative-reviewer, financial-credibility-reviewer, legal-compliance-reviewer, market-fit-reviewer, conversion-impact-reviewer, localization-reviewer, investor-readiness-reviewer
   - Documentation review: doc-accuracy-reviewer, doc-completeness-reviewer, doc-freshness-reviewer, doc-readability-reviewer, doc-example-reviewer, doc-consistency-reviewer
   - Threat modeling: threat-modeler, threat-defender, threat-arbitrator
   - Red team: skeptical-investor-agent, competitor-response-agent, regulatory-risk-agent
   - Debate: debate-arbitrator, business-debate-arbitrator, doc-debate-arbitrator
+  - Verification: fix-verification-evaluator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell/Python scripts (39 files)
+- `scripts/` - Shell/Python scripts (40 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
   - Documentation: codex-doc-review.sh, gemini-doc-review.sh, doc-inventory.sh, benchmark-doc-models.sh
@@ -47,9 +48,10 @@
   - Async queue: review-daemon.sh (ticket-based async review processing)
   - Static analysis: static-analysis.sh, normalize-scanner-output.sh
   - Validation: validate-config.sh, normalize-severity.sh
+  - Capability testing: harness-stress-test.sh (phase ablation study for model capability profiling)
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
-  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks, escalation_triggers, write_scope, contract_verification, spec_verification, agent_teams, fleet_swarm, knowledge_graph, ralph_loop, review_daemon)
+  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks, escalation_triggers, write_scope, contract_verification, spec_verification, agent_teams, fleet_swarm, knowledge_graph, ralph_loop, review_daemon, model_capability)
   - phase-contracts.yaml - Phase artifact contracts (inputs/outputs/consumed_by for all pipeline phases)
   - review-prompts/ - Role-specific review prompts (15 files: 9 code + 6 doc)
   - schemas/ - Codex structured output JSON schemas (7 files: review, cross-examine, defend, business-review, business-cross-review, doc-review, doc-cross-review)
@@ -62,7 +64,7 @@
   - router-examples.md, context-forwarding.md, safety-protocol.md - Router reference docs
   - TODO-external-integrations.md - Research-backed TODO items for external API integrations
 - `tests/` - Test suite (18 test files: 8 unit + 8 integration + 2 e2e)
-- `shared-phases/` - Common phase definitions shared by code and business pipelines (13 phases)
+- `shared-phases/` - Common phase definitions shared by code and business pipelines (14 phases)
   - `intensity-decision.md` - Phase 0.1/B0.1: Agent Teams intensity debate (shared template)
   - `cost-estimation.md` - Phase 0.2/B0.2: Cost & time estimation using cost-estimator.sh
   - `feedback-routing.md` - Feedback-based model-category role assignment for Phase 6/B6
@@ -76,6 +78,7 @@
   - `adversarial-red-team.md` - Phase B5.7: Adversarial red team stress test
   - `session-handover.md` - Session handover protocol for long-running reviews (resume-prompt, gap analysis)
   - `review-visualization.md` - Mermaid diagram templates for review reports (severity pie, flow, agent participation)
+  - `review-contract.md` - Phase 5.95: Review contract generation (accepted patterns, severity overrides, known debt)
 - `cache/` - Runtime knowledge cache (gitignored, TTL-managed)
 
 ## Coding Rules

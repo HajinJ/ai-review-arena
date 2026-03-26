@@ -182,8 +182,9 @@ Phase 5.5  전략 토론            ●        ●           ●
 Phase 5.5.5 스펙 승인          ●        ●           ●
 Phase 5.8 정적 분석            ●        ●           ●
 Phase 5.9 위협 모델링                   ●           ●
+Phase 5.95 리뷰 계약           ●        ●           ●  ← NEW
 Phase 6   팀 리뷰             ●        ●           ●
-Phase 6.5 자동 수정            ●        ●           ●
+Phase 6.5 자동 수정(+검증)     ●        ●           ●  ← IMPROVED
 Phase 6.6 테스트 생성          ●        ●           ●
 Phase 6.7 시각 검증            ●        ●           ●
 Phase 7   리포트     ●          ●        ●           ●
@@ -464,7 +465,7 @@ ai-review-arena/
 ├── commands/         8개 슬래시 커맨드 (arena, multi-review, research, stack, ...)
 ├── config/           설정 파일, 프롬프트, 스키마, 벤치마크
 ├── scripts/          37개 셸 스크립트 (오케스트레이션, CLI 어댑터, 유틸리티)
-├── shared-phases/    10개 공유 페이즈 정의
+├── shared-phases/    14개 공유 페이즈 정의
 ├── hooks/            자동 리뷰 트리거
 ├── tests/            18개 테스트 (단위 + 통합 + e2e)
 └── docs/             ADR 및 참조 문서
@@ -521,6 +522,27 @@ F1 범위는 LLM 비결정성으로 인한 여러 실행 간 분산을 반영합
 ---
 
 ## 변경 이력
+
+### v3.5.0 — 하네스 디자인 개선
+
+Anthropic의 "Harness Design for Long-Running Apps" 블로그에서 도출한 6가지 개선. 핵심 인사이트: Generator-Evaluator 분리, 선제적 컨텍스트 리셋, 모델 역량 기반 하네스 조정.
+
+- **가중치 기반 평가 루브릭**: 프로젝트 유형별 카테고리 가중치로 리뷰 우선순위 맞춤화. fintech(security 3x), gaming(performance 3x), healthcare(security 2.5x, bugs 2x), startup MVP 프리셋 제공. 기본 가중치는 전부 1.0 (동작 변경 없음). 고가중치 카테고리의 medium 발견에 "elevated" 마킹. 설정: `review.evaluation_weights`
+- **Skepticism 조절**: 4단계 리뷰 엄격도 프리셋 (lenient/balanced/strict/adversarial). challenge threshold, unique finding 수용 점수, defense 페널티 배율, consensus threshold 제어. 3개 debate arbitrator(코드, 비즈니스, 문서) 모두 적용. 기본값 "balanced"는 기존 하드코딩 값과 동일. 설정: `debate.skepticism`
+- **선제적 Context Reset**: Phase 5.9→6 (리뷰 전), Phase 6.7→7 (리포트 전) 경계에서 context utilization 초과 시 선제적 리셋. 리뷰어와 리포트 생성기가 fresh context로 동작. 기존 반응적 핸드오버(>60%)를 보완. 설정: `arena.context_reset`
+- **Auto-Fix Evaluator Loop** (Generator-Evaluator 분리): 일괄 적용→테스트를 개별 fix 검증으로 교체. 각 fix를 개별 적용 → 테스트 → 독립 `fix-verification-evaluator` 에이전트 검증 → 실패 시 해당 fix만 revert. 최대 3회 재시도. 새 에이전트: `agents/fix-verification-evaluator.md`. 설정: `arena.autofix_evaluator`
+- **Review Contract** (Phase 5.95): Phase 6 리뷰 전 코드베이스의 허용 패턴, severity 오버라이드, 포커스 영역, 알려진 기술 부채를 정의하는 계약 생성. 네이밍, 에러 처리, 임포트 스타일 자동 감지. `.ai-review-arena.json` 사용자 오버라이드와 병합. 모든 리뷰어에게 배포하여 false positive 감소. 새 공유 페이즈: `shared-phases/review-contract.md`. 설정: `arena.review_contract`
+- **Capability-Relative Harness**: 실증 F1 벤치마크 기반으로 불필요한 phase를 스킵하는 모델 역량 프로파일. `scripts/harness-stress-test.sh`가 phase ablation study 실행 — 각 phase를 하나씩 비활성화하며 F1 영향 측정, 스킵 후보 추천. **기본값 비활성** (`enabled: false`); 스트레스 테스트 실행 후 명시적 활성화 필요. 설정: `model_capability`
+- 41개 에이전트 (기존 40개), 40개 스크립트 (기존 39개), 14개 공유 단계 (기존 13개), 6개 새 설정 섹션
+
+### v3.4.0 — 자기 개선 리뷰 파이프라인
+
+- **Gotchas 섹션**: 40개 에이전트 모두에 `## Gotchas` 추가 (각 3-6개 도메인별 false positive 패턴)
+- **Mermaid 리포트 시각화**: severity 파이 차트, 에이전트 참여 그래프, 리뷰 흐름 다이어그램
+- **JSONL 시그널 로그** (`signal-log.sh`): 에이전트 간 시그널을 JSONL로 기록, `learn` 커맨드로 패턴 추출
+- **세션 핸드오버**: context window 60% 초과 시 자동 상태 저장, 새 세션에서 이어서 진행
+- **Hermes Agent 패턴**: Frozen Snapshot, Injection Scanning, Atomic Writes, Self-Improving Gotchas
+- 40개 에이전트 (기존 33개), 39개 스크립트 (기존 32개), 13개 공유 단계 (기존 9개)
 
 ### v3.3.0
 

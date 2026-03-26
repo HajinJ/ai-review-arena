@@ -221,6 +221,28 @@ FOR each finding WHERE reviewer_count == 1:
   ELSE: REJECT (insufficient evidence)
 ```
 
+### Phase 4.5: Load Skepticism Configuration
+
+Before applying challenge and validation thresholds, load the skepticism preset from config:
+
+```
+skepticism_level = config.business_debate.skepticism.level
+                   OR config.debate.skepticism.level  # fallback to code debate config
+                   OR "balanced"                       # default
+
+skepticism = config.debate.skepticism.presets[skepticism_level]
+
+# Apply skepticism-driven thresholds:
+CHALLENGE_THRESHOLD = skepticism.challenge_threshold
+UNIQUE_FINDING_MIN_SCORE = skepticism.unique_finding_min_score
+DEFENSE_PENALTY_MULTIPLIER = skepticism.defense_penalty_multiplier
+CONSENSUS_THRESHOLD = skepticism.consensus_threshold
+
+# Override Phase 4 decision threshold:
+# Replace hardcoded validation_score >= 5 with >= UNIQUE_FINDING_MIN_SCORE
+# Replace confidence < 70 challenge trigger with < CHALLENGE_THRESHOLD
+```
+
 ### Phase 5: Cross-Review Integration (Round 2)
 
 Integrate Round 2 cross-review data:

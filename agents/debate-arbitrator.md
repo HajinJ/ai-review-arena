@@ -263,9 +263,28 @@ FOR each finding WHERE model_count == 1:
     Record rejection reason in disputed array
 ```
 
+### Phase 4.5: Load Skepticism Configuration
+
+Before applying challenge and validation thresholds, load the skepticism preset from config:
+
+```
+skepticism_level = config.debate.skepticism.level  # default: "balanced"
+skepticism = config.debate.skepticism.presets[skepticism_level]
+
+# Apply skepticism-driven thresholds:
+CHALLENGE_THRESHOLD = skepticism.challenge_threshold       # confidence below this triggers challenge
+UNIQUE_FINDING_MIN_SCORE = skepticism.unique_finding_min_score  # validation_score threshold for unique findings
+DEFENSE_PENALTY_MULTIPLIER = skepticism.defense_penalty_multiplier  # multiplier on defense penalties
+CONSENSUS_THRESHOLD = skepticism.consensus_threshold       # minimum confidence for consensus acceptance
+
+# Override Phase 4 decision threshold:
+# Phase 4 uses validation_score >= 5 for ACCEPT — replace 5 with UNIQUE_FINDING_MIN_SCORE
+# Phase 5 uses confidence < 70 for challenge — replace 70 with CHALLENGE_THRESHOLD
+```
+
 ### Phase 5: Challenge Protocol
 
-For any finding with confidence < 70 or validation_score < 5:
+For any finding with confidence < CHALLENGE_THRESHOLD (from skepticism config, default 70) or validation_score < UNIQUE_FINDING_MIN_SCORE:
 
 ```
 FORMULATE challenge:
@@ -373,14 +392,36 @@ IF any finding.category == "security":
 ```
 ASSEMBLE final output:
 
+  # --- Load Evaluation Weights ---
+  IF config.review.evaluation_weights.enabled:
+    weights = config.review.evaluation_weights.weights
+    # Map finding categories to weight keys:
+    # security → weights.security, bugs/logic/race_condition → weights.bugs,
+    # architecture/coupling/cohesion → weights.architecture,
+    # performance/complexity/memory → weights.performance,
+    # test-coverage/testing → weights.testing
+    # Unmapped categories default to weight 1.0
+
   accepted_findings = []
   rejected_findings = []
   disputed_findings = []
 
   FOR each processed finding:
     IF classification == "agreed" OR (classification == "unique" AND accepted):
+      # Calculate effective severity score with evaluation weights
+      base_severity_score = {critical: 4, high: 3, medium: 2, low: 1}[finding.severity]
+      category_weight = weights[finding.category] OR 1.0
+      finding.effective_severity_score = base_severity_score * category_weight
+
+      # Elevated marking: if weight >= 2.0 and severity is medium, mark as elevated
+      IF category_weight >= 2.0 AND finding.severity == "medium":
+        finding.elevated = true
+        finding.elevation_note = "Elevated due to {category} weight {category_weight}x"
+
       ADD to accepted_findings with:
         - Consensus severity
+        - Effective severity score (weighted)
+        - Elevated flag (if applicable)
         - Consensus confidence
         - Merged description with all relevant evidence
         - Best suggestion from all models
@@ -392,6 +433,7 @@ ASSEMBLE final output:
         - Resolution explanation
         - Dissenting opinion noted
         - Adjusted confidence
+        - Effective severity score (weighted)
 
     ELIF classification == "disputed":
       ADD to disputed_findings with:
@@ -405,9 +447,9 @@ ASSEMBLE final output:
         - Original model attribution
         - What evidence would change the decision
 
-  # Final prioritization:
+  # Final prioritization (weighted):
   SORT accepted_findings BY:
-    1. Severity (critical > high > medium > low)
+    1. Effective severity score (descending) — replaces raw severity sort
     2. Confidence (descending)
     3. Agreement level (unanimous > majority > single-source)
 
