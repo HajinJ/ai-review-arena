@@ -999,5 +999,35 @@
       "min_f1_to_skip": 0.95,
       "results_dir": "cache/capability-tests"
     }
+  },
+  "rag": {
+    "enabled": true,
+    "embedding_model": "text-embedding-3-small",
+    "chunk_size": 500,
+    "chunk_overlap": 50,
+    "top_k": 5,
+    "rerank": true,
+    "index_extensions": [".java", ".kt", ".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".rb", ".php", ".c", ".cpp", ".cs", ".swift"],
+    "exclude_paths": ["node_modules", ".git", "build", "dist", "vendor", "__pycache__", ".venv", "target"],
+    "incremental": true,
+    "max_index_files": 5000,
+    "auto_index_on_review": true,
+    "cost_tracking": {
+      "enabled": true,
+      "cost_per_1k_tokens": 0.00002
+    }
+  },
+  "streaming": {
+    "enabled": true,
+    "prefer_streaming": true,
+    "signal_log": true,
+    "real_time_conflict_detection": true,
+    "critical_alert_immediate": true,
+    "monitor_timeout_seconds": 300,
+    "fallback_to_sync": true,
+    "python_sdk_required": {
+      "codex": "openai",
+      "gemini": "google-genai"
+    }
   }
 }

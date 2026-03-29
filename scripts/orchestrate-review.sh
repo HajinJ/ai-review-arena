@@ -319,6 +319,36 @@ if [ "$codex_enabled" != "true" ] && [ "$gemini_enabled" != "true" ]; then
 fi
 
 # =============================================================================
+# Streaming Mode Detection
+# =============================================================================
+
+STREAMING_ENABLED="false"
+if [ -f "$CONFIG_FILE" ] && command -v jq &>/dev/null; then
+  STREAMING_ENABLED=$(jq -r '.streaming.enabled // false' "$CONFIG_FILE")
+fi
+
+_PREFER_STREAMING="false"
+if [ "$STREAMING_ENABLED" = "true" ] && [ -f "$SCRIPT_DIR/stream-orchestrator.sh" ]; then
+  _PREFER_STREAMING=$(jq -r '.streaming.prefer_streaming // false' "$CONFIG_FILE")
+fi
+
+# =============================================================================
+# RAG Auto-Index (if enabled)
+# =============================================================================
+
+RAG_AUTO_INDEX="false"
+if [ -f "$CONFIG_FILE" ] && command -v jq &>/dev/null; then
+  RAG_AUTO_INDEX=$(jq -r '.rag.auto_index_on_review // false' "$CONFIG_FILE")
+fi
+
+if [ "$RAG_AUTO_INDEX" = "true" ] && [ -f "$SCRIPT_DIR/rag-indexer.sh" ]; then
+  _project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+  # Run indexer in background (non-blocking)
+  "$SCRIPT_DIR/rag-indexer.sh" "$_project_root" --config "$CONFIG_FILE" &
+  _RAG_INDEX_PID=$!
+fi
+
+# =============================================================================
 # Launch Parallel Reviews
 # =============================================================================
 
@@ -366,6 +396,40 @@ while IFS= read -r changed_file; do
   if [ -z "$FILE_CONTENT" ]; then
     continue
   fi
+
+  # --- Streaming path: delegate to stream-orchestrator if preferred ---
+  if [ "$_PREFER_STREAMING" = "true" ]; then
+    # Collect all roles for this file
+    _all_roles=""
+    if [ "$codex_enabled" = "true" ] && [ -n "$codex_roles" ]; then
+      _all_roles="$codex_roles"
+    fi
+    if [ "$gemini_enabled" = "true" ] && [ -n "$gemini_roles" ]; then
+      if [ -n "$_all_roles" ]; then
+        _all_roles=$(printf '%s\n%s' "$_all_roles" "$gemini_roles" | sort -u)
+      else
+        _all_roles="$gemini_roles"
+      fi
+    fi
+
+    if [ -n "$_all_roles" ]; then
+      _throttle_parallel
+      # Convert newline-separated roles to args
+      _role_args=()
+      while IFS= read -r _sr; do
+        [ -z "$_sr" ] && continue
+        _role_args+=("$_sr")
+      done <<< "$_all_roles"
+
+      (
+        "$SCRIPT_DIR/stream-orchestrator.sh" "$SESSION_DIR" "$changed_file" "$CONFIG_FILE" "${_role_args[@]}" 2>/dev/null
+      ) &
+      REVIEW_PIDS+=($!)
+    fi
+    continue  # Skip sync path for this file
+  fi
+
+  # --- Sync path (original behavior) ---
 
   # Launch codex reviews (throttled to MAX_PARALLEL)
   if [ "$codex_enabled" = "true" ] && [ -n "$codex_roles" ]; then
@@ -418,8 +482,29 @@ elif [ "$REVIEW_FAILURES" -gt 0 ]; then
 fi
 
 # =============================================================================
-# Aggregate Findings
+# Wait for RAG indexer (if started)
 # =============================================================================
+
+if [ -n "${_RAG_INDEX_PID:-}" ]; then
+  wait "$_RAG_INDEX_PID" 2>/dev/null || true
+fi
+
+# =============================================================================
+# Aggregate Findings (includes both sync and streaming findings)
+# =============================================================================
+
+# Rename streaming findings to match the pattern aggregate-findings.sh expects
+for _sf in "${SESSION_DIR}"/findings_stream_*.json; do
+  [ -f "$_sf" ] || continue
+  # Check it's valid JSON
+  if jq . "$_sf" &>/dev/null 2>&1; then
+    _new_name="${SESSION_DIR}/findings_${FINDINGS_INDEX}.json"
+    mv "$_sf" "$_new_name"
+    FINDINGS_INDEX=$((FINDINGS_INDEX + 1))
+  else
+    rm -f "$_sf"
+  fi
+done
 
 AGGREGATE_RESULT=""
 if ! AGGREGATE_RESULT=$("$SCRIPT_DIR/aggregate-findings.sh" "$SESSION_DIR" "$CONFIG_FILE" 2>&1); then

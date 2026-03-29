@@ -30,7 +30,7 @@
   - Verification: fix-verification-evaluator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell/Python scripts (40 files)
+- `scripts/` - Shell/Python scripts (46 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
   - Documentation: codex-doc-review.sh, gemini-doc-review.sh, doc-inventory.sh, benchmark-doc-models.sh
@@ -42,16 +42,18 @@
   - Evaluation: evaluate-pipeline.sh
   - Check: check-model-updates.sh (API-based model version detection)
   - Feedback: feedback-tracker.sh (record/report/stats/recommend/search/improve/patterns)
-  - Context: context-filter.sh (role-based code filtering for review agents)
+  - Context: context-filter.sh (role-based code filtering for review agents + RAG augmentation)
   - Signal logging: signal-log.sh (JSONL cross-agent signal log with learning extraction)
   - Iterative review: ralph-loop.sh (Ralph-style iterative review with fresh context per iteration)
   - Async queue: review-daemon.sh (ticket-based async review processing)
+  - RAG: rag-indexer.sh (incremental vector index builder), rag-retrieve.sh (role-augmented retrieval), rag-engine.py (tree-sitter chunking + ChromaDB + OpenAI embeddings)
+  - Streaming: stream-review.py (OpenAI/Gemini SDK streaming), stream-monitor.sh (real-time conflict detection), stream-orchestrator.sh (parallel streaming with sync fallback)
   - Static analysis: static-analysis.sh, normalize-scanner-output.sh
   - Validation: validate-config.sh, normalize-severity.sh
   - Capability testing: harness-stress-test.sh (phase ablation study for model capability profiling)
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
-  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks, escalation_triggers, write_scope, contract_verification, spec_verification, agent_teams, fleet_swarm, knowledge_graph, ralph_loop, review_daemon, model_capability)
+  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks, escalation_triggers, write_scope, contract_verification, spec_verification, agent_teams, fleet_swarm, knowledge_graph, ralph_loop, review_daemon, model_capability, rag, streaming)
   - phase-contracts.yaml - Phase artifact contracts (inputs/outputs/consumed_by for all pipeline phases)
   - review-prompts/ - Role-specific review prompts (15 files: 9 code + 6 doc)
   - schemas/ - Codex structured output JSON schemas (7 files: review, cross-examine, defend, business-review, business-cross-review, doc-review, doc-cross-review)
@@ -145,6 +147,8 @@
 - **Content Injection Scanning** (`validate_cache_content()` in utils.sh): regex-based validation on cache/memory/signal-log writes — blocks prompt injection, identity overrides, data exfiltration URLs, invisible unicode (Hermes Agent pattern)
 - **Atomic File Writes** (`atomic_write()`, `atomic_write_stdin()` in utils.sh): mktemp + mv pattern prevents partial-write corruption from concurrent agent access; signal-log uses flock-based atomic append (Hermes Agent pattern)
 - **Self-Improving Gotchas** (`signal-log.sh gotcha-suggest`): converts false-positive patterns from signal log learnings into Gotcha suggestions; `--save` stores to short-term memory for next pipeline run (Hermes Agent skill self-improvement pattern)
+- **RAG Context Augmentation** (`rag-indexer.sh`, `rag-retrieve.sh`, `rag-engine.py`): codebase vector indexing with tree-sitter AST-based chunking (regex fallback), incremental indexing via SHA256 hash change detection, role-augmented retrieval queries, optional keyword reranking, ChromaDB storage, OpenAI embeddings. Integrates into context-filter.sh Pass 4 to provide semantically relevant code context to reviewers
+- **LLM Streaming Reviews** (`stream-review.py`, `stream-monitor.sh`, `stream-orchestrator.sh`): Python SDK-based streaming (OpenAI Chat Completions + Google GenAI) for real-time finding extraction, flock-based atomic signal log writes, cross-model severity conflict detection via stream-monitor, process group cleanup, graceful fallback to sync review scripts when SDKs unavailable. All external input via environment variables (no shell injection)
 
 ## Testing
 - Test with intentionally buggy code to verify detection
@@ -155,3 +159,6 @@
 - Test compliance detection: "login" → OAuth guidelines, "chat" → APNs guidelines
 - Test benchmarks: known-vulnerability code → model scoring
 - Test pipeline evaluation: `scripts/evaluate-pipeline.sh` with ground-truth test cases in `config/benchmarks/pipeline/`
+- Test RAG: `rag-indexer.sh` on project root, verify incremental (re-run = no changes), verify `rag-retrieve.sh` returns relevant chunks per role
+- Test streaming: `stream-review.py codex <file> security` with OPENAI_API_KEY set, verify JSONL signal log output, verify stream-monitor conflict detection
+- Test streaming fallback: uninstall openai package → verify stream-orchestrator.sh falls back to codex-review.sh

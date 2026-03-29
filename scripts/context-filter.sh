@@ -436,4 +436,68 @@ EMITTED_TOKENS=$((EMITTED_LINES * TOKENS_PER_LINE))
 
 log_info "Filter summary: role=${ROLE} files_in=${TOTAL_INPUT_FILES} matched=${TOTAL_MATCHED_FILES} emitted=${EMITTED_FILES} lines=${EMITTED_LINES}/${TOTAL_SOURCE_LINES} tokens=~${EMITTED_TOKENS}/${BUDGET}"
 
+# =============================================================================
+# RAG Context Augmentation (optional)
+# =============================================================================
+# If RAG is enabled and index exists, retrieve related code to augment context.
+# This runs AFTER rule-based filtering to add semantically relevant snippets.
+
+RAG_ENABLED_CFG="false"
+if [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ] && command -v jq &>/dev/null; then
+  RAG_ENABLED_CFG=$(jq -r '.rag.enabled // false' "$CONFIG_FILE")
+fi
+
+if [ "$RAG_ENABLED_CFG" = "true" ] && [ -f "$SCRIPT_DIR/rag-retrieve.sh" ]; then
+  # Build a summary of emitted content as RAG query
+  # Use the filter key + first few file names as query context
+  _rag_query="${FILTER_KEY:-general} review"
+  for _emitted_idx in "${SORTED_INDICES[@]}"; do
+    _rag_query="$_rag_query $(basename "${MATCHED_FILES[$_emitted_idx]}")"
+    # Limit query length
+    if [ ${#_rag_query} -gt 200 ]; then
+      break
+    fi
+  done
+
+  _project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+  _rag_top_k=3  # Fewer results to stay within budget
+  _rag_budget_lines=20  # Max lines from RAG
+
+  RAG_RESULT=$("$SCRIPT_DIR/rag-retrieve.sh" "$_project_root" "$ROLE" "$_rag_query" --top-k "$_rag_top_k" 2>/dev/null) || RAG_RESULT=""
+
+  if [ -n "$RAG_RESULT" ]; then
+    _rag_lines=0
+    _rag_output=""
+    while IFS= read -r _rag_line; do
+      [ -z "$_rag_line" ] && continue
+      _rag_file=$(echo "$_rag_line" | python3 -c "import sys,json; print(json.load(sys.stdin).get('file',''))" 2>/dev/null) || continue
+      _rag_content=$(echo "$_rag_line" | python3 -c "import sys,json; print(json.load(sys.stdin).get('content',''))" 2>/dev/null) || continue
+      _rag_score=$(echo "$_rag_line" | python3 -c "import sys,json; print(json.load(sys.stdin).get('score',0))" 2>/dev/null) || _rag_score="0"
+
+      [ -z "$_rag_content" ] && continue
+
+      _content_lines=$(echo "$_rag_content" | wc -l | tr -d ' ')
+      _rag_lines=$((_rag_lines + _content_lines + 2))
+
+      if [ "$_rag_lines" -gt "$_rag_budget_lines" ]; then
+        break
+      fi
+
+      _rag_output="${_rag_output}--- ${_rag_file} (relevance: ${_rag_score}) ---
+${_rag_content}
+
+"
+    done <<< "$RAG_RESULT"
+
+    if [ -n "$_rag_output" ]; then
+      echo ""
+      echo "=== RELATED CODE (RAG) ==="
+      echo "$_rag_output"
+      echo "=== END RELATED CODE ==="
+      EMITTED_LINES=$((EMITTED_LINES + _rag_lines))
+      log_info "RAG augmentation: added ~${_rag_lines} lines of related code for ${ROLE}"
+    fi
+  fi
+fi
+
 exit 0
