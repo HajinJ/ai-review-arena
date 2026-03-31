@@ -702,7 +702,10 @@ Six improvements derived from Anthropic's "Harness Design for Long-Running Apps"
 - **Auto-Fix Evaluator Loop** (Generator-Evaluator separation): Replaces batch-apply-then-test with per-fix verification. Each fix is individually applied → tested → evaluated by independent `fix-verification-evaluator` agent → failed fixes revert individually (not all). Up to 3 retry attempts with evaluator's suggested revisions. New agent: `agents/fix-verification-evaluator.md`. Config: `arena.autofix_evaluator`
 - **Review Contract** (Phase 5.95): Generates a contract defining accepted patterns, severity overrides, focus areas, and known technical debt before Phase 6 review. Auto-detects codebase conventions (naming, error handling, imports). Merges with user overrides from `.ai-review-arena.json`. Distributed to all reviewers to reduce false positives from project-intentional patterns. New shared phase: `shared-phases/review-contract.md`. Config: `arena.review_contract`
 - **Capability-Relative Harness**: Model-capability profiles that skip unnecessary phases based on empirical F1 benchmarks. `scripts/harness-stress-test.sh` runs phase ablation studies — disables each phase one-by-one, measures F1 impact, recommends skip candidates. **Disabled by default** (`enabled: false`); requires explicit activation after running stress tests. Config: `model_capability`
-- 41 agents (was 40), 40 scripts (was 39), 14 shared phases (was 13), 6 new config sections
+- **Review Gate** (`review-gate.sh`): Stop hook handler evaluates uncommitted change scope (files/lines) and auto-triggers cross-model review when thresholds exceeded. Inspired by Codex Plugin Review Gate pattern. `block_on_critical` stops Claude when critical issues found. Cooldown prevents excessive re-triggers. Config: `review_gate`
+- **Batch Worktree Review** (`batch-worktree-review.sh`): Git worktree-based parallel execution for fleet/swarm mode. Each review target gets isolated worktree preventing cross-contamination. Swarm mode supports inter-agent signal sharing for convergence. Falls back to subprocess model when worktrees unavailable. Config: `fleet_swarm.batch_worktree`
+- **`--bare` CLI optimization**: Non-interactive Claude CLI calls use `--bare` flag for up to 10x startup speed improvement (skips CLAUDE.md, settings, and MCP auto-discovery)
+- 41 agents (was 40), 48 scripts (was 39), 14 shared phases (was 13), 7 new config sections
 
 ### v3.4.0
 
@@ -723,10 +726,7 @@ Six improvements derived from Anthropic's "Harness Design for Long-Running Apps"
 - **Content Injection Scanning** (`validate_cache_content()` in utils.sh): Regex-based validation blocks prompt injection, identity overrides, data exfiltration URLs, and invisible unicode before any cache/memory/signal-log write
 - **Atomic File Writes** (`atomic_write()` in utils.sh): mktemp + mv pattern prevents partial-write corruption; signal-log uses flock-based atomic append for concurrent multi-agent safety
 - **Self-Improving Gotchas** (`signal-log.sh gotcha-suggest`): Converts false-positive patterns from signal log learnings into agent Gotcha suggestions; `--save` persists to short-term memory for next pipeline run
-- **Review Gate** (`review-gate.sh`): Stop hook handler evaluates uncommitted change scope (files/lines) and auto-triggers cross-model review when thresholds exceeded. `block_on_critical` stops Claude when critical issues found. Cooldown prevents excessive re-triggers
-- **Batch Worktree Review** (`batch-worktree-review.sh`): Git worktree-based parallel execution for fleet/swarm mode. Each review target gets isolated worktree preventing cross-contamination. Swarm mode supports inter-agent signal sharing for convergence. Falls back to subprocess model when worktrees unavailable
-- **`--bare` CLI optimization**: Non-interactive Claude CLI calls use `--bare` flag for up to 10x startup speed improvement (skips CLAUDE.md, settings, and MCP auto-discovery)
-- 40 agents (each +Gotchas), 41 scripts (was 37), 13 shared phases (was 10), 5 new config sections
+- 40 agents (each +Gotchas), 39 scripts (was 37), 13 shared phases (was 10), 4 new config sections
 
 ### v3.3.0
 
