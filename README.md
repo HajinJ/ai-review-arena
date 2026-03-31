@@ -471,10 +471,71 @@ Four patterns adapted from Hermes Agent for pipeline reliability:
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Review Gate (Stop Hook)
+
+Inspired by the Codex Plugin Review Gate pattern — auto-triggers cross-model review when Claude finishes coding:
+
+```
+Claude modifies code → Claude stops → Review Gate evaluates scope
+                                              │
+                              ┌────────────────┼────────────────┐
+                              │                │                │
+                         files < 2?       lines < 20?      cooldown?
+                              │                │                │
+                              ▼                ▼                ▼
+                           skip             skip             skip
+                                                      │
+                                          ┌────────────┘
+                                          ▼
+                               ┌─────────────────────┐
+                               │  Cross-Model Review  │
+                               │  Codex + Gemini      │
+                               │  security + bugs     │
+                               └──────────┬──────────┘
+                                          │
+                               ┌──────────┼──────────┐
+                               │                     │
+                          CRITICAL found?       LGTM
+                               │                     │
+                          BLOCK Claude          Continue
+                          "Fix before stopping"
+```
+
+Enable in config: `"review_gate": { "enabled": true }`
+
+### Batch Worktree Review
+
+Git worktree-based parallel execution for fleet/swarm mode — each review target gets an isolated worktree:
+
+```
+Fleet Mode (same role × multiple files):
+┌──────────────────────────────────────────────┐
+│  worktree/fleet-0/  ←  security review file1 │
+│  worktree/fleet-1/  ←  security review file2 │
+│  worktree/fleet-2/  ←  security review file3 │
+│                                               │
+│  All isolated. No cross-contamination.        │
+│  Falls back to subprocess if no git.          │
+└──────────────────────────────────────────────┘
+
+Swarm Mode (multiple roles × same file):
+┌──────────────────────────────────────────────┐
+│  worktree/swarm-security/  ←  security review│
+│  worktree/swarm-bugs/      ←  bug detection  │
+│  worktree/swarm-perf/      ←  perf review    │
+│                                               │
+│  Signal sharing between agents for            │
+│  convergence via debate-arbitrator.           │
+└──────────────────────────────────────────────┘
+```
+
 ### More in v3.4.0
 
 | Feature | Description |
 |---------|-------------|
+| **Review Gate** | Stop hook auto-triggers cross-model review when change scope exceeds threshold |
+| **Batch Worktree** | Git worktree-based parallel fleet/swarm with signal sharing and subprocess fallback |
+| **`--bare` CLI** | Non-interactive Claude CLI calls use `--bare` for up to 10x faster startup |
 | **Session Handover** | Auto-saves state when context window fills, resumes in new session |
 | **FTS5 Search** | BM25-ranked full-text search across cache, memory, and signal logs |
 | **Knowledge Graph** | JSONL triple store tracking finding relationships over time |
@@ -572,9 +633,9 @@ ai-review-arena/
 ├── agents/           41 agent definitions (12 code + 10 biz + 6 doc + 13 utility)
 ├── commands/         8 slash commands (arena, multi-review, research, stack, ...)
 ├── config/           Config files, prompts, schemas, benchmarks, phase contracts
-├── scripts/          40 shell scripts (orchestration, CLI adapters, utilities)
+├── scripts/          48 shell scripts (orchestration, CLI adapters, utilities)
 ├── shared-phases/    14 reusable phase definitions
-├── hooks/            Auto-review triggers
+├── hooks/            Auto-review triggers (PostToolUse + Stop Review Gate)
 ├── tests/            18 tests (unit + integration + e2e)
 └── docs/             ADRs and reference docs
 ```
@@ -662,7 +723,10 @@ Six improvements derived from Anthropic's "Harness Design for Long-Running Apps"
 - **Content Injection Scanning** (`validate_cache_content()` in utils.sh): Regex-based validation blocks prompt injection, identity overrides, data exfiltration URLs, and invisible unicode before any cache/memory/signal-log write
 - **Atomic File Writes** (`atomic_write()` in utils.sh): mktemp + mv pattern prevents partial-write corruption; signal-log uses flock-based atomic append for concurrent multi-agent safety
 - **Self-Improving Gotchas** (`signal-log.sh gotcha-suggest`): Converts false-positive patterns from signal log learnings into agent Gotcha suggestions; `--save` persists to short-term memory for next pipeline run
-- 40 agents (each +Gotchas), 39 scripts (was 37), 13 shared phases (was 10), 4 new config sections
+- **Review Gate** (`review-gate.sh`): Stop hook handler evaluates uncommitted change scope (files/lines) and auto-triggers cross-model review when thresholds exceeded. `block_on_critical` stops Claude when critical issues found. Cooldown prevents excessive re-triggers
+- **Batch Worktree Review** (`batch-worktree-review.sh`): Git worktree-based parallel execution for fleet/swarm mode. Each review target gets isolated worktree preventing cross-contamination. Swarm mode supports inter-agent signal sharing for convergence. Falls back to subprocess model when worktrees unavailable
+- **`--bare` CLI optimization**: Non-interactive Claude CLI calls use `--bare` flag for up to 10x startup speed improvement (skips CLAUDE.md, settings, and MCP auto-discovery)
+- 40 agents (each +Gotchas), 41 scripts (was 37), 13 shared phases (was 10), 5 new config sections
 
 ### v3.3.0
 

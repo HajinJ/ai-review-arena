@@ -10,7 +10,7 @@
     - performance-reviewer.toml (gpt-5.3-codex-spark, medium reasoning)
     - architecture-reviewer.toml (gpt-5.4, high reasoning)
     - test-coverage-reviewer.toml (gpt-5.3-codex-spark, medium reasoning)
-- `hooks/` - PostToolUse hook for auto-review + Gemini CLI AfterTool hook
+- `hooks/` - PostToolUse hook for auto-review + Stop hook for Review Gate + Gemini CLI AfterTool hook
 - `commands/` - Slash commands (8 files)
   - `arena` - Full lifecycle orchestrator (research → compliance → benchmark → review → auto-fix)
   - `arena-business` - Business content lifecycle orchestrator
@@ -30,7 +30,7 @@
   - Verification: fix-verification-evaluator
   - Research: research-coordinator, design-analyzer
   - Compliance: compliance-checker
-- `scripts/` - Shell/Python scripts (46 files)
+- `scripts/` - Shell/Python scripts (48 files)
   - Core: orchestrate-review.sh, codex-review.sh, gemini-review.sh
   - Business: codex-business-review.sh, gemini-business-review.sh
   - Documentation: codex-doc-review.sh, gemini-doc-review.sh, doc-inventory.sh, benchmark-doc-models.sh
@@ -38,7 +38,8 @@
   - Arena: detect-stack.sh, cache-manager.sh, benchmark-models.sh, benchmark-business-models.sh, search-best-practices.sh, search-guidelines.sh
   - Benchmark: run-benchmark.sh, run-solo-benchmark.sh, benchmark-utils.sh
   - External integrations: openai-ws-debate.py (WebSocket debate), gemini-hook-adapter.sh (Gemini hook adapter)
-  - Batch review: codex-batch-review.sh (CSV batch review via spawn_agents_on_csv)
+  - Batch review: codex-batch-review.sh (CSV batch review via spawn_agents_on_csv), batch-worktree-review.sh (worktree-based parallel fleet/swarm)
+  - Review gate: review-gate.sh (Stop hook handler for auto cross-model review)
   - Evaluation: evaluate-pipeline.sh
   - Check: check-model-updates.sh (API-based model version detection)
   - Feedback: feedback-tracker.sh (record/report/stats/recommend/search/improve/patterns)
@@ -53,7 +54,7 @@
   - Capability testing: harness-stress-test.sh (phase ablation study for model capability profiling)
   - Utilities: utils.sh, setup.sh, setup-arena.sh
 - `config/` - Configuration files
-  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks, escalation_triggers, write_scope, contract_verification, spec_verification, agent_teams, fleet_swarm, knowledge_graph, ralph_loop, review_daemon, model_capability, rag, streaming)
+  - default-config.json - All settings (models, review, debate, arena, cache, benchmarks, compliance, routing, fallback, cost, feedback, context forwarding, context density, memory tiers, pipeline evaluation, docs, docs_intensity_presets, docs_debate, docs_models, docs_benchmarks, escalation_triggers, write_scope, contract_verification, spec_verification, agent_teams, fleet_swarm, knowledge_graph, ralph_loop, review_daemon, review_gate, model_capability, rag, streaming)
   - phase-contracts.yaml - Phase artifact contracts (inputs/outputs/consumed_by for all pipeline phases)
   - review-prompts/ - Role-specific review prompts (15 files: 9 code + 6 doc)
   - schemas/ - Codex structured output JSON schemas (7 files: review, cross-examine, defend, business-review, business-cross-review, doc-review, doc-cross-review)
@@ -149,6 +150,9 @@
 - **Self-Improving Gotchas** (`signal-log.sh gotcha-suggest`): converts false-positive patterns from signal log learnings into Gotcha suggestions; `--save` stores to short-term memory for next pipeline run (Hermes Agent skill self-improvement pattern)
 - **RAG Context Augmentation** (`rag-indexer.sh`, `rag-retrieve.sh`, `rag-engine.py`): codebase vector indexing with tree-sitter AST-based chunking (regex fallback), incremental indexing via SHA256 hash change detection, role-augmented retrieval queries, optional keyword reranking, ChromaDB storage, OpenAI embeddings. Integrates into context-filter.sh Pass 4 to provide semantically relevant code context to reviewers
 - **LLM Streaming Reviews** (`stream-review.py`, `stream-monitor.sh`, `stream-orchestrator.sh`): Python SDK-based streaming (OpenAI Chat Completions + Google GenAI) for real-time finding extraction, flock-based atomic signal log writes, cross-model severity conflict detection via stream-monitor, process group cleanup, graceful fallback to sync review scripts when SDKs unavailable. All external input via environment variables (no shell injection)
+- **Review Gate** (`review-gate.sh`): Stop hook handler that evaluates uncommitted change scope (files/lines) and auto-triggers cross-model review when thresholds exceeded — inspired by Codex Plugin Review Gate pattern; `block_on_critical` stops Claude when critical issues found
+- **Batch Worktree Review** (`batch-worktree-review.sh`): git worktree-based parallel execution for fleet/swarm mode — each review target gets isolated worktree preventing cross-contamination; falls back to subprocess model when worktrees unavailable; swarm mode supports signal sharing for convergence
+- **`--bare` CLI optimization**: non-interactive Claude CLI calls use `--bare` flag for up to 10x startup speed improvement (skips CLAUDE.md/settings/MCP auto-discovery)
 
 ## Testing
 - Test with intentionally buggy code to verify detection

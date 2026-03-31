@@ -286,7 +286,7 @@ OUTPUT RULES:
 - Make targeted, incremental improvements (not a complete rewrite)"
 
   local mutated
-  mutated=$(echo "$mutation_prompt" | claude -p 2>/dev/null)
+  mutated=$(echo "$mutation_prompt" | claude -p --bare 2>/dev/null)
 
   if [ -z "$mutated" ]; then
     log_warn "Claude CLI returned empty mutation for ${category}."

@@ -97,6 +97,17 @@
     "min_lines_changed": 10,
     "debounce_writes": 3
   },
+  "review_gate": {
+    "enabled": false,
+    "min_files_changed": 2,
+    "min_lines_changed": 20,
+    "models": ["codex", "gemini"],
+    "roles": ["security", "bugs"],
+    "block_on_critical": true,
+    "cooldown_seconds": 120,
+    "description_ko": "Claude 작업 완료 시 변경 범위가 임계값을 초과하면 자동 크로스 리뷰 트리거",
+    "description_en": "Auto-trigger cross-model review when change scope exceeds threshold on Claude stop"
+  },
   "gemini_hooks": {
     "enabled": true,
     "event_types": ["AfterTool"],
@@ -926,6 +937,16 @@
     "auto_selection_rules": {
       "fleet_when": ["multi_repo_pr", "bulk_dependency_update", "cross_project_refactor"],
       "swarm_when": ["single_repo_deep_review", "security_audit", "architecture_review"]
+    },
+    "batch_worktree": {
+      "enabled": true,
+      "prefer_native": true,
+      "max_worktrees": 10,
+      "cleanup_on_complete": true,
+      "worktree_base": ".claude/worktrees",
+      "fallback_to_subprocess": true,
+      "description_ko": "Claude Code 네이티브 워크트리 기반 병렬 팬아웃으로 fleet/swarm 실행",
+      "description_en": "Use Claude Code native worktree-based parallel fan-out for fleet/swarm execution"
     }
   },
   "knowledge_graph": {
