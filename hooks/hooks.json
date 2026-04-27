@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/orchestrate-review.sh",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/arena-runtime.py hook-post-tool-use --config ${CLAUDE_PLUGIN_ROOT}/config/default-config.json",
             "timeout": 300
           }
         ]

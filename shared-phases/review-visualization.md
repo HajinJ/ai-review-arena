@@ -105,4 +105,4 @@ Phase 7 (Final Report) generates these diagrams by:
 4. Substituting variables into Mermaid templates
 5. Appending diagrams to the markdown report
 
-The `generate-report.sh` script handles the template substitution.
+The `generate-report` script handles the template substitution.

@@ -25,13 +25,13 @@ Research completed 2026-02-26. These items require external API changes or featu
 - Controlled by `models.codex.structured_output` config (default: `true`)
 
 **Phase 2 — New-Format Custom Agents** (2026-03-17, active by default):
-- Created `.codex/config.toml` — project-level Codex config with `max_threads=6`, `max_depth=1`, `job_max_runtime_seconds=300`
+- Created `.codex/config.toml` — project-level Codex defaults (`model`, `model_reasoning_effort`). Concurrency/depth/timeout are controlled by Arena's own `models.codex.multi_agent.*` keys in `default-config.json`, not by Codex itself
 - Created 5 new-format agents in `.codex/agents/` with top-level schema:
-  - `security-reviewer.toml` — gpt-5.4, high reasoning, nicknames: Sentinel/Aegis/Guardian/Shield/Warden
-  - `bug-detector.toml` — gpt-5.4, high reasoning, nicknames: Sherlock/Inspector/Tracker/Scout/Sleuth
-  - `performance-reviewer.toml` — gpt-5.3-codex-spark, medium reasoning, nicknames: Flash/Turbo/Blaze/Nitro/Bolt
-  - `architecture-reviewer.toml` — gpt-5.4, high reasoning, nicknames: Blueprint/Compass/Keystone/Pillar/Atlas
-  - `test-coverage-reviewer.toml` — gpt-5.3-codex-spark, medium reasoning, nicknames: Validator/Prober/Checker/Verifier/Auditor
+  - `security-reviewer.toml` — gpt-5.5, high reasoning, nicknames: Sentinel/Aegis/Guardian/Shield/Warden
+  - `bug-detector.toml` — gpt-5.5, high reasoning, nicknames: Sherlock/Inspector/Tracker/Scout/Sleuth
+  - `performance-reviewer.toml` — gpt-5.5-mini, medium reasoning, nicknames: Flash/Turbo/Blaze/Nitro/Bolt
+  - `architecture-reviewer.toml` — gpt-5.5, high reasoning, nicknames: Blueprint/Compass/Keystone/Pillar/Atlas
+  - `test-coverage-reviewer.toml` — gpt-5.5-mini, medium reasoning, nicknames: Validator/Prober/Checker/Verifier/Auditor
 - Each agent has full `developer_instructions` inlined (no external prompt file dependency)
 - Each agent includes duplicate prompt technique (arxiv 2512.14982) with `[CORE INSTRUCTION REPEAT]`
 - Updated `codex-review.sh` — agent resolution: `.codex/agents/` (project) → `~/.codex/agents/` (user)
@@ -43,14 +43,26 @@ Research completed 2026-02-26. These items require external API changes or featu
 2. `~/.codex/agents/{agent-name}.toml` (user-scoped)
 
 ### Key Config Knobs
+
+Arena-side (`config/default-config.json` → `models.codex.multi_agent.*`, consumed by `scripts/codex-batch-review.sh`):
+
 | Setting | Type | Purpose |
 |---------|------|---------|
-| `agents.max_threads` | number | Max concurrent agent threads (default: 6) |
-| `agents.max_depth` | number | Max nesting depth (default: 1) |
-| `agents.job_max_runtime_seconds` | number | Per-worker timeout for CSV batch jobs (default: 300) |
+| `multi_agent.max_threads` | number | Max concurrent agent threads in CSV batch review (default: 6) |
+| `multi_agent.max_depth` | number | Max nesting depth (default: 1) |
+| `multi_agent.job_max_runtime_seconds` | number | Per-worker timeout for CSV batch jobs (default: 300) |
 | `multi_agent.agents_dir` | string | Agent directory (default: `.codex/agents`) |
 | `multi_agent.batch_review.enabled` | boolean | Enable CSV batch review (default: true) |
 | `multi_agent.batch_review.max_files_per_batch` | number | Max files per batch (default: 50) |
+
+Codex-side (`.codex/config.toml`, top-level only):
+
+| Setting | Type | Purpose |
+|---------|------|---------|
+| `model` | string | Default model for Codex CLI in this project |
+| `model_reasoning_effort` | string | Default reasoning effort (`low`/`medium`/`high`/`xhigh`) |
+
+> The `[agents]` table in Codex config is reserved for AgentRoleToml definitions (one per role file in `.codex/agents/`). Do not put orchestration or default-model keys there — Codex will fail to parse the file.
 
 ### Limitations
 - Sub-agents inherit parent sandbox; cannot escalate permissions
@@ -66,75 +78,9 @@ Research completed 2026-02-26. These items require external API changes or featu
 
 ---
 
-## 2. OpenAI Responses API WebSocket Mode
+## 2. Retired Non-CLI Debate Experiment
 
-**Status**: Implemented (2026-02-26) — feature-flagged, disabled by default
-**Priority**: Medium
-**Blocked by**: ~~Need to refactor debate scripts~~ Done — requires `pip install openai>=2.22.0`
-
-### Current State (Feb 2026)
-- WebSocket mode for Responses API released 2026-02-23 in OpenAI Python SDK v2.22.0
-- Endpoint: `wss://api.openai.com/v1/responses`
-- Connection limit: 60 minutes per connection
-- Sequential processing only (one in-flight response per connection)
-
-### Performance Gains
-| Scenario | Improvement |
-|----------|-------------|
-| Tool-heavy workflows (20+ calls) | ~40% faster |
-| Complex multi-file operations | ~39% faster |
-| Simple tasks | ~15% faster |
-| Best case | ~50% faster |
-
-**Trade-off**: Initial WebSocket handshake adds slight TTFT overhead on short tasks.
-
-### Implementation (2026-02-26)
-- Created `scripts/openai-ws-debate.py`: WebSocket debate client using OpenAI Responses API
-  - Runs all 3 debate rounds on single persistent connection via `previous_response_id`
-  - Falls back to standard HTTP if WebSocket mode unavailable
-  - Matches `run-debate.sh` output format: `{accepted, rejected, disputed}`
-  - Compatible with `store=false` for Zero Data Retention
-- Created `requirements.txt` with `openai>=2.22.0` dependency
-- Added WebSocket fast path in `run-debate.sh` — checks Python 3, openai package, and `websocket.enabled` config
-- Controlled by `websocket.enabled` config (default: `false`)
-- No breaking changes: falls through to existing bash debate logic if any precondition fails
-
-### Original Integration Plan
-1. ~~Create WebSocket client~~ Done: `scripts/openai-ws-debate.py`
-2. ~~Update debate scripts~~ Done: `run-debate.sh` WebSocket fast path
-3. Compatible with `store=false` and Zero Data Retention (in-memory state only)
-
-### Key Technical Details
-- Server keeps one previous-response state in connection-local in-memory cache
-- After disconnect: use `/responses/compact` endpoint for compacted context
-- No multiplexing: use multiple connections for parallel runs
-
-### Reconnection Strategies
-1. Continue with `previous_response_id` (if `store=true`)
-2. Start fresh with full input context
-3. ~~Use compacted output from `/responses/compact`~~ **Implemented** (2026-03-06)
-
-### Context Compaction on Reconnection (2026-03-06)
-
-**Applied**: `compact_context()` function in `openai-ws-debate.py` implements E3 (Codex compaction) philosophy.
-
-**Implementation**:
-- On WebSocket connection failure during retry, if `compaction.enabled=true` and a `previous_response_id` exists, context is compacted via HTTP before reconnecting
-- Compaction preserves: finding indices + status, key evidence, confidence adjustments
-- Controlled by `websocket.compaction` config (default: enabled)
-- Falls back to fresh reconnection if compaction fails
-
-**Design Principles** (from knowledge-base E3):
-- Compaction is information preservation, not simple summarization
-- System prompt preserved identically through compaction
-- Decision context and finding status are explicitly requested to be retained
-- Intermediate reasoning is compressed, final assessments are preserved
-
-### Sources
-- [WebSocket Mode - OpenAI Official Docs](https://developers.openai.com/api/docs/guides/websocket-mode/)
-- [OpenAI Python SDK v2.22.0](https://github.com/openai/openai-python/releases)
-- [Cline WebSocket Test Results](https://x.com/cline/status/2026031848791630033)
-- [H2S Media: WebSocket API Performance](https://www.how2shout.com/news/openai-websocket-api-agent-latency-40-percent-faster.html)
+This experiment was removed from the active runtime. AI Review Arena now keeps review execution on CLI adapters and typed local runtime boundaries.
 
 ---
 
@@ -208,7 +154,7 @@ Research completed 2026-02-26. These items require external API changes or featu
 
 ### Implementation (2026-02-26)
 - Created `hooks/gemini-hooks.json`: Gemini-native AfterTool hook config targeting `write_file|replace_in_file|patch`
-- Created `scripts/gemini-hook-adapter.sh`: Translates Gemini hook stdin JSON to orchestrate-review.sh format
+- Gemini hook stdin JSON is handled directly by `arena_runtime.orchestrator`
   - Parses `toolName` and `toolInput.path` from Gemini's AfterTool JSON
   - Checks file extension against reviewable extensions
   - Checks `gemini_hooks.enabled` config before running
@@ -291,7 +237,7 @@ These research findings have been applied to the current codebase:
 
 ### 6c. Stale Review Invalidation (Code Factory)
 
-**Applied**: Git-hash-based review freshness check in orchestrate-review.sh + aggregate-findings.sh.
+**Applied**: Git-hash-based review freshness check in arena-runtime.py + aggregate-findings.
 
 **Mechanism**: Commit hash stored when review starts. Before aggregation, current HEAD is compared. If changed, findings are marked `stale: true` with warning banner in generated reports.
 
@@ -316,14 +262,6 @@ These research findings have been applied to the current codebase:
 **Evidence**: QMD's BM25 search resolves 300-file searches in 1 second vs 3 minutes for grep (Artem Zhutov). Applied to feedback routing: instead of naive file grep, BM25 scores feedback records by term relevance, enabling pattern-based model routing from accumulated review history.
 
 **Our approach**: `cmd_search()` implements BM25 with k1=1.2, b=0.75 standard parameters. Searches across feedback JSONL and all configured memory tiers (short-term/long-term/permanent). Returns top-N results ranked by relevance score.
-
-### 6g. Context Compaction Strategy (E3: Codex Compaction Philosophy)
-
-**Applied**: `compact_context()` in `openai-ws-debate.py` implements information-preserving compaction on WebSocket reconnection.
-
-**Evidence**: Codex compaction research reveals that compaction should be treated as an "information preservation strategy," not simple summarization. Decision context and status must be explicitly preserved through compression.
-
-**Our approach**: On WebSocket failure during debate retry, context is compacted via HTTP, explicitly preserving finding indices, challenge statuses, evidence, and confidence adjustments. Intermediate reasoning is compressed while final assessments are retained.
 
 ### Sources
 - [AGENTS.md Benchmark Paper](https://arxiv.org/abs/2602.11988)
@@ -393,7 +331,7 @@ Added complete documentation review pipeline with 6 specialized review agents an
 |------|----------|--------|----------------|
 | Codex `--output-schema` | High | **Done** | Implemented (active by default) |
 | Codex sub-agent roles | High | **Done** | Implemented (feature-flagged) |
-| WebSocket debate acceleration | Medium | **Done** | Implemented (feature-flagged) |
+| Non-CLI debate experiment | Medium | **Retired** | Removed from active runtime |
 | Gemini hook adapter | Medium | **Done** | Implemented (feature-flagged) |
 | Remote Control monitoring | Low | No API | No |
 | Agent marketplace | Low | Design phase | No |
@@ -401,7 +339,7 @@ Added complete documentation review pipeline with 6 specialized review agents an
 | Duplicate prompt | **Done** | Applied | Completed |
 | Stale review invalidation | **Done** | Applied | Completed |
 | Cache-aware cost estimation | **Done** | Applied | Completed |
-| WebSocket compaction on reconnect | **Done** | Applied | Completed |
+| Non-CLI reconnect compaction experiment | **Retired** | Removed | Not part of CLI-first runtime |
 | BM25 feedback search | **Done** | Applied | Completed |
 | Visual verification phase | **Done** | Applied | Completed |
 | Documentation review pipeline (Route J-K) | High | **Done** | Implemented (active by default) |

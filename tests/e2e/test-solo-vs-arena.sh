@@ -120,7 +120,7 @@ if [ -n "$GEMINI_RESULT" ] && echo "$GEMINI_RESULT" | jq . &>/dev/null; then
   echo "$GEMINI_RESULT" > "$SESSION_DIR/findings_1.json"
 fi
 
-AGG_RESULT=$("$SCRIPT_DIR/aggregate-findings.sh" "$SESSION_DIR" "$CONFIG_FILE" 2>/dev/null) || AGG_RESULT="[]"
+AGG_RESULT=$("$SCRIPT_DIR/aggregate-findings" "$SESSION_DIR" "$CONFIG_FILE" 2>/dev/null) || AGG_RESULT="[]"
 [ "$AGG_RESULT" = "LGTM" ] && AGG_RESULT="[]"
 
 at=$(extract_text "$AGG_RESULT")

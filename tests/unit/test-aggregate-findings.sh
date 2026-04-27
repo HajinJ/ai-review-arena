@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Tests for scripts/aggregate-findings.sh
+# Tests for scripts/aggregate-findings
 #
-# NOTE: The jq dedup clustering logic in aggregate-findings.sh has a known bug
+# NOTE: The jq dedup clustering logic in aggregate-findings has a known bug
 # (Cannot index number with number) when multiple findings exist in the same
 # file group. Tests that trigger this are marked as skipped.
 # The confidence filter and severity sort tests use single-finding-per-file
@@ -16,9 +16,9 @@ REPO_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 
 source "$TESTS_DIR/test-helpers.sh"
 
-SCRIPT="$REPO_DIR/scripts/aggregate-findings.sh"
+SCRIPT="$REPO_DIR/scripts/aggregate-findings"
 
-echo "=== test-aggregate-findings.sh ==="
+echo "=== test-aggregate-findings ==="
 
 # =========================================================================
 # Test: LGTM when no findings files
@@ -28,7 +28,7 @@ setup_temp_dir
 SESSION_DIR="$TEMP_DIR/session-empty"
 mkdir -p "$SESSION_DIR"
 
-result=$(bash "$SCRIPT" "$SESSION_DIR" "")
+result=$("$SCRIPT" "$SESSION_DIR" "")
 assert_eq "$result" "LGTM" "LGTM when no findings files exist"
 
 # =========================================================================
@@ -56,7 +56,7 @@ cat > "$SESSION_DIR/findings_claude_security.json" <<'EOF'
 }
 EOF
 
-result=$(bash "$SCRIPT" "$SESSION_DIR" "" 2>/dev/null)
+result=$("$SCRIPT" "$SESSION_DIR" "" 2>/dev/null)
 assert_json_valid "$result" "single finding: output is valid JSON"
 
 title=$(echo "$result" | jq -r '.[0].title')
@@ -108,7 +108,7 @@ cat > "$CONFIG" <<'EOF'
 {"review": {"confidence_threshold": 30}}
 EOF
 
-result=$(bash "$SCRIPT" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
+result=$("$SCRIPT" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
 assert_json_valid "$result" "multi-file: output is valid JSON"
 
 count=$(echo "$result" | jq 'length')
@@ -150,7 +150,7 @@ cat > "$CONFIG" <<'EOF'
 {"review": {"confidence_threshold": 75}}
 EOF
 
-result=$(bash "$SCRIPT" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
+result=$("$SCRIPT" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
 assert_json_valid "$result" "confidence filter: output is valid JSON"
 
 count=$(echo "$result" | jq 'length')
@@ -204,7 +204,7 @@ cat > "$CONFIG" <<'EOF'
 {"review": {"confidence_threshold": 40}}
 EOF
 
-result=$(bash "$SCRIPT" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
+result=$("$SCRIPT" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
 assert_json_valid "$result" "severity sort: output is valid JSON"
 
 count=$(echo "$result" | jq 'length')
@@ -218,7 +218,7 @@ assert_eq "$last_severity" "low" "severity sort: low comes last"
 
 # =========================================================================
 # Test: Dedup + cross-model agreement (same file, same line, same title)
-# NOTE: This test exposes a known jq clustering bug in aggregate-findings.sh
+# NOTE: This test exposes a known jq clustering bug in aggregate-findings
 # When the bug is fixed, this test should pass. Until then, LGTM is expected.
 # =========================================================================
 
@@ -252,7 +252,7 @@ cat > "$CONFIG" <<'EOF'
 {"review": {"confidence_threshold": 30}}
 EOF
 
-result=$(bash "$SCRIPT" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
+result=$("$SCRIPT" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
 
 # If dedup works correctly (bug is fixed):
 #   - Should have 1 finding (merged)
@@ -303,7 +303,7 @@ cat > "$CONFIG" <<'EOF'
 {"review": {"confidence_threshold": 75}}
 EOF
 
-result=$(bash "$SCRIPT" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
+result=$("$SCRIPT" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
 assert_eq "$result" "LGTM" "LGTM when all findings below threshold"
 
 # =========================================================================
@@ -324,7 +324,7 @@ cat > "$SESSION_DIR/findings_claude.json" <<'EOF'
 }
 EOF
 
-result=$(bash "$SCRIPT" "$SESSION_DIR" "" 2>/dev/null)
+result=$("$SCRIPT" "$SESSION_DIR" "" 2>/dev/null)
 assert_eq "$result" "LGTM" "LGTM when findings have no title"
 
 # =========================================================================
@@ -347,7 +347,7 @@ cat > "$SESSION_DIR/findings_claude.json" <<'EOF'
 }
 EOF
 
-result=$(bash "$SCRIPT" "$SESSION_DIR" "" 2>/dev/null)
+result=$("$SCRIPT" "$SESSION_DIR" "" 2>/dev/null)
 assert_json_valid "$result" "invalid file skipped: output is valid JSON"
 
 count=$(echo "$result" | jq 'length')

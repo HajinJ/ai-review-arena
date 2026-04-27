@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PLUGIN_DIR/scripts/gemini-hook-adapter.sh",
+            "command": "PYTHONPATH=$PLUGIN_DIR python3 -m arena_runtime.orchestrator hook-post-tool-use --config $PLUGIN_DIR/config/default-config.json",
             "timeout": 300000
           }
         ]

@@ -48,7 +48,7 @@ Would be natural since Claude Code is a Node.js tool. Rejected because it requir
 
 ### Mixed (bash + Python)
 
-Currently used for the WebSocket debate client (`openai-ws-debate.py`) which requires the `openai` Python package. This is optional — the pipeline falls back to bash HTTP calls when Python is unavailable.
+Python is used for typed runtime adapters, evaluation, RAG, and structured utility code. The active runtime direction is CLI-first Python adapters plus compatibility shell wrappers.
 
 ## Consequences
 

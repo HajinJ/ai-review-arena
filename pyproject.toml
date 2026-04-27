@@ -1,0 +1,8 @@
+[project]
+name = "ai-review-arena"
+version = "0.1.0"
+description = "CLI-first multi-model AI review arena runtime"
+requires-python = ">=3.10"
+
+[project.scripts]
+ai-review-arena = "arena_runtime.entrypoint:main"

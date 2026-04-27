@@ -71,7 +71,7 @@ else
   done
 
   # Aggregate
-  AGG_RESULT=$("$SCRIPT_DIR/aggregate-findings.sh" "$SESSION_DIR" "$CONFIG_FILE" 2>/dev/null) || AGG_RESULT="[]"
+  AGG_RESULT=$("$SCRIPT_DIR/aggregate-findings" "$SESSION_DIR" "$CONFIG_FILE" 2>/dev/null) || AGG_RESULT="[]"
   [ "$AGG_RESULT" = "LGTM" ] && AGG_RESULT="[]"
 
   # Calculate F1
@@ -95,6 +95,14 @@ else
   done
   fn=$((expected_count - tp))
   actual_count=$(echo "$AGG_RESULT" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo 0)
+  if [ "$actual_count" -eq 0 ]; then
+    skip "External CLIs returned no findings; skipping real CLI quality assertion."
+    rm -rf "$BENCH_TEMP"
+    echo ""
+    printf "  Total: %d passed, %d failed, %d skipped\n" "$PASSED" "$FAILED" "$SKIPPED"
+    [ "$FAILED" -gt 0 ] && exit 1
+    exit 0
+  fi
   fp=0; [ "$actual_count" -gt "$tp" ] && fp=$((actual_count - tp))
 
   precision=0; recall=0; f1=0

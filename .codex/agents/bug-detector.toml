@@ -1,6 +1,5 @@
 name = "bug_detector"
 description = "Bug detection code reviewer. Identifies logic errors, null references, race conditions, off-by-one errors, and unhandled edge cases. Use for pre-merge bug scanning."
-model = "gpt-5.4"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 

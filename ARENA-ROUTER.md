@@ -178,7 +178,7 @@ When `model_capability.enabled` is true, the pipeline additionally checks the cu
 Example flow with capability enabled:
 Request: "Add input validation"
 → Route A → Phase 0.1 Debate → standard
-→ Capability check: current model = claude-opus-4-6, skip_phases = ["5.8"]
+→ Capability check: current model = claude-opus-4-7, skip_phases = ["5.8"]
 → Phase 5.8 (Static Analysis) skipped — model handles this internally
 → All other phases execute normally
 ```

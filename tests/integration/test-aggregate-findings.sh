@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Integration Test: aggregate-findings.sh with real JSON findings
+# Integration Test: aggregate-findings with real JSON findings
 #
 # Tests the findings aggregator with crafted findings JSON files,
 # verifying merge, dedup, severity ordering, and threshold filtering.
@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../test-helpers.sh"
 
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-AGGREGATE="$PLUGIN_DIR/scripts/aggregate-findings.sh"
+AGGREGATE="$PLUGIN_DIR/scripts/aggregate-findings"
 CONFIG="$PLUGIN_DIR/config/default-config.json"
 
 # --- Setup ---
@@ -18,7 +18,7 @@ setup_temp_dir
 
 # --- Prerequisite check ---
 if [ ! -f "$AGGREGATE" ]; then
-  skip "aggregate-findings.sh not found"
+  skip "aggregate-findings not found"
   print_summary
   exit 0
 fi
@@ -73,7 +73,7 @@ cat > "$SESSION_DIR/findings_1.json" <<'EOF'
 }
 EOF
 
-RESULT=$(bash "$AGGREGATE" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
+RESULT=$("$AGGREGATE" "$SESSION_DIR" "$CONFIG" 2>/dev/null)
 EXIT_CODE=$?
 
 assert_eq "$EXIT_CODE" "0" "Should exit 0"
@@ -118,7 +118,7 @@ test_begin "aggregate-findings: empty session returns LGTM"
 EMPTY_SESSION="$TEMP_DIR/session-empty"
 mkdir -p "$EMPTY_SESSION"
 
-RESULT=$(bash "$AGGREGATE" "$EMPTY_SESSION" "$CONFIG" 2>/dev/null)
+RESULT=$("$AGGREGATE" "$EMPTY_SESSION" "$CONFIG" 2>/dev/null)
 assert_eq "$RESULT" "LGTM" "Empty session should produce LGTM"
 
 test_end
@@ -148,7 +148,7 @@ cat > "$SESSION_NOTITLE/findings_0.json" <<'EOF'
 }
 EOF
 
-RESULT=$(bash "$AGGREGATE" "$SESSION_NOTITLE" "$CONFIG" 2>/dev/null)
+RESULT=$("$AGGREGATE" "$SESSION_NOTITLE" "$CONFIG" 2>/dev/null)
 assert_eq "$RESULT" "LGTM" "Findings without titles should produce LGTM"
 
 test_end
@@ -198,7 +198,7 @@ cat > "$SESSION_DEDUP/findings_1.json" <<'EOF'
 }
 EOF
 
-RESULT=$(bash "$AGGREGATE" "$SESSION_DEDUP" "$CONFIG" 2>/dev/null)
+RESULT=$("$AGGREGATE" "$SESSION_DEDUP" "$CONFIG" 2>/dev/null)
 
 if [ "$RESULT" != "LGTM" ]; then
   assert_json_valid "$RESULT" "Dedup output should be valid JSON"
@@ -250,7 +250,7 @@ cat > "$SESSION_INVALID/findings_1.json" <<'EOF'
 }
 EOF
 
-RESULT=$(bash "$AGGREGATE" "$SESSION_INVALID" "$CONFIG" 2>/dev/null)
+RESULT=$("$AGGREGATE" "$SESSION_INVALID" "$CONFIG" 2>/dev/null)
 
 if [ "$RESULT" != "LGTM" ]; then
   assert_json_valid "$RESULT" "Output should be valid JSON despite invalid file"
@@ -292,7 +292,7 @@ cat > "$SESSION_FIELDS/findings_0.json" <<'EOF'
 }
 EOF
 
-RESULT=$(bash "$AGGREGATE" "$SESSION_FIELDS" "$CONFIG" 2>/dev/null)
+RESULT=$("$AGGREGATE" "$SESSION_FIELDS" "$CONFIG" 2>/dev/null)
 
 if [ "$RESULT" != "LGTM" ]; then
   assert_json_valid "$RESULT" "Output should be valid JSON"
@@ -343,7 +343,7 @@ cat > "$SESSION_LOW/findings_0.json" <<'EOF'
 }
 EOF
 
-RESULT=$(bash "$AGGREGATE" "$SESSION_LOW" "$CONFIG" 2>/dev/null)
+RESULT=$("$AGGREGATE" "$SESSION_LOW" "$CONFIG" 2>/dev/null)
 
 # With confidence 20 and severity low, this should be filtered out
 assert_eq "$RESULT" "LGTM" "Low confidence findings should be filtered out"

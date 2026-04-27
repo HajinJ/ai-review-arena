@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Tests for scripts/generate-report.sh
+# Tests for scripts/generate-report
 # =============================================================================
 
 set -uo pipefail
@@ -10,9 +10,9 @@ REPO_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 
 source "$TESTS_DIR/test-helpers.sh"
 
-SCRIPT="$REPO_DIR/scripts/generate-report.sh"
+SCRIPT="$REPO_DIR/scripts/generate-report"
 
-echo "=== test-generate-report.sh ==="
+echo "=== test-generate-report ==="
 
 setup_temp_dir
 
@@ -52,7 +52,7 @@ cat > "$TEMP_DIR/findings-ko.json" <<'EOF'
 ]
 EOF
 
-result=$(bash "$SCRIPT" "$TEMP_DIR/findings-ko.json" "$TEMP_DIR/config-ko.json" 2>/dev/null)
+result=$("$SCRIPT" "$TEMP_DIR/findings-ko.json" "$TEMP_DIR/config-ko.json" 2>/dev/null)
 assert_contains "$result" "AI Review Arena Report" "korean: has report title"
 assert_contains "$result" "accepted" "korean: has accepted count"
 assert_contains "$result" "CRITICAL" "korean: has CRITICAL section"
@@ -95,12 +95,42 @@ cat > "$TEMP_DIR/findings-en.json" <<'EOF'
 ]
 EOF
 
-result=$(bash "$SCRIPT" "$TEMP_DIR/findings-en.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
+result=$("$SCRIPT" "$TEMP_DIR/findings-en.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
 assert_contains "$result" "AI Review Arena Report" "english: has report title"
 assert_contains "$result" "Confidence" "english: has Confidence label"
 assert_contains "$result" "Suggestion" "english: has Suggestion label"
 assert_contains "$result" "HIGH" "english: has HIGH section"
 assert_contains "$result" "Missing auth check" "english: has finding title"
+
+cat > "$TEMP_DIR/findings-evidence.json" <<'EOF'
+[
+  {
+    "file": "src/api.ts",
+    "line": 10,
+    "title": "Missing auth check",
+    "description": "Endpoint lacks authentication",
+    "suggestion": "Add auth middleware",
+    "severity": "high",
+    "confidence": 85,
+    "models": ["claude"],
+    "role": "security-reviewer",
+    "cross_model_agreement": false,
+    "evidence_chunks": [
+      {
+        "id": "ev-1",
+        "file": "src/api.ts",
+        "chunk_id": 2,
+        "score": 1.2,
+        "boundary": {"flags": []}
+      }
+    ]
+  }
+]
+EOF
+
+result=$("$SCRIPT" "$TEMP_DIR/findings-evidence.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
+assert_contains "$result" "Evidence" "english: evidence section rendered"
+assert_contains "$result" "src/api.ts#chunk-2" "english: evidence chunk location rendered"
 
 # =========================================================================
 # Test: Consensus format {accepted, rejected, disputed}
@@ -148,7 +178,7 @@ cat > "$TEMP_DIR/consensus.json" <<'EOF'
 }
 EOF
 
-result=$(bash "$SCRIPT" "$TEMP_DIR/consensus.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
+result=$("$SCRIPT" "$TEMP_DIR/consensus.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
 assert_contains "$result" "1 accepted" "consensus: shows accepted count"
 assert_contains "$result" "1 rejected" "consensus: shows rejected count"
 assert_contains "$result" "1 disputed" "consensus: shows disputed count"
@@ -177,7 +207,7 @@ cat > "$TEMP_DIR/findings-array.json" <<'EOF'
 ]
 EOF
 
-result=$(bash "$SCRIPT" "$TEMP_DIR/findings-array.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
+result=$("$SCRIPT" "$TEMP_DIR/findings-array.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
 assert_contains "$result" "1 accepted" "plain array: treated as accepted"
 assert_contains "$result" "0 rejected" "plain array: 0 rejected"
 assert_contains "$result" "Error not caught" "plain array: finding rendered"
@@ -190,12 +220,12 @@ cat > "$TEMP_DIR/findings-empty.json" <<'EOF'
 []
 EOF
 
-result=$(bash "$SCRIPT" "$TEMP_DIR/findings-empty.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
+result=$("$SCRIPT" "$TEMP_DIR/findings-empty.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
 assert_eq "$result" "LGTM" "LGTM: empty array produces LGTM"
 
 # Also test with null
 echo "null" > "$TEMP_DIR/findings-null.json"
-result=$(bash "$SCRIPT" "$TEMP_DIR/findings-null.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
+result=$("$SCRIPT" "$TEMP_DIR/findings-null.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
 assert_eq "$result" "LGTM" "LGTM: null produces LGTM"
 
 # Also test with empty consensus
@@ -203,7 +233,7 @@ cat > "$TEMP_DIR/findings-empty-consensus.json" <<'EOF'
 {"accepted": [], "rejected": [], "disputed": []}
 EOF
 
-result=$(bash "$SCRIPT" "$TEMP_DIR/findings-empty-consensus.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
+result=$("$SCRIPT" "$TEMP_DIR/findings-empty-consensus.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
 assert_eq "$result" "LGTM" "LGTM: empty consensus produces LGTM"
 
 # =========================================================================
@@ -219,7 +249,7 @@ cat > "$TEMP_DIR/findings-multi.json" <<'EOF'
 ]
 EOF
 
-result=$(bash "$SCRIPT" "$TEMP_DIR/findings-multi.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
+result=$("$SCRIPT" "$TEMP_DIR/findings-multi.json" "$TEMP_DIR/config-en.json" 2>/dev/null)
 assert_contains "$result" "CRITICAL" "severity sections: has CRITICAL"
 assert_contains "$result" "HIGH" "severity sections: has HIGH"
 assert_contains "$result" "MEDIUM" "severity sections: has MEDIUM"

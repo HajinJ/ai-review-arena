@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "executor": "arena_runtime.orchestrator",
+  "description": "Structured runtime phase plan. Markdown command files remain compatibility documentation, not the source of runtime state.",
+  "phases": [
+    {"id": "context", "required": true, "owner": "runner"},
+    {"id": "policy", "required": true, "owner": "policy"},
+    {"id": "provider_selection", "required": true, "owner": "providers"},
+    {"id": "review", "required": true, "owner": "providers"},
+    {"id": "debate", "required": false, "owner": "providers"},
+    {"id": "evaluation", "required": true, "owner": "evaluation"},
+    {"id": "report", "required": true, "owner": "runner"}
+  ]
+}

@@ -6,7 +6,7 @@ Sample outputs from the AI Review Arena pipeline at different intensity levels.
 
 ## Quick Intensity: Code Explanation
 
-**Request:** "What does the `orchestrate-review.sh` script do?"
+**Request:** "What does the `arena-runtime.py` script do?"
 
 ```
 ## Codebase Analysis (Phase 0.5)
@@ -18,13 +18,13 @@ Scanned project: ai-review-arena
 
 ## Answer
 
-`orchestrate-review.sh` is the review orchestration script. It:
+`arena-runtime.py` is the review orchestration script. It:
 
 1. Accepts review parameters via stdin JSON (files, intensity, focus areas)
 2. Records the current HEAD commit hash for stale review detection
 3. Launches parallel review processes across enabled models (Claude agents, Codex CLI, Gemini CLI)
 4. Waits for all reviewers to complete (with configurable timeouts)
-5. Passes findings to `aggregate-findings.sh` for deduplication and merging
+5. Passes findings to `aggregate-findings` for deduplication and merging
 6. Compares current HEAD against the recorded hash — if code changed mid-review,
    all findings are marked `stale: true`
 7. Returns aggregated findings as JSON to stdout

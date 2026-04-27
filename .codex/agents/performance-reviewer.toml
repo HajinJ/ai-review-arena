@@ -1,6 +1,5 @@
 name = "performance_reviewer"
 description = "Performance-focused code reviewer. Detects N+1 queries, memory leaks, unnecessary allocations, blocking I/O, and algorithmic inefficiencies. Use for performance audits."
-model = "gpt-5.3-codex-spark"
 model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
 

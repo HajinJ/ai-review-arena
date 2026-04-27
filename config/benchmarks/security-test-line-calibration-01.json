@@ -1,0 +1,33 @@
+{
+  "id": "security-line-calibration-01",
+  "category": "security",
+  "description": "Line-level SQL injection, duplicate-reporting, and remediation-quality calibration case",
+  "language": "javascript",
+  "code": "function search(req, db) {\n  const term = req.query.term;\n  const query = `SELECT * FROM users WHERE name = '${term}'`;\n  return db.query(query);\n}\n\nfunction render(req, res) {\n  const name = req.query.name;\n  res.send(`<h1>${name}</h1>`);\n}\n",
+  "ground_truth": [
+    {
+      "severity": "critical",
+      "type": "sql_injection",
+      "file": "test-code.js",
+      "line_range": [3, 4],
+      "line_tolerance": 1,
+      "description_contains": ["SQL injection", "parameterized", "prepared statement"],
+      "expected_suggestion_terms": ["parameterized", "prepared"]
+    },
+    {
+      "severity": "high",
+      "type": "xss",
+      "file": "test-code.js",
+      "line_range": [8, 9],
+      "line_tolerance": 1,
+      "description_contains": ["XSS", "cross-site scripting", "escape", "sanitize"],
+      "expected_suggestion_terms": ["escape", "sanitize"]
+    }
+  ],
+  "evaluation_criteria": {
+    "min_precision": 0.6,
+    "min_recall": 0.85,
+    "max_duplicate_rate": 0.25,
+    "severity_tolerance": 0
+  }
+}

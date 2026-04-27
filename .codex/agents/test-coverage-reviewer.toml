@@ -1,6 +1,5 @@
 name = "test_coverage_reviewer"
 description = "Test coverage code reviewer. Identifies missing test cases, untested edge cases, weak assertions, and test quality issues. Use for test coverage audits."
-model = "gpt-5.3-codex-spark"
 model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
 

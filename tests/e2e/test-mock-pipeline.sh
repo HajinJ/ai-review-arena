@@ -3,7 +3,7 @@
 # E2E Test: Mock Pipeline (no external CLIs required)
 #
 # Tests the full review pipeline flow using mock CLI outputs:
-#   1. Mock findings → aggregate-findings.sh → scoring
+#   1. Mock findings → aggregate-findings → scoring
 #   2. Validates aggregation deduplication
 #   3. Tests extract_json on real-world LLM output patterns
 #
@@ -41,7 +41,7 @@ SESSION_DIR="$MOCK_TEMP/session"
 mkdir -p "$SESSION_DIR"
 
 # Create mock findings simulating Codex output (SQL injection + XSS)
-# Format: {model, role, file, findings: [...]} as expected by aggregate-findings.sh
+# Format: {model, role, file, findings: [...]} as expected by aggregate-findings
 cat > "$SESSION_DIR/findings_0.json" << 'MOCK_CODEX'
 {
   "model": "codex",
@@ -102,7 +102,7 @@ cat > "$SESSION_DIR/findings_1.json" << 'MOCK_GEMINI'
 MOCK_GEMINI
 
 # Run aggregation
-AGG_RESULT=$("$SCRIPT_DIR/aggregate-findings.sh" "$SESSION_DIR" "$CONFIG_FILE" 2>/dev/null) || AGG_RESULT=""
+AGG_RESULT=$("$SCRIPT_DIR/aggregate-findings" "$SESSION_DIR" "$CONFIG_FILE" 2>/dev/null) || AGG_RESULT=""
 
 if [ -n "$AGG_RESULT" ] && [ "$AGG_RESULT" != "LGTM" ] && echo "$AGG_RESULT" | jq . &>/dev/null; then
   pass "Aggregation produces valid JSON"

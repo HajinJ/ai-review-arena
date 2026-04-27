@@ -54,6 +54,6 @@ jobs:
 
       - name: Validate config
         run: |
-          if [ -f scripts/validate-config.sh ]; then
-            bash scripts/validate-config.sh config/default-config.json
+          if [ -f scripts/validate-config ]; then
+            bash scripts/validate-config config/default-config.json
           fi

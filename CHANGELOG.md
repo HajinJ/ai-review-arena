@@ -23,7 +23,7 @@ All notable changes to AI Review Arena are documented here. Format follows [Keep
 - OpenAI WebSocket debate acceleration (~40% faster via persistent connection)
 - Gemini CLI hooks cross-compatibility (AfterTool hook adapter)
 - Agent responsibility matrix in config
-- Config validation script (`scripts/validate-config.sh`)
+- Config validation script (`scripts/validate-config`)
 - Model update detection: API-based version checking for OpenAI, Gemini, Anthropic with 7-day TTL cache and auto-notification (`scripts/check-model-updates.sh`, Phase 0 Step 11)
 
 ### Changed

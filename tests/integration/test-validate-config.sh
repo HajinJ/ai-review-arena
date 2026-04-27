@@ -3,14 +3,14 @@
 # Integration Test: Config file validation
 #
 # Tests that all configuration JSON files in the project are valid and
-# contain the expected structure, and that validate-config.sh works correctly.
+# contain the expected structure, and that validate-config works correctly.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../test-helpers.sh"
 
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-VALIDATE="$PLUGIN_DIR/scripts/validate-config.sh"
+VALIDATE="$PLUGIN_DIR/scripts/validate-config"
 CONFIG="$PLUGIN_DIR/config/default-config.json"
 
 # --- Setup ---
@@ -175,57 +175,57 @@ fi
 test_end
 
 # =============================================================================
-# Test 8: validate-config.sh passes on default config
+# Test 8: validate-config passes on default config
 # =============================================================================
-test_begin "validate-config: validate-config.sh passes on default config"
+test_begin "validate-config: validate-config passes on default config"
 
 if [ -f "$VALIDATE" ]; then
-  bash "$VALIDATE" "$CONFIG" >/dev/null 2>&1
+  "$VALIDATE" "$CONFIG" >/dev/null 2>&1
   EXIT_CODE=$?
-  assert_eq "$EXIT_CODE" "0" "validate-config.sh should pass on default config"
+  assert_eq "$EXIT_CODE" "0" "validate-config should pass on default config"
 else
-  skip "validate-config.sh not found"
+  skip "validate-config not found"
 fi
 
 test_end
 
 # =============================================================================
-# Test 9: validate-config.sh fails on invalid JSON
+# Test 9: validate-config fails on invalid JSON
 # =============================================================================
-test_begin "validate-config: validate-config.sh rejects invalid JSON"
+test_begin "validate-config: validate-config rejects invalid JSON"
 
 if [ -f "$VALIDATE" ]; then
   echo "this is not json" > "$TEMP_DIR/bad-json.json"
-  bash "$VALIDATE" "$TEMP_DIR/bad-json.json" >/dev/null 2>&1
+  "$VALIDATE" "$TEMP_DIR/bad-json.json" >/dev/null 2>&1
   EXIT_CODE=$?
   assert_eq "$EXIT_CODE" "1" "Should reject invalid JSON"
 else
-  skip "validate-config.sh not found"
+  skip "validate-config not found"
 fi
 
 test_end
 
 # =============================================================================
-# Test 10: validate-config.sh fails on missing required keys
+# Test 10: validate-config fails on missing required keys
 # =============================================================================
-test_begin "validate-config: validate-config.sh rejects missing keys"
+test_begin "validate-config: validate-config rejects missing keys"
 
 if [ -f "$VALIDATE" ]; then
   # Config with only some required keys (missing models, debate, output)
   echo '{"review": {"intensity": "standard"}}' > "$TEMP_DIR/partial-config.json"
-  bash "$VALIDATE" "$TEMP_DIR/partial-config.json" >/dev/null 2>&1
+  "$VALIDATE" "$TEMP_DIR/partial-config.json" >/dev/null 2>&1
   EXIT_CODE=$?
   assert_eq "$EXIT_CODE" "1" "Should reject config missing required keys"
 else
-  skip "validate-config.sh not found"
+  skip "validate-config not found"
 fi
 
 test_end
 
 # =============================================================================
-# Test 11: validate-config.sh passes on a fully valid custom config
+# Test 11: validate-config passes on a fully valid custom config
 # =============================================================================
-test_begin "validate-config: validate-config.sh passes on valid custom config"
+test_begin "validate-config: validate-config passes on valid custom config"
 
 if [ -f "$VALIDATE" ]; then
   cat > "$TEMP_DIR/valid-custom.json" <<'CONFIG_EOF'
@@ -248,11 +248,11 @@ if [ -f "$VALIDATE" ]; then
   }
 }
 CONFIG_EOF
-  bash "$VALIDATE" "$TEMP_DIR/valid-custom.json" >/dev/null 2>&1
+  "$VALIDATE" "$TEMP_DIR/valid-custom.json" >/dev/null 2>&1
   EXIT_CODE=$?
   assert_eq "$EXIT_CODE" "0" "Should accept valid custom config"
 else
-  skip "validate-config.sh not found"
+  skip "validate-config not found"
 fi
 
 test_end

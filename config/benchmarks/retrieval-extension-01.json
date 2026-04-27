@@ -1,0 +1,15 @@
+{
+  "id": "retrieval-extension-01",
+  "category": "architecture",
+  "query": "Claude Code Gemini Codex extension export install hook settings agents",
+  "description": "RAG should retrieve the extension exporter and Claude integration installer.",
+  "expected_files": [
+    "arena_runtime/exporters.py"
+  ],
+  "expected_chunks": [
+    {
+      "file": "arena_runtime/exporters.py",
+      "symbols": []
+    }
+  ]
+}

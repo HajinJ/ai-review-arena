@@ -1,17 +1,14 @@
 # =============================================================================
 # AI Review Arena - Codex Project Configuration
 #
-# Project-scoped Codex settings for subagent orchestration.
-# Overrides user-level ~/.codex/config.toml for this project.
+# Project-scoped Codex settings. This file intentionally does not set `model`.
+# Codex should use the user's configured default model unless a project or
+# command explicitly passes a model override.
+#
+# Recommended high-capability model for explicit overrides: gpt-5.5
+# Recommended cost-sensitive model for explicit overrides: gpt-5.4-mini
+#
+# NOTE: The [agents] table is reserved for agent role definitions
+# (AgentRoleToml structs — see .codex/agents/*.toml). Do not put
+# orchestration or default-model settings under [agents].
 # =============================================================================
-
-# --- Agent Orchestration ---
-[agents]
-max_threads = 6          # Max concurrent agent threads (up from 3)
-max_depth = 1            # Direct children only, no deeper nesting
-job_max_runtime_seconds = 300  # 5 min per worker for CSV batch jobs
-
-# --- Default Model ---
-# Agents inherit this unless they override per-agent
-model = "gpt-5.3-codex-spark"
-model_reasoning_effort = "medium"

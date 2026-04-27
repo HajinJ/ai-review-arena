@@ -13,7 +13,7 @@ Environment variables:
   RAG_INDEX_DIR       - Path to the index directory
   RAG_FILE_LIST       - Path to file list (index only)
   RAG_HASH_FILE       - Path to file hash cache (index only)
-  RAG_EMBEDDING_MODEL - OpenAI embedding model name
+  RAG_EMBEDDING_MODEL - Local embedding profile name
   RAG_CHUNK_SIZE      - Target chunk size in tokens
   RAG_CHUNK_OVERLAP   - Overlap between chunks in tokens
   RAG_FORCE_REINDEX   - Force full reindex (true/false)
@@ -31,6 +31,30 @@ import re
 import sys
 from pathlib import Path
 from typing import Optional
+
+
+# =============================================================================
+# Local Embeddings
+# =============================================================================
+
+LOCAL_EMBEDDING_DIM = 256
+
+
+def local_embedding(text: str, dim: int = LOCAL_EMBEDDING_DIM) -> list[float]:
+    """Create a deterministic local embedding without network/API calls."""
+    vector = [0.0] * dim
+    tokens = re.findall(r"[A-Za-z_][A-Za-z0-9_]*|[0-9]+", text.lower())
+    if not tokens:
+        return vector
+    for token in tokens:
+        digest = hashlib.sha256(token.encode('utf-8')).digest()
+        index = int.from_bytes(digest[:4], 'big') % dim
+        sign = 1.0 if digest[4] % 2 else -1.0
+        vector[index] += sign
+    norm = sum(value * value for value in vector) ** 0.5
+    if norm == 0:
+        return vector
+    return [round(value / norm, 6) for value in vector]
 
 
 # =============================================================================
@@ -255,7 +279,6 @@ def cmd_index():
     index_dir = os.environ.get('RAG_INDEX_DIR', '')
     file_list_path = os.environ.get('RAG_FILE_LIST', '')
     hash_file = os.environ.get('RAG_HASH_FILE', '')
-    embedding_model = os.environ.get('RAG_EMBEDDING_MODEL', 'text-embedding-3-small')
     chunk_size = int(os.environ.get('RAG_CHUNK_SIZE', '500'))
     chunk_overlap = int(os.environ.get('RAG_CHUNK_OVERLAP', '50'))
     force_reindex = os.environ.get('RAG_FORCE_REINDEX', 'false').lower() == 'true'
@@ -337,10 +360,7 @@ def cmd_index():
 
     print(f"Created {len(all_chunks)} chunks from {len(changed_files)} files")
 
-    # Batch embed and store
-    from openai import OpenAI
-    client = OpenAI()
-
+    # Batch local embeddings and store
     BATCH_SIZE = 100
     total_embedded = 0
     chunk_id_base = int(hashlib.sha256(str(len(all_chunks)).encode()).hexdigest()[:8], 16)
@@ -349,16 +369,7 @@ def cmd_index():
         batch = all_chunks[i:i + BATCH_SIZE]
         texts = [c['content'] for c in batch]
 
-        try:
-            response = client.embeddings.create(
-                model=embedding_model,
-                input=texts
-            )
-        except Exception as e:
-            print(f"Embedding API error: {e}", file=sys.stderr)
-            continue
-
-        embeddings = [e.embedding for e in response.data]
+        embeddings = [local_embedding(text) for text in texts]
         ids = [f"chunk_{chunk_id_base + i + j}" for j in range(len(batch))]
         metadatas = [{
             'file': c['file'],
@@ -392,7 +403,6 @@ def cmd_retrieve():
     role_keywords = os.environ.get('RAG_ROLE_KEYWORDS', '')
     top_k = int(os.environ.get('RAG_TOP_K', '5'))
     rerank = os.environ.get('RAG_RERANK', 'false').lower() == 'true'
-    embedding_model = os.environ.get('RAG_EMBEDDING_MODEL', 'text-embedding-3-small')
 
     if not index_dir or not query:
         return
@@ -413,16 +423,8 @@ def cmd_retrieve():
     except Exception:
         return
 
-    # Get query embedding
-    from openai import OpenAI
-    client = OpenAI()
-
-    try:
-        resp = client.embeddings.create(model=embedding_model, input=[augmented_query])
-        query_embedding = resp.data[0].embedding
-    except Exception as e:
-        print(f"Embedding API error: {e}", file=sys.stderr)
-        return
+    # Get local query embedding
+    query_embedding = local_embedding(augmented_query)
 
     # Retrieve more candidates if reranking
     fetch_k = top_k * 3 if rerank else top_k

@@ -1,4 +1,6 @@
-# ADR-002: Markdown Pipeline Definitions
+# ADR-002: Retired Markdown Pipeline Definitions
+
+> Status: Retired. Markdown command files are no longer the executable source of truth for Arena orchestration. Runtime phases now belong in `config/runtime-pipeline.json` and `arena_runtime/`.
 
 ## Status
 

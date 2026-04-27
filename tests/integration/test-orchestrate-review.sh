@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Integration Test: orchestrate-review.sh end-to-end pipeline
+# Integration Test: arena-runtime.py end-to-end pipeline
 #
 # Tests the full pipeline with mock CLIs to verify:
 # - Hook input parsing
@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../test-helpers.sh"
 
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-ORCHESTRATE="$PLUGIN_DIR/scripts/orchestrate-review.sh"
+ORCHESTRATE="$PLUGIN_DIR/scripts/arena-runtime.py"
 
 # --- Setup ---
 setup_temp_dir
@@ -80,8 +80,7 @@ HOOK_INPUT='{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.py","conte
 
 # The orchestrate script expects to be run from the plugin context
 # We test that it doesn't crash with valid input
-RESULT=$(echo "$HOOK_INPUT" | CONFIG_FILE="$TEMP_DIR/test-config.json" \
-  MULTI_REVIEW_HOOK_ENABLED=false bash "$ORCHESTRATE" 2>/dev/null)
+RESULT=$(echo "$HOOK_INPUT" | MULTI_REVIEW_HOOK_ENABLED=false "$ORCHESTRATE" hook-post-tool-use --config "$TEMP_DIR/test-config.json" --project-root "$TEMP_DIR/project" 2>/dev/null)
 EXIT_CODE=$?
 
 # Should exit 0 (hooks must not block Claude workflow)
@@ -92,7 +91,7 @@ test_end
 # --- Test: aggregate-findings with mock data ---
 test_begin "aggregate-findings: merges and deduplicates findings"
 
-AGGREGATE="$PLUGIN_DIR/scripts/aggregate-findings.sh"
+AGGREGATE="$PLUGIN_DIR/scripts/aggregate-findings"
 MOCK_SESSION="$TEMP_DIR/session"
 mkdir -p "$MOCK_SESSION"
 
@@ -110,7 +109,7 @@ cat > "$MOCK_SESSION/findings_1.json" <<'F2EOF'
 ]}
 F2EOF
 
-RESULT=$(bash "$AGGREGATE" "$MOCK_SESSION" "$TEMP_DIR/test-config.json" 2>/dev/null)
+RESULT=$("$AGGREGATE" "$MOCK_SESSION" "$TEMP_DIR/test-config.json" 2>/dev/null)
 EXIT_CODE=$?
 
 assert_eq "$EXIT_CODE" "0" "aggregate-findings should exit 0"
@@ -136,11 +135,11 @@ test_end
 # --- Test: generate-report output format ---
 test_begin "generate-report: produces markdown output"
 
-GENERATE="$PLUGIN_DIR/scripts/generate-report.sh"
+GENERATE="$PLUGIN_DIR/scripts/generate-report"
 
 # Use the aggregated findings from above
 if [ -n "$RESULT" ] && [ "$RESULT" != "LGTM" ]; then
-  REPORT=$(echo "$RESULT" | bash "$GENERATE" /dev/stdin "$TEMP_DIR/test-config.json" 2>/dev/null)
+  REPORT=$(echo "$RESULT" | "$GENERATE" /dev/stdin "$TEMP_DIR/test-config.json" 2>/dev/null)
   REPORT_EXIT=$?
 
   assert_eq "$REPORT_EXIT" "0" "generate-report should exit 0"
@@ -154,10 +153,10 @@ test_end
 # --- Test: normalize-severity ---
 test_begin "normalize-severity: normalizes external CLI severity values"
 
-NORMALIZE="$PLUGIN_DIR/scripts/normalize-severity.sh"
+NORMALIZE="$PLUGIN_DIR/scripts/normalize-severity"
 
 if [ -f "$NORMALIZE" ]; then
-  NORM_RESULT=$(echo '[{"severity":"error"},{"severity":"warning"},{"severity":"blocker"},{"severity":"trivial"},{"severity":"moderate"}]' | bash "$NORMALIZE" 2>/dev/null)
+  NORM_RESULT=$(echo '[{"severity":"error"},{"severity":"warning"},{"severity":"blocker"},{"severity":"trivial"},{"severity":"moderate"}]' | "$NORMALIZE" 2>/dev/null)
 
   assert_json_valid "$NORM_RESULT" "Should output valid JSON"
 
@@ -176,7 +175,7 @@ if [ -f "$NORMALIZE" ]; then
   SEV_4=$(echo "$NORM_RESULT" | jq -r '.[4].severity' 2>/dev/null)
   assert_eq "$SEV_4" "medium" "moderate should map to medium"
 else
-  skip "normalize-severity.sh not found"
+  skip "normalize-severity not found"
 fi
 
 test_end

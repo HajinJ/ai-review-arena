@@ -1,2 +1,2 @@
-openai>=2.22.0
-websocket-client>=1.6.0
+# AI Review Arena is CLI-first by default.
+# Optional SDK/WebSocket integrations are intentionally not installed by default.

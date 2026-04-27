@@ -1,6 +1,5 @@
 name = "security_reviewer"
 description = "Security-focused code reviewer. Detects vulnerabilities, injection flaws, auth bypasses, secrets leakage, and OWASP Top 10 issues. Use for security audits and pre-merge security checks."
-model = "gpt-5.4"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 

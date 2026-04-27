@@ -45,9 +45,9 @@ AI model configuration. Three model families: `claude`, `codex`, `gemini`.
 |-----|------|---------|-------------|
 | `enabled` | bool | `true` | Enable OpenAI Codex CLI |
 | `roles` | string[] | `["bugs", "performance"]` | Review categories assigned to Codex |
-| `command` | string | `"codex exec --full-auto"` | CLI command to invoke Codex |
+| `command` | string | `"codex exec"` | CLI command to invoke Codex |
 | `timeout_seconds` | int | `120` | Max seconds per Codex invocation |
-| `model_variant` | string | `"gpt-5.4"` | Codex model to use |
+| `model_variant` | string | `"gpt-5.5"` | Codex model to use |
 | `structured_output` | bool | `true` | Use `--output-schema` for guaranteed-valid JSON |
 | `multi_agent.enabled` | bool | `true` | Enable Codex multi-agent sub-agents. Dual-gated: config AND runtime feature check |
 | `multi_agent.max_threads` | int | `6` | Max parallel Codex sub-agent threads |
@@ -67,7 +67,7 @@ AI model configuration. Three model families: `claude`, `codex`, `gemini`.
 | `roles` | string[] | `["architecture", "testing"]` | Review categories assigned to Gemini |
 | `command` | string | `"gemini"` | CLI command to invoke Gemini |
 | `timeout_seconds` | int | `120` | Max seconds per Gemini invocation |
-| `model_variant` | string | `"gemini-3-pro-preview"` | Gemini model to use |
+| `model_variant` | string | `"gemini-3.1-pro-preview"` | Gemini model to use |
 
 **Example: Disable Codex, run Claude + Gemini only**
 ```json
@@ -154,18 +154,19 @@ Gemini CLI AfterTool hook adapter.
 
 ---
 
-## `websocket`
+## `runtime.cli`
 
-OpenAI WebSocket debate acceleration.
+Typed CLI execution boundary used by Python runtime adapters.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | bool | `true` | Use WebSocket for debate rounds (~40% faster). Falls back to HTTP |
-| `url` | string | `"wss://api.openai.com/v1/responses"` | WebSocket endpoint |
-| `connection_timeout_seconds` | int | `30` | Connection establishment timeout |
-| `max_connection_minutes` | int | `55` | Max connection lifetime before reconnect |
-| `store` | bool | `false` | Store responses server-side (not needed for WebSocket chaining) |
-| `model` | string | `"gpt-5.4"` | Model to use for WebSocket debate |
+| `allowlist` | string[] | `["claude", "codex", "gemini"]` | Executables allowed through typed CLI adapters |
+| `default_timeout_seconds` | int | `120` | Default subprocess timeout |
+| `deny_shell` | bool | `true` | Require direct argv execution instead of shell execution |
+| `prompt_transport` | string | `"argument"` | Default prompt transport for generic CLI providers |
+| `env_passthrough` | string[] | limited | Environment variables passed to CLI subprocesses |
+| `structured_output_required` | bool | `true` | Require schema flags or provider-output validation for review output |
+| `trace_output_bytes` | bool | `true` | Trace stdout/stderr byte counts without storing raw output |
 
 ---
 
@@ -272,55 +273,6 @@ TTL overrides by cache type:
 | `compliance` | 7 |
 | `benchmarks` | 14 |
 | `figma` | 1 |
-| `model_updates` | 7 |
-
----
-
-## `model_updates`
-
-API-based model version detection. Checks provider APIs for newer model versions and notifies via stderr. Never modifies config automatically.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | bool | `true` | Enable model update checking |
-| `check_on_startup` | bool | `true` | Check during Phase 0 pipeline startup |
-| `ttl_days` | int | `7` | Cache TTL for model check results |
-| `api_timeout_seconds` | int | `10` | Timeout for each provider API call |
-
-### `model_updates.providers`
-
-Per-provider configuration. Each provider has:
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | bool | `true` | Enable checking this provider |
-| `family_pattern` | string | varies | Regex pattern to filter model families |
-| `api_endpoint` | string | varies | API endpoint URL for model listing |
-
-Provider defaults:
-
-| Provider | `family_pattern` | API Endpoint |
-|----------|-----------------|-------------|
-| `openai` | `^gpt-5` | `https://api.openai.com/v1/models` |
-| `gemini` | `gemini-3` | `https://generativelanguage.googleapis.com/v1beta/models` |
-| `anthropic` | `^claude-` | `https://api.anthropic.com/v1/models` |
-
-**Example: Disable model update checks**
-```json
-{ "model_updates": { "enabled": false } }
-```
-
-**Example: Only check OpenAI**
-```json
-{
-  "model_updates": {
-    "providers": {
-      "gemini": { "enabled": false },
-      "anthropic": { "enabled": false }
-    }
-  }
-}
-```
 
 ---
 
@@ -331,7 +283,7 @@ Code model benchmarking (Phase 4).
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | bool | `true` | Enable model benchmarking |
-| `auto_run` | bool | `true` | Auto-run benchmarks when cache expires |
+| `auto_run` | bool | `false` | Auto-run benchmarks when cache expires. Disabled by default; run benchmarks explicitly when needed |
 | `rerun_threshold_days` | int | `14` | Days before re-benchmarking |
 | `min_score_for_role` | int | `60` | Minimum F1 score (0-100) to qualify for a review role |
 | `test_cases_dir` | string | `"config/benchmarks"` | Directory containing benchmark test cases |
@@ -497,7 +449,7 @@ Business model benchmarking (Phase B4).
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | bool | `true` | Enable business benchmarking |
-| `auto_run` | bool | `true` | Auto-run when cache expires |
+| `auto_run` | bool | `false` | Auto-run when cache expires. Disabled by default; run explicitly when needed |
 | `rerun_threshold_days` | int | `14` | Days before re-benchmarking |
 | `min_score_for_role` | int | `60` | Minimum F1 score to qualify |
 | `test_cases_dir` | string | `"config/benchmarks"` | Benchmark test case directory |
@@ -731,11 +683,6 @@ Or via environment: `ARENA_INTENSITY=deep`
 { "feedback": { "collect_interactive": false } }
 ```
 
-### Disable WebSocket, use HTTP fallback
-```json
-{ "websocket": { "enabled": false } }
-```
-
 ### Business pipeline: investor audience, persuasive tone
 ```json
 {
@@ -745,3 +692,19 @@ Or via environment: `ARENA_INTENSITY=deep`
   }
 }
 ```
+
+## Model Selection Defaults
+
+Arena respects the user's configured Claude Code, Codex, and Gemini defaults by default.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `models.codex.use_user_default` | bool | `true` | Do not pass `-m` to `codex exec`; inherit the user's Codex default model. |
+| `models.codex.recommended_model_variant` | string | `gpt-5.5` | Recommended explicit override for high-capability Codex review. |
+| `models.codex.model_variant` | string | `""` | Optional override used only when `use_user_default` is `false`. |
+| `models.gemini.use_user_default` | bool | `true` | Do not pass `--model` to Gemini CLI; inherit the user's Gemini default model. |
+| `models.gemini.recommended_model_variant` | string | `gemini-3.1-pro-preview` | Recommended explicit override for Gemini review. |
+| `models.gemini.model_variant` | string | `""` | Optional override used only when `use_user_default` is `false`. |
+| `models.claude.use_user_default` | bool | `true` | Prefer the user's active Claude Code model for reviewer agents. |
+
+For details, see `docs/model-selection.md`.

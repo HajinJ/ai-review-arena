@@ -51,7 +51,6 @@ cat > "$TEMP_DIR/debate-config.json" <<'CONFIG_EOF'
     "challenge_threshold": 60
   },
   "timeout": 5,
-  "websocket": {"enabled": false},
   "fallback": {
     "external_cli_timeout_seconds": 5,
     "external_cli_debate_timeout_seconds": 5
@@ -68,7 +67,6 @@ cat > "$TEMP_DIR/disabled-config.json" <<'DCONFIG'
 {
   "models": {"codex": {"enabled": true}, "gemini": {"enabled": true}},
   "debate": {"enabled": false, "max_rounds": 0},
-  "websocket": {"enabled": false}
 }
 DCONFIG
 

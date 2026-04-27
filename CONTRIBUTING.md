@@ -46,7 +46,7 @@ docs/         - Documentation
 
 ```bash
 # Validate config
-./scripts/validate-config.sh config/default-config.json
+./scripts/validate-config config/default-config.json
 
 # Run pipeline evaluation
 ./scripts/evaluate-pipeline.sh
@@ -65,7 +65,7 @@ bash tests/unit/test-check-model-updates.sh
 ## PR Guidelines
 
 1. Keep changes focused on a single concern.
-2. Run `./scripts/validate-config.sh config/default-config.json` if you modified config.
+2. Run `./scripts/validate-config config/default-config.json` if you modified config.
 3. Test with intentionally buggy code to verify detection for review agents.
 4. Test model fallback by disabling CLIs if touching external integrations.
 5. Update both `README.md` and `README.ko.md` for user-facing changes.

@@ -1,0 +1,18 @@
+{
+  "id": "retrieval-harness-01",
+  "category": "architecture",
+  "query": "arena_runtime/harness.py HarnessRun export_otel_jsonl export_otlp_json to_otel_span events_path trace_id otel_export",
+  "description": "RAG should retrieve the harness runtime that records events and exports OTel-compatible spans.",
+  "expected_files": [
+    "arena_runtime/harness.py"
+  ],
+  "expected_chunks": [
+    {
+      "file": "arena_runtime/harness.py",
+      "symbols": [
+        "HarnessRun",
+        "to_otel_span"
+      ]
+    }
+  ]
+}

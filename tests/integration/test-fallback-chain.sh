@@ -37,17 +37,24 @@ assert_eq "$STRATEGY" "graceful_degradation" "Strategy should be graceful_degrad
 
 test_end
 
-# --- Test: orchestrate-review.sh has fallback tracking ---
-test_begin "fallback: orchestrate-review.sh initializes FALLBACK_LEVEL"
+# --- Test: typed runtime pipeline is configured ---
+test_begin "runtime: structured pipeline and orchestrator entrypoint exist"
 
-ORCHESTRATE="$PLUGIN_DIR/scripts/orchestrate-review.sh"
-assert_file_exists "$ORCHESTRATE" "orchestrate-review.sh should exist"
+ORCHESTRATE="$PLUGIN_DIR/scripts/arena-runtime.py"
+RUNTIME_PIPELINE="$PLUGIN_DIR/config/runtime-pipeline.json"
+RUNTIME_MODULE="$PLUGIN_DIR/arena_runtime/orchestrator.py"
 
-# Check for FALLBACK_LEVEL initialization
+assert_file_exists "$ORCHESTRATE" "arena-runtime.py should exist"
+assert_file_exists "$RUNTIME_PIPELINE" "runtime-pipeline.json should exist"
+assert_file_exists "$RUNTIME_MODULE" "arena_runtime.orchestrator should exist"
+
+PIPELINE_EXECUTOR=$(jq -r '.executor' "$RUNTIME_PIPELINE" 2>/dev/null)
+assert_eq "$PIPELINE_EXECUTOR" "arena_runtime.orchestrator" "Runtime pipeline should use typed orchestrator"
+
 if grep -q "FALLBACK_LEVEL=" "$ORCHESTRATE" 2>/dev/null; then
-  pass "FALLBACK_LEVEL variable found in orchestrate-review.sh"
+  fail "Legacy FALLBACK_LEVEL tracking should not exist in runtime entrypoint"
 else
-  fail "FALLBACK_LEVEL not found in orchestrate-review.sh"
+  pass "Legacy orchestrate shell entrypoint removed"
 fi
 
 test_end
@@ -67,7 +74,6 @@ cat > "$TEMP_DIR/fallback-config.json" <<'CONFIG_EOF'
 {
   "models": {"codex": {"enabled": true}, "gemini": {"enabled": true}},
   "debate": {"enabled": true, "max_rounds": 1, "consensus_threshold": 80, "challenge_threshold": 60},
-  "websocket": {"enabled": false},
   "fallback": {"external_cli_timeout_seconds": 5}
 }
 CONFIG_EOF
@@ -89,11 +95,11 @@ test_end
 # --- Test: aggregate-findings handles empty session ---
 test_begin "fallback: aggregate-findings handles empty session dir"
 
-AGGREGATE="$PLUGIN_DIR/scripts/aggregate-findings.sh"
+AGGREGATE="$PLUGIN_DIR/scripts/aggregate-findings"
 EMPTY_SESSION="$TEMP_DIR/empty-session"
 mkdir -p "$EMPTY_SESSION"
 
-RESULT=$(bash "$AGGREGATE" "$EMPTY_SESSION" "$TEMP_DIR/fallback-config.json" 2>/dev/null)
+RESULT=$("$AGGREGATE" "$EMPTY_SESSION" "$TEMP_DIR/fallback-config.json" 2>/dev/null)
 
 assert_eq "$RESULT" "LGTM" "Empty session should produce LGTM"
 
@@ -111,7 +117,7 @@ cat > "$INVALID_SESSION/findings_1.json" <<'VALID'
 {"model":"codex","role":"security","file":"test.py","findings":[{"title":"Real Finding","severity":"high","confidence":80,"line":5,"description":"test"}]}
 VALID
 
-RESULT=$(bash "$AGGREGATE" "$INVALID_SESSION" "$TEMP_DIR/fallback-config.json" 2>/dev/null)
+RESULT=$("$AGGREGATE" "$INVALID_SESSION" "$TEMP_DIR/fallback-config.json" 2>/dev/null)
 
 if [ "$RESULT" != "LGTM" ]; then
   assert_json_valid "$RESULT" "Valid findings should still be processed"
@@ -126,24 +132,24 @@ test_end
 # --- Test: validate-config catches errors ---
 test_begin "fallback: validate-config catches missing keys"
 
-VALIDATE="$PLUGIN_DIR/scripts/validate-config.sh"
+VALIDATE="$PLUGIN_DIR/scripts/validate-config"
 
 if [ -f "$VALIDATE" ]; then
   # Valid config should pass
-  bash "$VALIDATE" "$PLUGIN_DIR/config/default-config.json" >/dev/null 2>&1
+  "$VALIDATE" "$PLUGIN_DIR/config/default-config.json" >/dev/null 2>&1
   assert_eq "$?" "0" "Default config should pass validation"
 
   # Invalid JSON should fail
   echo "not json" > "$TEMP_DIR/bad-config.json"
-  bash "$VALIDATE" "$TEMP_DIR/bad-config.json" >/dev/null 2>&1
+  "$VALIDATE" "$TEMP_DIR/bad-config.json" >/dev/null 2>&1
   assert_eq "$?" "1" "Invalid JSON should fail validation"
 
   # Missing required keys should fail
   echo '{"review": {}}' > "$TEMP_DIR/partial-config.json"
-  bash "$VALIDATE" "$TEMP_DIR/partial-config.json" >/dev/null 2>&1
+  "$VALIDATE" "$TEMP_DIR/partial-config.json" >/dev/null 2>&1
   assert_eq "$?" "1" "Config missing required keys should fail"
 else
-  skip "validate-config.sh not found"
+  skip "validate-config not found"
 fi
 
 test_end

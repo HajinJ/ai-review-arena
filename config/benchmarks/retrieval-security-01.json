@@ -1,0 +1,16 @@
+{
+  "id": "retrieval-security-01",
+  "category": "security",
+  "query": "prompt injection boundary secret exfiltration inspect untrusted RAG context",
+  "description": "RAG should retrieve the policy and RAG runtime files that implement untrusted context inspection.",
+  "expected_files": [
+    "arena_runtime/policy.py",
+    "arena_runtime/rag_runtime.py"
+  ],
+  "expected_chunks": [
+    {
+      "file": "arena_runtime/policy.py",
+      "symbols": []
+    }
+  ]
+}
