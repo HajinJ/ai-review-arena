@@ -20,6 +20,7 @@ from arena_runtime.domain_runtime import (
     cmd_rag_retrieve,
     cmd_validate_doc_consistency,
 )
+from arena_runtime.dashboard import cmd_dashboard_build
 from arena_runtime.legacy_ports import (
     cmd_batch_worktree_review,
     cmd_codex_batch_review,
@@ -37,7 +38,7 @@ from arena_runtime.exporters import cmd_export_extension, cmd_install_claude_int
 from arena_runtime.harness import cmd_harness_event, cmd_otel_export, cmd_otel_push
 from arena_runtime.mcp_runtime import cmd_mcp_stdio_server, cmd_mcp_tool_call
 from arena_runtime.orchestrator import main as orchestrator_main
-from arena_runtime.provider_runner import cmd_cli_diagnostics, cmd_review_provider
+from arena_runtime.provider_runner import cmd_cli_diagnostics, cmd_provider_smoke, cmd_review_provider
 from arena_runtime.rag_runtime import cmd_rag_evidence
 from arena_runtime.support_runtime import cmd_benchmark_utils, cmd_setup, cmd_setup_arena, cmd_support_utils
 
@@ -85,6 +86,8 @@ DIRECT_COMMANDS = {
     "mcp-stdio-server",
     "legacy-inventory",
     "cli-diagnostics",
+    "provider-smoke",
+    "dashboard-build",
     "batch-worktree-review",
     "codex-batch-review",
     "codex-cross-examine",
@@ -166,6 +169,10 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_legacy_inventory(rest)
         if command == "cli-diagnostics":
             return cmd_cli_diagnostics(rest)
+        if command == "provider-smoke":
+            return cmd_provider_smoke(rest)
+        if command == "dashboard-build":
+            return cmd_dashboard_build(rest)
         if command == "batch-worktree-review":
             return cmd_batch_worktree_review(rest)
         if command == "codex-batch-review":

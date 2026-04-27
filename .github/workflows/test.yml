@@ -9,15 +9,33 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y jq shellcheck bc
+
+      - name: Install package in editable mode
+        run: |
+          python -m pip install --upgrade pip build
+          python -m pip install -e .
+          arena validate-config config/default-config.json
+
+      - name: Compile Python runtime
+        run: python -m compileall arena_runtime scripts/arena-runtime.py
 
       - name: Validate JSON configs
         run: |
@@ -37,9 +55,7 @@ jobs:
           echo "All JSON files valid"
 
       - name: ShellCheck
-        run: |
-          chmod +x tests/run-shellcheck.sh
-          bash tests/run-shellcheck.sh
+        run: bash tests/run-shellcheck.sh
 
       - name: Run unit tests
         run: |
@@ -47,13 +63,51 @@ jobs:
           chmod +x tests/unit/*.sh tests/integration/*.sh
           bash tests/run-tests.sh --unit
 
-      - name: Run integration tests (includes mock E2E)
+      - name: Run integration tests
         run: |
           chmod +x tests/e2e/*.sh 2>/dev/null || true
           bash tests/run-tests.sh --integration
 
-      - name: Validate config
+      - name: Deterministic retrieval benchmark
+        run: arena retrieval-benchmark --config config/default-config.json --max-cases 3
+
+      - name: Harness ablation benchmark
+        run: arena benchmark-harness-ablation --config config/default-config.json --max-cases 2
+
+      - name: MCP stdio smoke
         run: |
-          if [ -f scripts/validate-config ]; then
-            bash scripts/validate-config config/default-config.json
-          fi
+          cat > /tmp/arena-mcp.json <<'JSON'
+          {"mcp":{"allowed_tools":["local.echo"],"security":{"allowed_commands":["cat"],"allowed_cwd_roots":["."]},"servers":{"local":{"tools":{"echo":{"command":["cat"],"side_effect":false}}}}}}
+          JSON
+          {
+            printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+            printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+            printf '%s\n' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"local.echo","arguments":{"ok":true}}}'
+          } | arena mcp-stdio-server --config /tmp/arena-mcp.json | tee /tmp/arena-mcp.out
+          test "$(wc -l < /tmp/arena-mcp.out | tr -d ' ')" -eq 3
+
+      - name: OTel collector integration
+        if: matrix.python-version == '3.12'
+        run: bash tests/integration/test-otel-collector.sh
+
+      - name: Build dashboard artifact
+        run: |
+          arena harness-event ci.dashboard --phase ci --run-id ci-dashboard --field python=${{ matrix.python-version }} >/dev/null
+          arena dashboard-build --runs-dir cache/runs --output cache/dashboard/index.html
+
+      - name: Build package
+        run: python -m build
+
+      - name: Upload dashboard
+        if: always() && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: arena-dashboard
+          path: cache/dashboard
+
+      - name: Upload dist
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist

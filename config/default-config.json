@@ -247,36 +247,48 @@
   "rag": {
     "enabled": true,
     "embedding_model": "local-bm25-symbol-v1",
+    "chunk_size": 500,
+    "chunk_overlap": 50,
     "top_k": 5,
-    "max_prompt_chunks": 5,
-    "max_chunk_chars": 1800,
     "rerank": true,
-    "attach_evidence_to_findings": true,
-    "include_boundary_metadata": true,
-    "block_prompt_injection": false,
     "index_extensions": [
+      ".java",
+      ".kt",
       ".py",
-      ".js",
       ".ts",
       ".tsx",
-      ".java",
+      ".js",
+      ".jsx",
       ".go",
       ".rs",
-      ".md",
-      ".json"
+      ".rb",
+      ".php",
+      ".c",
+      ".cpp",
+      ".cs",
+      ".swift"
     ],
     "exclude_paths": [
       "node_modules",
       ".git",
-      "dist",
       "build",
+      "dist",
+      "vendor",
       "__pycache__",
       ".venv",
-      "cache"
+      "target"
     ],
+    "incremental": true,
     "max_index_files": 5000,
-    "chunk_size": 120,
-    "chunk_overlap": 20
+    "auto_index_on_review": false,
+    "cost_tracking": {
+      "enabled": true,
+      "cost_per_1k_tokens": 0.00002
+    },
+    "semantic_backend": "disabled",
+    "semantic_dims": 128,
+    "semantic_weight": 0.20,
+    "block_prompt_injection": false
   },
   "mcp": {
     "allowed_tools": [],
@@ -291,6 +303,29 @@
         "*SECRET*",
         "*PASSWORD*"
       ]
+    },
+    "security": {
+      "env_allowlist": [
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "LANG",
+        "LC_ALL"
+      ],
+      "redact_env_patterns": [
+        "*API_KEY*",
+        "*TOKEN*",
+        "*SECRET*",
+        "*PASSWORD*",
+        "*CREDENTIAL*",
+        "*PRIVATE_KEY*"
+      ],
+      "allowed_commands": [],
+      "allowed_cwd_roots": [
+        "."
+      ],
+      "stdout_limit_bytes": 65536,
+      "stderr_limit_bytes": 65536
     }
   },
   "extension_export": {
@@ -491,8 +526,8 @@
     "live_requires_flag": true,
     "profiles": {
       "smoke": {
-        "timeout_seconds": 10,
-        "preflight_timeout_seconds": 5,
+        "timeout_seconds": 90,
+        "preflight_timeout_seconds": 30,
         "max_cases": 1,
         "max_parallel": 2
       },
@@ -2340,48 +2375,6 @@
       "results_dir": "cache/capability-tests"
     }
   },
-  "rag": {
-    "enabled": true,
-    "embedding_model": "local-hash-v1",
-    "chunk_size": 500,
-    "chunk_overlap": 50,
-    "top_k": 5,
-    "rerank": true,
-    "index_extensions": [
-      ".java",
-      ".kt",
-      ".py",
-      ".ts",
-      ".tsx",
-      ".js",
-      ".jsx",
-      ".go",
-      ".rs",
-      ".rb",
-      ".php",
-      ".c",
-      ".cpp",
-      ".cs",
-      ".swift"
-    ],
-    "exclude_paths": [
-      "node_modules",
-      ".git",
-      "build",
-      "dist",
-      "vendor",
-      "__pycache__",
-      ".venv",
-      "target"
-    ],
-    "incremental": true,
-    "max_index_files": 5000,
-    "auto_index_on_review": false,
-    "cost_tracking": {
-      "enabled": true,
-      "cost_per_1k_tokens": 0.00002
-    }
-  },
   "streaming": {
     "enabled": false,
     "prefer_streaming": false,
@@ -2390,5 +2383,23 @@
     "critical_alert_immediate": true,
     "monitor_timeout_seconds": 300,
     "fallback_to_sync": true
+  },
+  "version": "0.2.0",
+  "release": {
+    "versioning": "semver",
+    "tag_prefix": "v",
+    "release_branch": "main"
+  },
+  "dashboard": {
+    "enabled": true,
+    "output": "cache/dashboard/index.html",
+    "runs_dir": "cache/runs"
+  },
+  "cli_integration": {
+    "non_interactive_required": true,
+    "smoke_timeout_seconds": 30,
+    "require_json_output": true,
+    "live_smoke_timeout_seconds": 90,
+    "preflight_timeout_seconds": 30
   }
 }

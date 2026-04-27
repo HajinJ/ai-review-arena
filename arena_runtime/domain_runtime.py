@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence
 
 from .rag_runtime import build_index_chunks, extract_imports, extract_symbols, token_counts
+from .semantic_backends import semantic_backend_name, token_hash_vector
 
 DOC_CATEGORIES = {"accuracy", "completeness", "freshness", "readability", "examples", "consistency"}
 BUSINESS_CATEGORIES = {"accuracy", "audience", "positioning", "clarity", "evidence"}
@@ -556,6 +557,8 @@ def cmd_rag_indexer(argv: Sequence[str]) -> int:
     index_file = cache_dir / "chunks.jsonl"
     chunk_size = max(20, _as_int(cfg.get("chunk_size"), 120))
     overlap = max(0, min(chunk_size - 1, _as_int(cfg.get("chunk_overlap"), 20)))
+    semantic_backend = semantic_backend_name(str(cfg.get("semantic_backend", "disabled")))
+    semantic_dims = _as_int(cfg.get("semantic_dims"), 128)
     indexed = 0
     chunk_count = 0
     with index_file.open("w", encoding="utf-8") as out:
@@ -585,7 +588,10 @@ def cmd_rag_indexer(argv: Sequence[str]) -> int:
                     "start_line": start_line,
                     "end_line": end_line,
                     "embedding_model": cfg.get("embedding_model", "local-bm25-symbol-v1"),
+                    "semantic_backend": semantic_backend,
                 }
+                if semantic_backend != "disabled":
+                    row["semantic_vector"] = token_hash_vector(chunk, dims=semantic_dims)
                 out.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
                 chunk_count += 1
     _dump({"status": "indexed", "project_root": str(root), "index_dir": str(cache_dir), "indexed_files": indexed, "chunks": chunk_count})

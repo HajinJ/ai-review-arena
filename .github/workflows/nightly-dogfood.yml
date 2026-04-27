@@ -1,0 +1,34 @@
+name: Nightly Dogfood
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  dogfood:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq shellcheck bc
+          python -m pip install --upgrade pip build
+          python -m pip install -e .
+      - name: Provider drift diagnostics
+        run: arena provider-smoke --models codex,gemini,claude --timeout 3 || true
+      - name: Dogfood deterministic benchmarks
+        run: |
+          arena retrieval-benchmark --config config/default-config.json --max-cases 3 > retrieval.json
+          arena benchmark-harness-ablation --config config/default-config.json --max-cases 3 > ablation.json
+      - name: Build dashboard
+        run: arena dashboard-build --runs-dir cache/runs --benchmark-json retrieval.json --benchmark-json ablation.json --output cache/dashboard/index.html
+      - name: Upload dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-arena-dashboard
+          path: cache/dashboard

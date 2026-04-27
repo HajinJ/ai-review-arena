@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .harness import HarnessRun
 from .policy import ApprovalDecision, RuntimePolicy
+
+SECRET_ENV_PATTERNS = ("*API_KEY*", "*TOKEN*", "*SECRET*", "*PASSWORD*", "*CREDENTIAL*", "*PRIVATE_KEY*")
 
 
 def _repo_root() -> Path:
@@ -41,6 +45,79 @@ def _policy_from_config(cfg: Mapping[str, Any]) -> RuntimePolicy:
     return RuntimePolicy(allowed_mcp_tools=allowed, side_effect_mcp_tools=side_effect)
 
 
+def _security_cfg(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    security = cfg.get("security", {}) if isinstance(cfg.get("security"), dict) else {}
+    return {
+        "env_allowlist": ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL"],
+        "redact_env_patterns": list(SECRET_ENV_PATTERNS),
+        "allowed_commands": [],
+        "allowed_cwd_roots": [str(_repo_root())],
+        "stdout_limit_bytes": 65536,
+        "stderr_limit_bytes": 65536,
+        **security,
+    }
+
+
+def _matches_any(value: str, patterns: Sequence[Any]) -> bool:
+    return any(fnmatch.fnmatch(value, str(pattern)) for pattern in patterns)
+
+
+def _redact_text(text: str, patterns: Sequence[Any]) -> str:
+    redacted = text
+    for key, value in os.environ.items():
+        if value and len(value) >= 8 and _matches_any(key.upper(), [str(pattern).upper() for pattern in patterns]):
+            redacted = redacted.replace(value, "[redacted]")
+    return redacted
+
+
+def _bounded_text(text: str, limit: int) -> str:
+    raw = text.encode("utf-8", errors="replace")
+    if len(raw) <= limit:
+        return text
+    return raw[:limit].decode("utf-8", errors="replace") + "\n...[truncated]"
+
+
+def _safe_env(security: Mapping[str, Any]) -> dict[str, str]:
+    allowlist = {str(item) for item in security.get("env_allowlist", []) if str(item)}
+    redactions = security.get("redact_env_patterns", SECRET_ENV_PATTERNS)
+    env: dict[str, str] = {}
+    for key, value in os.environ.items():
+        if key in allowlist and not _matches_any(key.upper(), [str(pattern).upper() for pattern in redactions]):
+            env[key] = value
+    return env
+
+
+def _resolve_cwd(tool_cfg: Mapping[str, Any], security: Mapping[str, Any]) -> tuple[Path | None, str]:
+    cwd_value = str(tool_cfg.get("cwd") or _repo_root())
+    cwd = Path(cwd_value).expanduser()
+    if not cwd.is_absolute():
+        cwd = (_repo_root() / cwd).resolve()
+    else:
+        cwd = cwd.resolve()
+    roots = security.get("allowed_cwd_roots", [])
+    for root in roots if isinstance(roots, list) else []:
+        root_path = Path(str(root)).expanduser()
+        root_path = (_repo_root() / root_path).resolve() if not root_path.is_absolute() else root_path.resolve()
+        try:
+            cwd.relative_to(root_path)
+            return cwd, ""
+        except ValueError:
+            continue
+    return None, f"cwd outside allowed roots: {cwd}"
+
+
+def _authorize_command(command: Sequence[str], security: Mapping[str, Any]) -> str:
+    if not command:
+        return "empty command"
+    if any("\x00" in str(part) for part in command):
+        return "command contains NUL byte"
+    allowed = {Path(str(item)).name for item in security.get("allowed_commands", []) if str(item)}
+    executable = Path(str(command[0])).name
+    if allowed and executable not in allowed:
+        return f"command executable not allowlisted: {executable}"
+    return ""
+
+
 def _run_configured_tool(
     config: Mapping[str, Any],
     *,
@@ -52,6 +129,7 @@ def _run_configured_tool(
     timeout: int = 30,
 ) -> dict[str, Any]:
     mcp_cfg = _mcp_cfg(config)
+    security = _security_cfg(mcp_cfg)
     tool_cfg = _tool_cfg(mcp_cfg, server, tool)
     side_effect = bool(tool_cfg.get("side_effect", False))
     policy = _policy_from_config(mcp_cfg)
@@ -74,36 +152,52 @@ def _run_configured_tool(
         harness.emit("mcp.tool_blocked", phase="mcp", server=server, tool=tool, reason="tool command not configured")
         return {"allowed": False, "reason": "tool command not configured"}
     command = [str(part) for part in command]
+    command_error = _authorize_command(command, security)
+    if command_error:
+        harness.emit("mcp.tool_blocked", phase="mcp", server=server, tool=tool, reason=command_error)
+        return {"allowed": False, "reason": command_error}
+    cwd, cwd_error = _resolve_cwd(tool_cfg, security)
+    if cwd_error:
+        harness.emit("mcp.tool_blocked", phase="mcp", server=server, tool=tool, reason=cwd_error)
+        return {"allowed": False, "reason": cwd_error}
 
     if dry_run:
-        return {"allowed": True, "dry_run": True, "server": server, "tool": tool, "command": command}
+        return {"allowed": True, "dry_run": True, "server": server, "tool": tool, "command": command, "cwd": str(cwd)}
 
+    started = time.monotonic()
     completed = subprocess.run(
         command,
         input=json.dumps(input_data, ensure_ascii=False),
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        env={key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "TMPDIR", "LANG", "LC_ALL"}},
+        env=_safe_env(security),
+        cwd=str(cwd) if cwd else None,
         timeout=max(1, timeout),
         check=False,
     )
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    redactions = security.get("redact_env_patterns", SECRET_ENV_PATTERNS)
+    stdout = _bounded_text(_redact_text(completed.stdout, redactions), int(security.get("stdout_limit_bytes", 65536) or 65536))
+    stderr = _bounded_text(_redact_text(completed.stderr, redactions), int(security.get("stderr_limit_bytes", 65536) or 65536))
     harness.emit(
         "mcp.tool_completed",
         phase="mcp",
         server=server,
         tool=tool,
         exit_code=completed.returncode,
-        stdout_bytes=len(completed.stdout.encode()),
-        stderr_bytes=len(completed.stderr.encode()),
+        stdout_bytes=len(stdout.encode()),
+        stderr_bytes=len(stderr.encode()),
+        elapsed_ms=elapsed_ms,
     )
     return {
         "allowed": True,
         "server": server,
         "tool": tool,
         "exit_code": completed.returncode,
-        "stdout": completed.stdout,
-        "stderr": completed.stderr,
+        "elapsed_ms": elapsed_ms,
+        "stdout": stdout,
+        "stderr": stderr,
     }
 
 

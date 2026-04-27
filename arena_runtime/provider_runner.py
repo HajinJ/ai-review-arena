@@ -120,6 +120,68 @@ def _run(command: Sequence[str], prompt: str | None, timeout: int) -> subprocess
         return subprocess.CompletedProcess(cmd, 124, stdout or "", stderr or f"Timed out after {timeout}s")
 
 
+def _provider_preflight_command(provider: str, prompt: str) -> tuple[list[str], str | None]:
+    if provider == "codex":
+        return (
+            [
+                "codex",
+                "exec",
+                "-c",
+                'model_reasoning_effort="low"',
+                "--skip-git-repo-check",
+                "--ephemeral",
+                "--ignore-rules",
+                "--color",
+                "never",
+                "--sandbox",
+                "read-only",
+                "-",
+            ],
+            prompt,
+        )
+    if provider == "gemini":
+        return (["gemini", "--output-format", "json", "--approval-mode", "plan", "--prompt", prompt], None)
+    if provider == "claude":
+        return (["claude", "-p", prompt, "--output-format", "json"], None)
+    return ([], None)
+
+
+def _classify_cli_result(provider: str, completed: subprocess.CompletedProcess[str], *, timeout: int, elapsed_ms: int) -> Dict[str, Any]:
+    stdout = completed.stdout or ""
+    stderr = completed.stderr or ""
+    combined = f"{stdout}\n{stderr}".lower()
+    status = "ready"
+    reason = "non-interactive preflight completed"
+    if completed.returncode == 124:
+        status = "preflight_timeout"
+        reason = f"{provider} preflight timed out after {timeout}s"
+    elif any(marker in combined for marker in ["login", "not authenticated", "authentication", "api key", "oauth", "sign in"]):
+        status = "auth_required"
+        reason = f"{provider} requires authentication before non-interactive use"
+    elif any(marker in combined for marker in ["press enter", "continue?", "confirm", "interactive", "browser"]):
+        status = "interactive_prompt"
+        reason = f"{provider} requested interactive input"
+    elif completed.returncode not in {0, 1}:
+        status = "preflight_error"
+        reason = f"{provider} preflight exited with code {completed.returncode}"
+    parsed = _extract_json(stdout)
+    json_ready = bool(parsed is not None and isinstance(parsed.get("findings", []), list))
+    if status == "ready" and not json_ready and stdout.strip():
+        status = "non_json_output"
+        reason = f"{provider} completed but did not emit review JSON"
+    return {
+        "status": status,
+        "ready": status == "ready",
+        "non_interactive_ready": status == "ready",
+        "reason": reason,
+        "exit_code": completed.returncode,
+        "elapsed_cpu_ms": elapsed_ms,
+        "stdout_bytes": len(stdout.encode()),
+        "stderr_bytes": len(stderr.encode()),
+        "json_ready": json_ready,
+    }
+
+
 def _normalize(provider: str, role: str, file_path: str, parsed: Dict[str, Any]) -> Dict[str, Any]:
     payload = {
         "model": provider,
@@ -150,34 +212,18 @@ def _version(command: str) -> Dict[str, Any]:
 
 def _diagnostic_preflight(provider: str, cfg: Dict[str, Any], timeout: int) -> Dict[str, Any]:
     prompt = 'Return exactly this JSON and no other text: {"findings":[],"summary":"ok"}'
-    if provider == "codex":
-        command = ["codex", "exec", "-c", 'model_reasoning_effort="low"', "--skip-git-repo-check", "--ephemeral", "--ignore-rules", "--color", "never", "--sandbox", "read-only", "-"]
-        input_text = prompt
-    elif provider == "gemini":
-        command = ["gemini", "--output-format", "json", "--approval-mode", "plan", "--prompt", prompt]
-        input_text = None
-    else:
+    command, input_text = _provider_preflight_command(provider, prompt)
+    if not command:
         return {"status": "unsupported"}
     started = time.monotonic()
     completed = _run(command, input_text, timeout)
     elapsed_ms = int((time.monotonic() - started) * 1000)
-    status = "ready"
-    if completed.returncode == 124:
-        status = "preflight_timeout"
-    elif completed.returncode not in {0, 1}:
-        status = "preflight_error"
-    return {
-        "status": status,
-        "exit_code": completed.returncode,
-        "elapsed_cpu_ms": elapsed_ms,
-        "stdout_bytes": len(completed.stdout or ""),
-        "stderr_bytes": len(completed.stderr or ""),
-    }
+    return _classify_cli_result(provider, completed, timeout=timeout, elapsed_ms=elapsed_ms)
 
 
 def cmd_cli_diagnostics(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(prog="cli-diagnostics")
-    parser.add_argument("--models", default="codex,gemini")
+    parser.add_argument("--models", default="codex,gemini,claude")
     parser.add_argument("--config", default=str(_repo_root() / "config" / "default-config.json"))
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--timeout", type=int, default=8)
@@ -199,6 +245,42 @@ def cmd_cli_diagnostics(argv: Sequence[str]) -> int:
             row["preflight"] = _diagnostic_preflight(provider, cfg, max(1, args.timeout))
         result["providers"][provider] = row
     print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_provider_smoke(argv: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(prog="provider-smoke")
+    parser.add_argument("--models", default="codex,gemini,claude")
+    parser.add_argument("--config", default=str(_repo_root() / "config" / "default-config.json"))
+    parser.add_argument("--timeout", type=int, default=8)
+    parser.add_argument("--require-ready", action="store_true")
+    args = parser.parse_args(list(argv))
+
+    cfg = _load_json(Path(args.config))
+    providers = [item.strip() for item in args.models.split(",") if item.strip()]
+    rows: Dict[str, Any] = {}
+    ready_count = 0
+    for provider in providers:
+        version = _version(provider)
+        row: Dict[str, Any] = {**version}
+        if version.get("available"):
+            preflight = _diagnostic_preflight(provider, cfg, max(1, args.timeout))
+            row["preflight"] = preflight
+            row["non_interactive_ready"] = bool(preflight.get("non_interactive_ready"))
+            ready_count += 1 if row["non_interactive_ready"] else 0
+        else:
+            row["non_interactive_ready"] = False
+            row["preflight"] = {"status": "unavailable", "reason": f"{provider} CLI unavailable"}
+        rows[provider] = row
+    output = {
+        "status": "ready" if ready_count == len(providers) and providers else "partial",
+        "ready_count": ready_count,
+        "provider_count": len(providers),
+        "providers": rows,
+    }
+    print(json.dumps(output, ensure_ascii=False, indent=2))
+    if args.require_ready and ready_count < len(providers):
+        return 2
     return 0
 
 

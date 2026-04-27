@@ -278,10 +278,11 @@ def cmd_otel_export(argv: Sequence[str]) -> int:
         run = HarnessRun(args.project_root, run_id=run_id, run_dir=events_path.parent)
         run.events_path = events_path
     else:
-        run_dir = Path(args.run_dir) if args.run_dir else Path(os.environ.get("ARENA_RUN_DIR", ""))
-        if not run_dir:
+        run_dir_value = args.run_dir or os.environ.get("ARENA_RUN_DIR", "")
+        if not run_dir_value:
             print(json.dumps({"error": "Provide --events or --run-dir"}, ensure_ascii=False))
             return 1
+        run_dir = Path(run_dir_value)
         run = HarnessRun(args.project_root, run_id=run_dir.name, run_dir=run_dir)
     output = run.export_otlp_json(args.output or None) if args.format == "otlp-json" else run.export_otel_jsonl(args.output or None)
     print(json.dumps({"status": "exported", "output": str(output)}, ensure_ascii=False, indent=2))

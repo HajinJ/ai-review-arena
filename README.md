@@ -38,6 +38,13 @@ Core areas:
 
 ## Quick start
 
+Install the package from a checkout:
+
+```bash
+python3 -m pip install -e .
+arena validate-config config/default-config.json
+```
+
 Validate the local configuration:
 
 ```bash
@@ -47,7 +54,8 @@ python3 scripts/arena-runtime.py validate-config config/default-config.json
 Run CLI diagnostics without calling live models:
 
 ```bash
-python3 scripts/arena-runtime.py cli-diagnostics --config config/default-config.json
+arena cli-diagnostics --config config/default-config.json
+arena provider-smoke --models codex,gemini,claude --timeout 30
 ```
 
 Index and retrieve local RAG evidence:
@@ -67,8 +75,18 @@ python3 scripts/arena-runtime.py benchmark-harness-ablation --config config/defa
 Run a bounded live provider sample when the CLIs are installed and authenticated:
 
 ```bash
-python3 scripts/arena-runtime.py benchmark-models --category security --models codex,gemini --live --timeout 5 --max-cases 1
+arena benchmark-models --category security --models codex,gemini --live --smoke --timeout 90 --preflight-timeout 30 --require-live-success
 ```
+
+## Product docs
+
+- [Installation](docs/installation.md)
+- [First review in 5 minutes](docs/first-review.md)
+- [Provider setup](docs/provider-setup.md)
+- [Security model](docs/security-model.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Dashboard](docs/dashboard.md)
+- [Release process](docs/release-process.md)
 
 ## Claude Code integration
 

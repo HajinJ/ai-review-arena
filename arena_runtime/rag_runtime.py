@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from .policy import inspect_untrusted_text
+from .semantic_backends import cosine_similarity, semantic_backend_name, token_hash_vector
 
 ROLE_KEYWORDS = {
     "security": "auth authorization authentication injection xss csrf token secret credential validation sanitize escape",
@@ -54,6 +55,9 @@ def rag_config(config_file: str | os.PathLike[str] | None) -> dict[str, Any]:
         "rerank": True,
         "block_prompt_injection": False,
         "include_boundary_metadata": True,
+        "semantic_backend": "disabled",
+        "semantic_dims": 128,
+        "semantic_weight": 0.35,
         **rag,
     }
 
@@ -262,6 +266,10 @@ def retrieve_evidence(
                 continue
             raw_rows.append(row)
     bm25 = _bm25_scores(raw_rows, query_tokens)
+    semantic_backend = semantic_backend_name(str(cfg.get("semantic_backend", "disabled")))
+    semantic_dims = int(cfg.get("semantic_dims", 128) or 128)
+    semantic_weight = float(cfg.get("semantic_weight", 0.35) or 0.35)
+    query_vector = token_hash_vector(_query_for_role(role, query), dims=semantic_dims) if semantic_backend != "disabled" else []
     rows: list[dict[str, Any]] = []
     query_lower = query.lower()
     for idx, row in enumerate(raw_rows):
@@ -275,7 +283,13 @@ def retrieve_evidence(
             if str(imported).lower() in query_lower:
                 import_score += 0.2
         changed_boost = _changed_file_boost(str(row.get("file") or ""))
-        score = _score_row(row, query_tokens, preferred_file) + bm25.get(idx, 0.0) + symbol_score + import_score + changed_boost + _file_hint_score(str(row.get("file") or ""), query)
+        semantic_score = 0.0
+        row_vector = row.get("semantic_vector")
+        if semantic_backend != "disabled":
+            if not isinstance(row_vector, list):
+                row_vector = token_hash_vector(str(row.get("content") or ""), dims=semantic_dims)
+            semantic_score = max(0.0, cosine_similarity(query_vector, [float(value) for value in row_vector])) * semantic_weight
+        score = _score_row(row, query_tokens, preferred_file) + bm25.get(idx, 0.0) + symbol_score + import_score + changed_boost + _file_hint_score(str(row.get("file") or ""), query) + semantic_score
         if score <= 0:
             continue
         content = str(row.get("content") or "")
@@ -291,9 +305,10 @@ def retrieve_evidence(
                 "content": _safe_excerpt(content, max_chars),
                 "boundary": boundary if cfg.get("include_boundary_metadata", True) else {"source": boundary.get("source"), "flags": boundary.get("flags", [])},
                 "embedding_model": row.get("embedding_model", "local-bm25-symbol-v1"),
+                "semantic_backend": row.get("semantic_backend", semantic_backend),
                 "symbols": row.get("symbols", []),
                 "imports": row.get("imports", []),
-                "ranking": {"bm25": bm25.get(idx, 0.0), "symbol": round(symbol_score, 4), "import": round(import_score, 4), "changed_file": changed_boost, "file_hint": _file_hint_score(str(row.get("file") or ""), query)},
+                "ranking": {"bm25": bm25.get(idx, 0.0), "symbol": round(symbol_score, 4), "import": round(import_score, 4), "changed_file": changed_boost, "file_hint": _file_hint_score(str(row.get("file") or ""), query), "semantic": round(semantic_score, 6)},
             }
         )
     rows.sort(key=lambda item: (-float(item.get("score") or 0.0), str(item.get("file") or ""), int(item.get("chunk_id") or 0)))

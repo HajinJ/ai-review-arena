@@ -2,6 +2,23 @@
 
 All notable changes to AI Review Arena are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.0] - 2026-04-27
+
+### Added
+- External production hardening layer with `arena` console script packaging.
+- Provider readiness smoke command with non-interactive JSON preflight classification for Codex, Gemini, and Claude CLIs.
+- Live benchmark `--require-live-success` guard for production smoke jobs.
+- MCP execution hardening: command allowlist, cwd boundary, env allowlist, secret boundary, output limits, and redaction.
+- Optional local semantic RAG backend with deterministic hash vectors and semantic ranking metadata.
+- Static dashboard generator for harness events and benchmark JSON.
+- Docker-backed OpenTelemetry Collector integration smoke test.
+- GitHub Actions Python matrix, package build, deterministic benchmarks, MCP stdio smoke, OTel collector smoke, dashboard artifact upload, nightly dogfood workflow, and release workflow.
+- External onboarding docs for installation, first review, provider setup, security model, troubleshooting, dashboard, and release process.
+
+### Changed
+- Default config now exposes `version`, `cli_integration`, `dashboard`, `release`, RAG semantic settings, and MCP security settings.
+- README and Claude guidance now point users to productized `arena` CLI workflows.
+
 ## [3.2.0] - 2025
 
 ### Added

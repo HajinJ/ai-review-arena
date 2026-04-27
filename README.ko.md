@@ -38,6 +38,13 @@ Shell은 더 이상 오케스트레이션 레이어가 아닙니다. 남아 있�
 
 ## 빠른 시작
 
+체크아웃에서 패키지 설치:
+
+```bash
+python3 -m pip install -e .
+arena validate-config config/default-config.json
+```
+
 설정 검증:
 
 ```bash
@@ -47,7 +54,8 @@ python3 scripts/arena-runtime.py validate-config config/default-config.json
 live model 호출 없이 CLI 상태 확인:
 
 ```bash
-python3 scripts/arena-runtime.py cli-diagnostics --config config/default-config.json
+arena cli-diagnostics --config config/default-config.json
+arena provider-smoke --models codex,gemini,claude --timeout 30
 ```
 
 RAG index와 evidence retrieval:
@@ -67,8 +75,18 @@ python3 scripts/arena-runtime.py benchmark-harness-ablation --config config/defa
 Codex/Gemini CLI가 설치되고 인증된 환경에서 bounded live sample 실행:
 
 ```bash
-python3 scripts/arena-runtime.py benchmark-models --category security --models codex,gemini --live --timeout 5 --max-cases 1
+arena benchmark-models --category security --models codex,gemini --live --smoke --timeout 90 --preflight-timeout 30 --require-live-success
 ```
+
+## 제품 문서
+
+- [Installation](docs/installation.md)
+- [First review in 5 minutes](docs/first-review.md)
+- [Provider setup](docs/provider-setup.md)
+- [Security model](docs/security-model.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Dashboard](docs/dashboard.md)
+- [Release process](docs/release-process.md)
 
 ## Claude Code 연결
 

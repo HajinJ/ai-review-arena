@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence
 
 from .harness import HarnessRun
+from .provider_runner import _diagnostic_preflight
 from .rag_runtime import retrieval_score_for_expected_files, retrieve_evidence
 
 SEVERITY_WEIGHT = {"critical": 4, "high": 3, "medium": 2, "low": 1}
@@ -28,7 +29,7 @@ CATEGORY_POLICIES = {
     "default": {"precision_weight": 0.50, "recall_weight": 0.50, "min_precision": 0.70, "min_recall": 0.70, "max_duplicate_rate": 0.25},
 }
 BENCHMARK_PROFILES = {
-    "smoke": {"timeout_seconds": 10, "preflight_timeout_seconds": 5, "max_cases": 1, "max_parallel": 2},
+    "smoke": {"timeout_seconds": 90, "preflight_timeout_seconds": 30, "max_cases": 1, "max_parallel": 2},
     "standard": {"timeout_seconds": 15, "preflight_timeout_seconds": 8, "max_cases": 2, "max_parallel": 4},
     "calibration": {"timeout_seconds": 30, "preflight_timeout_seconds": 10, "max_cases": 8, "max_parallel": 4},
     "full": {"timeout_seconds": 60, "preflight_timeout_seconds": 0, "max_cases": 0, "max_parallel": 4},
@@ -679,37 +680,16 @@ def _review(provider: str, code_file: Path, config_file: Path, role: str, timeou
 def _provider_preflight(provider: str, timeout: int) -> Dict[str, Any]:
     if not shutil.which(provider):
         return {"ok": False, "reason": f"{provider} CLI unavailable", "elapsed_seconds": 0.0}
-    prompt = 'Return exactly this JSON and no other text: {"findings":[],"summary":"ok"}'
-    if provider == "codex":
-        command = [
-            "codex",
-            "exec",
-            "-c",
-            'model_reasoning_effort="low"',
-            "--skip-git-repo-check",
-            "--ephemeral",
-            "--ignore-rules",
-            "--color",
-            "never",
-            "--sandbox",
-            "read-only",
-            "-",
-        ]
-        input_text = prompt
-    elif provider == "gemini":
-        command = ["gemini", "--output-format", "json", "--approval-mode", "plan", "--prompt", prompt]
-        input_text = None
-    else:
-        return {"ok": True, "reason": "preflight not required", "elapsed_seconds": 0.0}
-
     started = time.monotonic()
-    completed = _run(command, input_text=input_text, timeout=max(1, timeout))
+    status = _diagnostic_preflight(provider, {}, max(1, timeout))
     elapsed = round(time.monotonic() - started, 2)
-    if completed.returncode == 124:
-        return {"ok": False, "reason": f"{provider} preflight timed out after {timeout}s", "elapsed_seconds": elapsed}
-    if completed.returncode not in {0, 1}:
-        return {"ok": False, "reason": f"{provider} preflight exited with code {completed.returncode}", "elapsed_seconds": elapsed}
-    return {"ok": True, "reason": "ready", "elapsed_seconds": elapsed}
+    return {
+        "ok": bool(status.get("non_interactive_ready")),
+        "reason": str(status.get("reason") or status.get("status") or "unknown"),
+        "status": status.get("status"),
+        "elapsed_seconds": elapsed,
+        "diagnostic": status,
+    }
 
 
 def _benchmark_timeout(config_file: Path, requested: int | None = None) -> int:
@@ -1060,6 +1040,7 @@ def cmd_benchmark_models(argv: Sequence[str]) -> int:
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--full", action="store_true")
+    parser.add_argument("--require-live-success", action="store_true")
     args = parser.parse_args(list(argv))
 
     requested = [model.strip() for model in args.models.split(",") if model.strip()]
@@ -1266,4 +1247,8 @@ def cmd_benchmark_models(argv: Sequence[str]) -> int:
         },
     }
     _dump(output)
+    if args.require_live_success and live_enabled:
+        scored = sum(int(summary.get("scored_cases", 0)) for summary in model_summary.values())
+        if scored <= 0:
+            return 2
     return 0

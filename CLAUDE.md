@@ -23,18 +23,20 @@ The runtime lives under `arena_runtime/`. Shell scripts are not the orchestratio
 ```bash
 python3 scripts/arena-runtime.py validate-config config/default-config.json
 python3 scripts/arena-runtime.py cli-diagnostics --config config/default-config.json
+arena provider-smoke --models codex,gemini,claude --timeout 30
 python3 scripts/arena-runtime.py rag-indexer . --config config/default-config.json
 python3 scripts/arena-runtime.py rag-evidence . security "credential handling" --config config/default-config.json --top-k 5
 python3 scripts/arena-runtime.py retrieval-benchmark --config config/default-config.json --max-cases 3
 python3 scripts/arena-runtime.py benchmark-harness-ablation --config config/default-config.json --max-cases 3
 python3 scripts/arena-runtime.py export-extension all --output-dir ./dist/extensions
 python3 scripts/arena-runtime.py install-claude-integration --project-root .
+arena dashboard-build --runs-dir cache/runs --output cache/dashboard/index.html
 ```
 
 Bounded live provider sample, only when local CLIs are installed and authenticated:
 
 ```bash
-python3 scripts/arena-runtime.py benchmark-models --category security --models codex,gemini --live --timeout 5 --max-cases 1
+arena benchmark-models --category security --models codex,gemini --live --smoke --timeout 90 --preflight-timeout 30 --require-live-success
 ```
 
 ## Claude Code integration
@@ -67,6 +69,8 @@ Current project integration target: `.claude/settings.json` plus `.claude/agents
 - `arena_runtime/harness.py`: event bus, JSONL export, OTLP JSON export, HTTP push.
 - `arena_runtime/mcp_runtime.py`: policy-gated MCP tool call and JSON-RPC stdio server.
 - `arena_runtime/exporters.py`: Claude, Codex, Gemini integration generation.
+- `arena_runtime/dashboard.py`: static dashboard generation from harness events and benchmark JSON.
+- `arena_runtime/semantic_backends.py`: optional local semantic scoring backend for RAG.
 - `config/default-config.json`: default policy and runtime configuration.
 
 ## Verification commands

@@ -1,8 +1,41 @@
 [project]
 name = "ai-review-arena"
-version = "0.1.0"
-description = "CLI-first multi-model AI review arena runtime"
+version = "0.2.0"
+description = "CLI-first multi-model AI review harness with RAG, MCP, benchmarks, and observability"
 requires-python = ">=3.10"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "AI Review Arena Contributors" }]
+keywords = ["ai", "code-review", "rag", "benchmark", "mcp", "opentelemetry", "codex", "gemini", "claude"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = []
 
 [project.scripts]
+arena = "arena_runtime.entrypoint:main"
 ai-review-arena = "arena_runtime.entrypoint:main"
+
+[project.urls]
+Homepage = "https://github.com/HajinJ/ai-review-arena"
+Repository = "https://github.com/HajinJ/ai-review-arena"
+Issues = "https://github.com/HajinJ/ai-review-arena/issues"
+
+[project.optional-dependencies]
+semantic = ["numpy>=1.24"]
+tree-sitter = ["tree-sitter-languages>=1.10"]
+dev = ["build>=1.2"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["arena_runtime*"]
