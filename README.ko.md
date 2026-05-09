@@ -15,6 +15,31 @@ AI Review Arena는 여러 AI 코드 리뷰어를 CLI 기반으로 실행하고, 
 - MCP allowlist와 side-effect approval을 적용한 MCP tool-call wrapper와 JSON-RPC stdio server를 제공합니다.
 - 명시적으로 설치하면 Claude Code hook과 agent 파일을 현재 프로젝트에 연결합니다.
 
+## 아키텍처
+
+```mermaid
+flowchart LR
+    A[User /<br/>Claude Code Hook] --> B[Runner<br/>state machine]
+    B --> C[RAG Engine<br/>BM25 + symbol/import]
+    C --> D{Provider Runner}
+    D --> E[Claude CLI]
+    D --> F[Codex CLI]
+    D --> G[Gemini CLI]
+    E --> H[Aggregator<br/>+ Debate]
+    F --> H
+    G --> H
+    H --> I[Report Gen<br/>+ Auto-fix]
+    I --> J[OTel Export<br/>JSONL/OTLP/HTTP]
+    B -.->|policy gate| K[MCP Runtime<br/>tool allowlist]
+
+    style A fill:#dbeafe,stroke:#2563eb
+    style D fill:#fef3c7,stroke:#d97706
+    style H fill:#dcfce7,stroke:#16a34a
+    style J fill:#f3e8ff,stroke:#9333ea
+```
+
+Runner는 phase·retry·timeout·error recovery를 소유하는 typed Python state machine입니다. CLI provider는 격리된 어댑터로 동작하고, RAG는 외부 벡터 스토어 없이 프로젝트 트리에서 로컬로 동작합니다. MCP tool 호출은 allowlist + side-effect approval 정책 게이트를 통과해야 합니다.
+
 ## 런타임 구조
 
 현대화된 런타임은 `arena_runtime/`에 있고 진입점은 다음 하나입니다.
@@ -150,6 +175,43 @@ Collector endpoint로 push:
 
 ```bash
 python3 scripts/arena-runtime.py otel-push --run-dir cache/runs/<run-id> --endpoint http://127.0.0.1:4318/v1/traces
+```
+
+## Benchmark 결과 (실측)
+
+`benchmark-harness-ablation`으로 측정한 ablation 결과 (3 cases, 2026-05-09):
+
+| 시나리오 | RAG | Debate | Harness Score |
+|----------|-----|--------|---------------|
+| `review_only` (Solo) | – | – | **0.55** |
+| `review_plus_rag` | ✅ | – | 0.911 |
+| `review_plus_debate` | – | ✅ | 0.63 |
+| **`full_harness`** | ✅ | ✅ | **0.991** |
+
+```mermaid
+xychart-beta
+    title "Harness Ablation — Scenario Comparison"
+    x-axis ["Solo", "+RAG", "+Debate", "Full"]
+    y-axis "Score" 0 --> 1
+    bar [0.55, 0.911, 0.63, 0.991]
+```
+
+RAG가 단일 요인으로 가장 큰 기여 (Solo 대비 +0.36). Full harness는 Solo 대비 **+0.44** 점프하여 0.991 도달.
+
+Retrieval benchmark (BM25 + symbol/import/changed-file/file-hint scoring):
+
+| Test ID | Category | Recall@k | MRR | Hits |
+|---------|----------|----------|-----|------|
+| retrieval-extension-01 | architecture | 1.000 | 1.000 | 1/1 |
+| retrieval-harness-01 | architecture | 1.000 | 1.000 | 1/1 |
+| retrieval-security-01 | security | 1.000 | 0.625 | 2/2 |
+| **Aggregate** | | **1.000** | **0.875** | **4/4** |
+
+로컬 재현:
+
+```bash
+python3 scripts/arena-runtime.py retrieval-benchmark --config config/default-config.json --max-cases 10
+python3 scripts/arena-runtime.py benchmark-harness-ablation --config config/default-config.json --max-cases 10
 ```
 
 ## Benchmark 전략

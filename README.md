@@ -15,6 +15,31 @@ The project does not depend on hosted provider APIs. Provider execution is inten
 - Provides a policy-gated MCP runtime, including a JSON-RPC stdio server for configured MCP tools.
 - Installs Claude Code hooks and agent files for project-local integration when explicitly enabled.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    A[User /<br/>Claude Code Hook] --> B[Runner<br/>state machine]
+    B --> C[RAG Engine<br/>BM25 + symbol/import]
+    C --> D{Provider Runner}
+    D --> E[Claude CLI]
+    D --> F[Codex CLI]
+    D --> G[Gemini CLI]
+    E --> H[Aggregator<br/>+ Debate]
+    F --> H
+    G --> H
+    H --> I[Report Gen<br/>+ Auto-fix]
+    I --> J[OTel Export<br/>JSONL/OTLP/HTTP]
+    B -.->|policy gate| K[MCP Runtime<br/>tool allowlist]
+
+    style A fill:#dbeafe,stroke:#2563eb
+    style D fill:#fef3c7,stroke:#d97706
+    style H fill:#dcfce7,stroke:#16a34a
+    style J fill:#f3e8ff,stroke:#9333ea
+```
+
+The runner is a typed Python state machine that owns phases, retries, timeouts, and error recovery. CLI providers are isolated adapters. RAG runs locally over the project tree (no external vector store). MCP tool calls pass through a policy gate with allowlist and side-effect approval.
+
 ## Runtime model
 
 The modern runtime lives in `arena_runtime/` and is entered through:
@@ -150,6 +175,43 @@ Push OTLP JSON to a collector endpoint:
 
 ```bash
 python3 scripts/arena-runtime.py otel-push --run-dir cache/runs/<run-id> --endpoint http://127.0.0.1:4318/v1/traces
+```
+
+## Benchmark Results (measured)
+
+Harness ablation result from `benchmark-harness-ablation` (3 cases, 2026-05-09):
+
+| Scenario | RAG | Debate | Harness Score |
+|----------|-----|--------|---------------|
+| `review_only` (Solo) | – | – | **0.55** |
+| `review_plus_rag` | ✅ | – | 0.911 |
+| `review_plus_debate` | – | ✅ | 0.63 |
+| **`full_harness`** | ✅ | ✅ | **0.991** |
+
+```mermaid
+xychart-beta
+    title "Harness Ablation — Scenario Comparison"
+    x-axis ["Solo", "+RAG", "+Debate", "Full"]
+    y-axis "Score" 0 --> 1
+    bar [0.55, 0.911, 0.63, 0.991]
+```
+
+RAG is the largest single contributor (+0.36 over Solo). Full harness reaches 0.991 — a +0.44 jump from Solo review.
+
+Retrieval benchmark (BM25 + symbol/import/changed-file/file-hint scoring):
+
+| Test ID | Category | Recall@k | MRR | Hits |
+|---------|----------|----------|-----|------|
+| retrieval-extension-01 | architecture | 1.000 | 1.000 | 1/1 |
+| retrieval-harness-01 | architecture | 1.000 | 1.000 | 1/1 |
+| retrieval-security-01 | security | 1.000 | 0.625 | 2/2 |
+| **Aggregate** | | **1.000** | **0.875** | **4/4** |
+
+Reproduce locally:
+
+```bash
+python3 scripts/arena-runtime.py retrieval-benchmark --config config/default-config.json --max-cases 10
+python3 scripts/arena-runtime.py benchmark-harness-ablation --config config/default-config.json --max-cases 10
 ```
 
 ## Benchmarking strategy
